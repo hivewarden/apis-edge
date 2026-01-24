@@ -3,13 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Typography, Row, Col, Empty, Spin, Button, message, Divider, Select } from 'antd';
 import { PlusOutlined, ReloadOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import { UnitStatusCard, Unit } from '../components/UnitStatusCard';
-import { DetectionCountCard } from '../components/DetectionCountCard';
-import { WeatherCard } from '../components/WeatherCard';
-import { TimeRangeSelector } from '../components/TimeRangeSelector';
-import { ActivityClock } from '../components/ActivityClock';
-import { TemperatureCorrelationChart } from '../components/TemperatureCorrelationChart';
-import { TrendChart } from '../components/TrendChart';
-import { TimeRangeProvider } from '../providers/TimeRangeContext';
 import { apiClient } from '../providers/apiClient';
 
 const { Title, Paragraph } = Typography;
@@ -44,10 +37,9 @@ const POLL_INTERVAL_MS = 30000; // 30 seconds
  * Main landing page showing overview of APIS system status.
  * Displays:
  * - Site selector for filtering data
- * - Detection count card (Epic 3, Story 3.2)
  * - Unit status cards with auto-refresh every 30 seconds
  *
- * Part of Epic 2, Story 2.4 & Epic 3, Story 3.2
+ * Part of Epic 2, Story 2.4
  */
 export function Dashboard() {
   const navigate = useNavigate();
@@ -64,7 +56,6 @@ export function Dashboard() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Fetch sites for selector
   const fetchSites = useCallback(async () => {
@@ -149,7 +140,6 @@ export function Dashboard() {
 
   const handleManualRefresh = () => {
     fetchUnits(true);
-    setRefreshTrigger((prev) => prev + 1);
   };
 
   const selectedSite = sites.find((s) => s.id === selectedSiteId);
@@ -186,54 +176,6 @@ export function Dashboard() {
           )}
         </div>
       </div>
-
-      <Divider />
-
-      {/* Detection Stats Section */}
-      <TimeRangeProvider>
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <Title level={4} style={{ margin: 0 }}>Detection Activity</Title>
-            <TimeRangeSelector />
-          </div>
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={12} lg={8}>
-              <DetectionCountCard
-                siteId={selectedSiteId}
-                refreshTrigger={refreshTrigger}
-              />
-            </Col>
-            <Col xs={24} md={12} lg={8}>
-              <WeatherCard
-                siteId={selectedSiteId}
-                refreshTrigger={refreshTrigger}
-              />
-            </Col>
-            <Col xs={24} md={12} lg={8}>
-              <ActivityClock
-                siteId={selectedSiteId}
-                refreshTrigger={refreshTrigger}
-              />
-            </Col>
-          </Row>
-
-          {/* Charts Row */}
-          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-            <Col xs={24} lg={12}>
-              <TemperatureCorrelationChart
-                siteId={selectedSiteId}
-                refreshTrigger={refreshTrigger}
-              />
-            </Col>
-            <Col xs={24} lg={12}>
-              <TrendChart
-                siteId={selectedSiteId}
-                refreshTrigger={refreshTrigger}
-              />
-            </Col>
-          </Row>
-        </div>
-      </TimeRangeProvider>
 
       <Divider />
 

@@ -65,14 +65,14 @@ development_status:
   epic-2-retrospective: optional
 
   # Epic 3: Hornet Detection Dashboard
-  epic-3: done
-  3-1-detection-events-table-api: done
-  3-2-todays-detection-count-card: done
-  3-3-weather-integration: done
-  3-4-time-range-selector: done
-  3-5-activity-clock-visualization: done
-  3-6-temperature-correlation-chart: done
-  3-7-daily-weekly-trend-line-chart: done
+  epic-3: backlog
+  3-1-detection-events-table-api: backlog
+  3-2-todays-detection-count-card: backlog
+  3-3-weather-integration: backlog
+  3-4-time-range-selector: backlog
+  3-5-activity-clock-visualization: backlog
+  3-6-temperature-correlation-chart: backlog
+  3-7-daily-weekly-trend-line-chart: backlog
   epic-3-retrospective: optional
 
   # Epic 4: Clip Archive & Video Review

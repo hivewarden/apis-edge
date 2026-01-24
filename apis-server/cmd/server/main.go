@@ -119,7 +119,6 @@ func main() {
 		r.Get("/api/sites/{id}", handlers.GetSite)
 		r.Put("/api/sites/{id}", handlers.UpdateSite)
 		r.Delete("/api/sites/{id}", handlers.DeleteSite)
-		r.Get("/api/sites/{id}/weather", handlers.GetSiteWeather) // Epic 3, Story 3.3
 
 		// Units endpoints - Epic 2, Story 2.2
 		r.Get("/api/units", handlers.ListUnits)
@@ -128,15 +127,6 @@ func main() {
 		r.Put("/api/units/{id}", handlers.UpdateUnit)
 		r.Delete("/api/units/{id}", handlers.DeleteUnit)
 		r.Post("/api/units/{id}/regenerate-key", handlers.RegenerateUnitKey)
-
-		// Detections endpoints - Epic 3, Story 3.1
-		// Dashboard reads detection data and statistics
-		r.Get("/api/detections", handlers.ListDetections)
-		r.Get("/api/detections/stats", handlers.GetDetectionStats)
-		r.Get("/api/detections/hourly", handlers.GetHourlyDetections)
-		r.Get("/api/detections/trend", handlers.GetDetectionTrend)
-		r.Get("/api/detections/temperature-correlation", handlers.GetTemperatureCorrelation)
-		r.Get("/api/detections/{id}", handlers.GetDetection)
 
 		// WebSocket stream endpoint - Epic 2, Story 2.5
 		// Proxies MJPEG video from unit to dashboard via WebSocket
@@ -152,10 +142,6 @@ func main() {
 		// Heartbeat endpoint - Epic 2, Story 2.3
 		// Units send heartbeats to update last_seen, ip_address, status, and optional telemetry
 		r.Post("/api/units/heartbeat", handlers.Heartbeat)
-
-		// Detection endpoint - Epic 3, Story 3.1
-		// Units send detection events when hornets are detected
-		r.Post("/api/units/detections", handlers.CreateDetection)
 	})
 
 	portStr := os.Getenv("PORT")
