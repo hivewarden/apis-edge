@@ -1,0 +1,192 @@
+services:
+  # YugabyteDB - PostgreSQL-compatible distributed database
+  # Pinned to 2024.2 LTS - required ≥2.21.1 for Zitadel compatibility
+  yugabytedb:
+    image: yugabytedb/yugabyte:2024.2.7.2-b1
+    container_name: apis-yugabytedb
+    command: bin/yugabyted start --daemon=false --advertise_address=yugabytedb
+    ports:
+      - "5433:5433"   # YSQL (PostgreSQL-compatible)
+      - "9000:9000"   # YugabyteDB UI
+      - "7100:7000"   # Master UI (mapped to 7100 to avoid macOS AirPlay conflict)
+    volumes:
+      - yugabytedb_data:/home/yugabyte/data
+    environment:
+      - YSQL_USER=${YSQL_USER:-yugabyte}
+      - YSQL_PASSWORD=${YSQL_PASSWORD:-yugabyte}
+      - YSQL_DB=${YSQL_DB:-yugabyte}
+    healthcheck:
+      test: ["CMD", "bin/yugabyted", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - apis-network
+
+  # YugabyteDB initialization container
+  # Creates required databases (zitadel, apis) before other services start
+  yugabytedb-init:
+    image: postgres:16-alpine
+    container_name: apis-yugabytedb-init
+    volumes:
+      - ./scripts/init-yugabytedb.sh:/init-yugabytedb.sh:ro
+    environment:
+      - YSQL_HOST=yugabytedb
+      - YSQL_PORT=5433
+      - YSQL_USER=${YSQL_USER:-yugabyte}
+      - YSQL_PASSWORD=${YSQL_PASSWORD:-yugabyte}
+    entrypoint: ["/bin/sh", "/init-yugabytedb.sh"]
+    depends_on:
+      yugabytedb:
+        condition: service_healthy
+    networks:
+      - apis-network
+    restart: "no"
+
+  # Zitadel - Identity Provider (OIDC/OAuth2)
+  # NOTE: YugabyteDB direct integration has stored procedure compatibility issues.
+  # Keeping separate PostgreSQL for now. Revisit when Zitadel improves YugabyteDB support.
+  # See: https://github.com/zitadel/zitadel/discussions/8840
+  zitadel-db:
+    image: postgres:16-alpine
+    container_name: apis-zitadel-db
+    environment:
+      - POSTGRES_USER=zitadel
+      - POSTGRES_PASSWORD=zitadel
+      - POSTGRES_DB=zitadel
+    volumes:
+      - zitadel_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zitadel -d zitadel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - apis-network
+
+  zitadel:
+    image: ghcr.io/zitadel/zitadel:v4.9.2
+    container_name: apis-zitadel
+    command: start-from-init --masterkeyFromEnv --tlsMode disabled
+    ports:
+      - "8080:8080"
+    environment:
+      - ZITADEL_MASTERKEY=${ZITADEL_MASTERKEY}
+      # Database connection - using dedicated PostgreSQL
+      # TODO: Switch to YugabyteDB when compatibility improves
+      - ZITADEL_DATABASE_POSTGRES_HOST=zitadel-db
+      - ZITADEL_DATABASE_POSTGRES_PORT=5432
+      - ZITADEL_DATABASE_POSTGRES_DATABASE=zitadel
+      - ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME=zitadel
+      - ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD=zitadel
+      - ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE=disable
+      - ZITADEL_DATABASE_POSTGRES_USER_USERNAME=zitadel
+      - ZITADEL_DATABASE_POSTGRES_USER_PASSWORD=zitadel
+      - ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE=disable
+      # External access
+      - ZITADEL_EXTERNALSECURE=false
+      - ZITADEL_EXTERNALPORT=8080
+      - ZITADEL_EXTERNALDOMAIN=localhost
+      # First organization setup
+      - ZITADEL_FIRSTINSTANCE_ORG_NAME=APIS
+      - ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME=admin
+      - ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD=${ZITADEL_ADMIN_PASSWORD}
+    depends_on:
+      zitadel-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/debug/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - apis-network
+
+  # Go API Server
+  apis-server:
+    build:
+      context: ./apis-server
+      dockerfile: Dockerfile
+    container_name: apis-server
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=${PORT:-3000}
+      # OpenBao connection - change these to connect to external OpenBao
+      - OPENBAO_ADDR=${OPENBAO_ADDR:-http://openbao:8200}
+      - OPENBAO_TOKEN=${OPENBAO_TOKEN:-apis-dev-token}
+      - OPENBAO_SECRET_PATH=${OPENBAO_SECRET_PATH:-secret/data/apis}
+      # Fallback for local dev without OpenBao (set SECRETS_SOURCE=env to use env vars)
+      - SECRETS_SOURCE=${SECRETS_SOURCE:-openbao}
+      # Direct env vars (used when SECRETS_SOURCE=env or as fallback)
+      - DATABASE_URL=postgres://${YSQL_USER:-yugabyte}:${YSQL_PASSWORD:-yugabyte}@yugabytedb:5433/apis?sslmode=disable
+      - ZITADEL_ISSUER=http://zitadel:8080
+      - ZITADEL_CLIENT_ID=${ZITADEL_CLIENT_ID:-}
+    depends_on:
+      yugabytedb-init:
+        condition: service_completed_successfully
+      openbao:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - apis-network
+
+  # React Dashboard (development server)
+  apis-dashboard:
+    build:
+      context: ./apis-dashboard
+      dockerfile: Dockerfile.dev
+    container_name: apis-dashboard
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apis-dashboard:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:3000/api
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:5173 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - apis-network
+
+  # OpenBao - Secrets Management (Vault-compatible)
+  # To connect to external OpenBao: remove this service and set OPENBAO_ADDR/OPENBAO_TOKEN
+  openbao:
+    image: quay.io/openbao/openbao:latest
+    container_name: apis-openbao
+    command: server -dev -dev-root-token-id=${OPENBAO_DEV_TOKEN:-apis-dev-token}
+    ports:
+      - "8200:8200"
+    environment:
+      - OPENBAO_ADDR=http://0.0.0.0:8200
+      - OPENBAO_DEV_ROOT_TOKEN_ID=${OPENBAO_DEV_TOKEN:-apis-dev-token}
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD-SHELL", "BAO_ADDR=http://127.0.0.1:8200 bao status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - apis-network
+
+networks:
+  apis-network:
+    driver: bridge
+
+volumes:
+  yugabytedb_data:
+  zitadel_db_data:

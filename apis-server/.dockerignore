@@ -1,0 +1,20 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build artifacts
+/apis-server
+*.exe
+
+# Test files
+*_test.go
+
+# Documentation
+*.md
+!README.md

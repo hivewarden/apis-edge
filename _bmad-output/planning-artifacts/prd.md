@@ -19,11 +19,11 @@ documentCounts:
   projectDocs: 0
 ---
 
-# Product Requirements Document - Hornet Detection Laser Deterrent System
+# Product Requirements Document - APIS: Anti-Predator Interference System
 
 **Author:** Jermoo
-**Date:** 2026-01-21
-**Version:** 1.0
+**Date:** 2026-01-22
+**Version:** 2.0
 **Status:** Draft
 
 ---
@@ -32,14 +32,30 @@ documentCounts:
 
 An open-source, camera-based detection system that identifies Asian hornets (Vespa velutina) hovering near beehive entrances and deters them using a low-power green laser. The system aims to protect honeybee colonies from this invasive predator using affordable, widely available components that hobbyist beekeepers can replicate.
 
+**Primary Deliverable:** Edge hardware device (3 development paths)
+**Supporting Infrastructure:** Companion portal for monitoring, analysis, and hive management
+
 **Primary User:** Jermoo (beekeeper with 2 hives, project creator)
 **Target Audience:** Hobbyist beekeepers willing to build DIY electronics projects
 **Distribution Model:** Open source (GitHub, documentation, bill of materials)
+
+### Product Vision Evolution
+
+The core mission remains **hornet detection and laser deterrent hardware**. During UX design, the companion portal expanded from a simple dashboard to a **complete beekeeping management portal** — the philosophy being: *"If you're going to attach technology to beekeeping, it all goes through one portal."*
+
+| Component | Priority | Description |
+|-----------|----------|-------------|
+| **Edge Hardware** | P1 — Core | Detection + deterrent device (Pi 5 → ESP32) |
+| **Hornet Dashboard** | P1 — Core | Monitor protection, view patterns, review clips |
+| **Hive Diary** | P2 — Supporting | Inspection records, treatments, harvests |
+| **BeeBrain AI** | P3 — Enhancement | Pattern analysis, recommendations |
+| **Future Sensors** | P4 — Future | Weight, temperature, humidity, sound |
 
 ---
 
 ## Table of Contents
 
+**Part A: Edge Hardware (Core Product)**
 1. [Problem Statement](#1-problem-statement)
 2. [Solution Overview](#2-solution-overview)
 3. [User Profile](#3-user-profile)
@@ -52,11 +68,20 @@ An open-source, camera-based detection system that identifies Asian hornets (Ves
 10. [Risk Assessment](#10-risk-assessment)
 11. [Success Criteria](#11-success-criteria)
 12. [Implementation Strategy](#12-implementation-strategy)
-13. [Future Considerations](#13-future-considerations)
-14. [Companion Server Application](#14-companion-server-application)
-15. [Bill of Materials](#15-bill-of-materials)
-16. [Gap Analysis: Beehive Monitoring Features](#16-gap-analysis-beehive-monitoring-features)
-17. [Research Sources](#17-research-sources)
+13. [Bill of Materials](#13-bill-of-materials)
+
+**Part B: Companion Portal (Supporting Infrastructure)**
+14. [Portal Overview](#14-portal-overview)
+15. [Hornet Dashboard](#15-hornet-dashboard)
+16. [Hive Diary Module](#16-hive-diary-module)
+17. [BeeBrain AI](#17-beebrain-ai)
+18. [Mobile PWA Requirements](#18-mobile-pwa-requirements)
+19. [Data Architecture](#19-data-architecture)
+20. [Portal Technical Stack](#20-portal-technical-stack)
+
+**Part C: Future & Research**
+21. [Future Sensors](#21-future-sensors)
+22. [Research Sources](#22-research-sources)
 
 ---
 
@@ -126,6 +151,37 @@ A camera-based system that:
 - Use machine learning for classification (simple size/behavior filtering)
 - Connect to cloud services (local operation only)
 
+### 2.4 Expanded Vision: One Portal for All Beekeeping Tech
+
+During UX design, the companion server evolved from a simple dashboard to a comprehensive beekeeping management portal. The philosophy:
+
+> *"If you're going to attach technology to beekeeping, it all goes through one portal."*
+
+**Core (supports hardware):**
+- Hornet detection dashboard with pattern visualization
+- Activity Clock (24-hour polar chart of hornet activity)
+- Temperature correlation charts
+- Nest radius estimation from hornet timing
+- Clip archive with search/filter
+
+**Extended (hive management):**
+- Full hive diary with inspections
+- Frame-level tracking (brood, honey, empty)
+- Treatment and feeding logs
+- Harvest tracking (Flow Hive support)
+- Equipment inventory per hive
+
+**AI-Powered:**
+- BeeBrain: Mini AI model for pattern analysis
+- Per-section insights with recommendations
+- Exportable data for external LLM analysis
+
+**Mobile-First:**
+- Glove-friendly PWA (64px tap targets)
+- Voice input via Whisper
+- Offline-first with sync queue
+- QR code hive navigation
+
 ---
 
 ## 3. User Profile
@@ -157,9 +213,33 @@ A camera-based system that:
 - "Flash and go" software (minimal configuration)
 - Multiple hardware options for different budgets
 
-### 3.3 Success Metric for Users
+### 3.3 Expanded User Needs (from UX Design)
+
+| Need | Context |
+|------|---------|
+| **Trust at a glance** | Know hives are protected in 2 seconds |
+| **Pattern learning** | Understand when/why hornets come |
+| **Field recording** | Log inspections with gloves on |
+| **Offline operation** | Apiaries often have no signal |
+| **Voice input** | Can't type with bee suit gloves |
+| **One portal** | All beekeeping tech in one place |
+| **Long-term data** | Track hive development over years |
+| **Seasonal insights** | Learn from each season's patterns |
+
+### 3.4 User Tiers (UI Modes)
+
+| Mode | Target User | UI Approach |
+|------|-------------|-------------|
+| **Hobby** (default) | 1-10 hives | Clean, simple, contextual feature reveal |
+| **Enterprise** | 50+ hives | Dense tables, bulk operations, team access |
+
+Features are not paywalled — tiers control UI density only. All features available to all users.
+
+### 3.5 Success Metric for Users
 
 > "Can someone with Jermoo's skill level (no electronics experience) replicate this from the documentation?"
+
+> "Does the portal feel like a warm beekeeping companion, not a clinical IoT dashboard?"
 
 ---
 
@@ -713,19 +793,40 @@ DETAILED EXECUTION PLAN
 
 ---
 
-## 13. Future Considerations
+## 13. Bill of Materials
 
-### 13.1 Deferred to Future Versions
+### 13.1 Path C: Prototype (Jermoo's Build)
 
+| Item | Specification | Qty | Have? | Est. Cost (€) | Source |
+|------|---------------|-----|-------|---------------|--------|
+| Raspberry Pi 5 | 4GB or 8GB | 1 | ✅ | 0 | - |
+| Pi Camera | OV5647 5MP | 1 | ✅ | 0 | - |
+| CSI Ribbon Cable | 15-pin to 22-pin for Pi 5 | 1 | ✅ | 0 | - |
+| SG90 Servo | 9g micro servo | 1 | ❌ | 2-3 | Amazon/AliExpress |
+| Green Line Laser | 5mW 520-532nm | 1 | ❌ | 5-10 | Amazon/AliExpress |
+| 2N2222 Transistor | NPN for laser switching | 1 | ❌ | 0.50 | Electronics shop |
+| 1kΩ Resistor | For transistor base | 1 | ❌ | 0.10 | Electronics shop |
+| 100µF Capacitor | Servo power smoothing | 1 | ❌ | 0.50 | Electronics shop |
+| Jumper Wires | Female-to-female | 10 | ❌ | 2-3 | Amazon |
+| USB-C Power Supply | 5V 5A (official Pi 5 PSU) | 1 | ❓ | 0-15 | If not owned |
+| **TOTAL** | | | | **~€10-25** | |
 
-| Feature | Rationale for Deferral |
-|---------|----------------------|
-| Solar power | Need to finalize hardware and power budget first |
-| Weatherproof enclosure | Design after controller/power decisions |
-| Machine learning classification | Simple algorithm first; ML if needed |
-| Cloud connectivity | Local operation sufficient for prototype |
-| Mobile app | Not needed for initial testing |
-| Multiple camera angles | Single camera first |
+### 13.2 Path A: ESP32-CAM Production Version
+
+| Item | Specification | Qty | Est. Cost (€) |
+|------|---------------|-----|---------------|
+| ESP32-CAM-MB | With USB programmer board | 1 | 10-12 |
+| SG90 Servo | 9g micro servo | 1 | 2-3 |
+| Green Line Laser | 5mW 520-532nm | 1 | 5-10 |
+| 2N2222 Transistor | NPN | 1 | 0.50 |
+| Resistors/Capacitors | Assorted | - | 1 |
+| Jumper Wires | | 10 | 2 |
+| USB Power Supply | 5V 3A | 1 | 5-10 |
+| **TOTAL** | | | **~€25-40** |
+
+---
+
+# Part B: Companion Portal (Supporting Infrastructure)
 
 ### 11.2 IoT Hub Potential (Path B)
 
@@ -755,389 +856,574 @@ Even if deterrence fails, the detection system provides value:
 
 ---
 
-## 14. Companion Server Application
+## 14. Portal Overview
 
-The device pushes clips and telemetry to a separate server application that runs on the user's infrastructure (old PC, NAS, Raspberry Pi, or cloud). This provides the web dashboard, clip storage, and historical analytics.
+The companion portal runs on user's infrastructure (old PC, NAS, Raspberry Pi, or cloud). It provides monitoring, analysis, and complete hive management.
 
-### 13.1 Dashboard Features
+### 14.1 Portal Purpose
 
-| Feature | Description |
+| Purpose | Description |
 |---------|-------------|
-| **Live video** | Embedded MJPEG stream from device |
-| **Device health** | Online/offline status, temperature, storage, armed state |
-| **Today's stats** | Detection count, laser activations, clips saved |
-| **Weather integration** | Temperature and conditions from OpenWeatherMap API |
-| **Clip browser** | List, play, download saved incident clips |
-| **History view** | Day-by-day log with weather, detection counts |
-| **Search/filter** | Find incidents by date range |
-| **Multi-device** | Support multiple hives (future) |
+| **Support hardware** | Monitor device status, view detections, review clips |
+| **Enable learning** | Visualize patterns, correlations, insights |
+| **Manage hives** | Record inspections, treatments, harvests |
+| **Work anywhere** | Mobile-friendly, offline-capable PWA |
 
-### 13.2 Dashboard Wireframe
+### 14.2 Portal Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│  🐝 HORNET DETECTOR DASHBOARD                          [Jermoo] [Settings]  │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─────────────────────────┐  ┌─────────────────────────────────────────┐   │
-│  │                         │  │  DEVICE STATUS                          │   │
-│  │    [LIVE VIDEO FEED]    │  │  ● Online (last ping: 2s ago)          │   │
-│  │                         │  │  Armed: YES                             │   │
-│  │                         │  │  Temp: 52°C | Storage: 23% used        │   │
-│  └─────────────────────────┘  └─────────────────────────────────────────┘   │
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │  TODAY: January 21, 2026          ☀️ Sunny, 12°C                       ││
-│  │  Detections: 7    |    Laser activations: 7    |    Clips saved: 7     ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │  RECENT INCIDENTS                                                       ││
-│  │  📹 14:32:05 - hornet_2026-01-21_14-32-05.mp4  [▶ Play] [⬇ Download]   ││
-│  │  📹 11:47:22 - hornet_2026-01-21_11-47-22.mp4  [▶ Play] [⬇ Download]   ││
-│  │  📹 10:15:03 - hornet_2026-01-21_10-15-03.mp4  [▶ Play] [⬇ Download]   ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │  HISTORY                                          [Filter] [Export]     ││
-│  │  Date          Weather      Detections    Clips                         ││
-│  │  2026-01-21    ☀️ 12°C        7            7    [View]                  ││
-│  │  2026-01-20    🌧️ 8°C         2            2    [View]                  ││
-│  │  2026-01-19    ⛅ 10°C        5            5    [View]                  ││
-│  │  ...                                                                    ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
-└──────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                      APIS PORTAL                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │   Hornet     │  │    Hive      │  │   BeeBrain   │          │
+│  │  Dashboard   │  │    Diary     │  │      AI      │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+│         │                 │                 │                   │
+│         └─────────────────┼─────────────────┘                   │
+│                           │                                     │
+│                    ┌──────┴──────┐                              │
+│                    │  Unified    │                              │
+│                    │  Data Layer │                              │
+│                    └──────┬──────┘                              │
+│                           │                                     │
+│         ┌─────────────────┼─────────────────┐                   │
+│         │                 │                 │                   │
+│  ┌──────┴──────┐  ┌───────┴───────┐  ┌─────┴─────┐             │
+│  │ Edge Device │  │   Weather     │  │  Manual   │             │
+│  │    Data     │  │     API       │  │   Entry   │             │
+│  └─────────────┘  └───────────────┘  └───────────┘             │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 13.3 Technical Stack
+### 14.3 Data Hierarchy
+
+```
+User Account
+└── Sites (physical locations)
+    └── Site "Home Apiary" (GPS coordinates)
+        ├── Units (APIS hardware devices)
+        │   ├── Unit A → covers Hives 1, 2
+        │   └── Unit B → covers Hives 3, 4
+        └── Hives
+            └── Hive 1
+                ├── Inspections
+                ├── Treatments
+                ├── Harvests
+                └── Sensor data (from Unit A)
+```
+
+### 14.4 Navigation Structure (Sidebar Layout)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ ┌─────────┐                                                     │
+│ │ 🐝 APIS │                    Main Content Area                │
+│ ├─────────┤                                                     │
+│ │         │  ┌───────────────────────────────────────────────┐  │
+│ │ □ Dash  │  │                                               │  │
+│ │ □ Hives │  │   [Site ▼] [Unit ▼] [Hive ▼]                 │  │
+│ │ □ Diary │  │   [< Day >] [Week] [Month] [Season] [Year]   │  │
+│ │ □ Clips │  │                                               │  │
+│ │ □ Stats │  │   Content...                                  │  │
+│ │         │  │                                               │  │
+│ ├─────────┤  └───────────────────────────────────────────────┘  │
+│ │ ⚙ Set.  │                                                     │
+│ │ 👤 User │                                                     │
+│ └─────────┘                                                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 15. Hornet Dashboard
+
+### 15.1 Dashboard Purpose
+
+The dashboard is primarily a **learning tool** — helping beekeepers understand hornet behavior patterns at their specific location. Video clips validate the system initially but become archive material for ongoing use.
+
+**Two-Phase Usage Model:**
+
+| Phase | When | Focus | Video Role |
+|-------|------|-------|------------|
+| **Validation** | First 3 days | Verify system works | Primary — watch clips |
+| **Ongoing** | Rest of season | Learn patterns, monitor trends | Archive — accessible but secondary |
+
+### 15.2 Daily Glance (Top Section)
+
+| Card | Content |
+|------|---------|
+| **Weather** | Current temperature, conditions |
+| **Hornets** | "7 deterred today" — simple count |
+| **Hardware** | "OK" or "Needs attention" — click for details |
+
+Hardware status leads to detailed page showing all units, sensor readings, storage, temperature.
+
+### 15.3 Activity Clock (Hero Visualization)
+
+24-hour polar/radar chart showing hornet activity by hour of day:
+
+```
+              12:00
+                ▲
+          11  / | \  13
+            /  |  \
+       10 /    |    \ 14    ← Peak activity visible
+         |     ●     |         at 14:00-16:00
+    09 ──|───────────|── 15
+         |           |
+        8 \         / 16
+            \     /
+          7  \   /  17
+              \ /
+              18:00
+
+Radius = detection count per hour
+```
+
+**Chart:** `@ant-design/charts` Radar or Rose chart
+
+### 15.4 Pattern Insight Charts
+
+| Chart | Type | What Users Learn |
+|-------|------|------------------|
+| **Temperature Correlation** | Scatter | "Hornets prefer 18-24°C" |
+| **Daily/Weekly Trend** | Line/Area | Activity patterns over time |
+| **Weather Overlay** | Custom | Sunny vs cloudy comparison |
+
+### 15.5 Time Range Selector
+
+Global control affecting all charts:
+
+```
+[< Day >]  [Week]  [Month]  [Season]  [Year]  [All Time]
+```
+
+- `<` and `>` arrows navigate to previous/next period
+- All charts update together when range changes
+- **Component:** Ant Design `Segmented` with custom navigation
+
+### 15.6 Nest Radius Estimator
+
+Optional map feature calculating estimated nest distance:
+
+- User enables map, sets site GPS location
+- System tracks hornet departure/return timing
+- Calculates flight distance (~20-25 km/h)
+- Displays radius circle on map showing probable nest area
+- Aggregates data from all units at a site
+
+### 15.7 Clip Archive
+
+- Recent clips list with thumbnails
+- Date filter/search
+- Easy access for validation phase users
+- Secondary to pattern insights in ongoing phase
+
+---
+
+## 16. Hive Diary Module
+
+### 16.1 Purpose
+
+Full hive inspection tracking — what every beekeeper already does on paper, digitized with APIS integration.
+
+### 16.2 Hive Configuration
+
+| Field | Description |
+|-------|-------------|
+| Hive name/number | "Hive 3" |
+| Queen age | When introduced |
+| Queen source | Breeder, swarm, split, purchased |
+| Brood boxes | Number of boxes |
+| Honey supers | Number of supers |
+| Box history | When added/removed |
+
+### 16.3 Inspection Form (V1)
+
+Quick-entry fields optimized for field use:
+
+| Section | Fields | Input Type |
+|---------|--------|------------|
+| **Queen** | Seen / Eggs / Q-cells | Toggles |
+| **Brood** | Frames count + Pattern | Stepper + Select |
+| **Stores** | Honey / Pollen | Low/Med/High |
+| **Space** | Tight/OK/Plenty + Needs super? | Select + Toggle |
+| **Varroa** | Estimate | Low/Med/High |
+| **Temperament** | Calm/Nervous/Defensive | Select |
+| **Issues** | DWV, Chalkbrood, Wax moth, AFB | Checkboxes |
+| **Actions** | +Super, Fed, Treated | Checkboxes |
+| **Notes** | Free text | Voice input |
+| **Photos** | Attach images | Camera/Library |
+
+### 16.4 Frame-Level Tracking
+
+Per-box frame inventory:
+
+| Field | Description |
+|-------|-------------|
+| Total frames | How many in box |
+| Drawn comb | Frames with comb built |
+| Brood frames | Frames with brood |
+| Honey frames | Frames with capped honey |
+| Pollen frames | Frames with pollen |
+| Empty/foundation | Auto-calculated |
+
+**Long-term graphs:** Track frame development over season and across years.
+
+### 16.5 Treatment & Feeding Logs
+
+**Feeding:**
+- Date, hive, feed type, amount, concentration
+- Feed types: Sugar syrup, Fondant, Pollen patty, Custom...
+
+**Treatments:**
+- Date, hive, treatment type, method, dose
+- Treatment types: Oxalic acid, Formic acid, Apivar, MAQS, Custom...
+- Mite count before/after (optional)
+
+**Custom Labels:** Users can create their own categories for feeds, treatments, equipment, issues.
+
+### 16.6 Treatment Calendar
+
+- Reminders for scheduled treatments
+- "Last treatment X days ago" warnings
+- History log of all treatments
+
+### 16.7 Equipment Tracking
+
+Track what's installed on each hive:
+
+| Equipment | When Added | When Removed |
+|-----------|------------|--------------|
+| Entrance reducer | Oct 15 | — |
+| Mouse guard | Nov 1 | — |
+| Queen excluder | May 10 | Sep 20 |
+
+### 16.8 Harvest Tracking (Flow Hive Support)
+
+| Field | Description |
+|-------|-------------|
+| Date | When extracted |
+| Hive | Which hive |
+| Frame(s) | Which frames (for Flow Hive) |
+| Amount | kg or liters |
+| Notes | Quality, color, taste |
+
+**Analytics:** Yield per hive per season, year-over-year comparison.
+
+### 16.9 Emotional Moments
+
+| Moment | App Response |
+|--------|--------------|
+| **First harvest** | Celebration screen + photo prompt |
+| **Successful overwintering** | Winter report |
+| **Swarm capture** | "New hive" quick-add |
+| **Losing a hive** | Post-mortem wizard |
+| **Queen introduction** | Queen profile creation |
+| **Season end** | Season recap with stats |
+
+---
+
+## 17. BeeBrain AI
+
+### 17.1 Purpose
+
+BeeBrain is APIS's built-in AI — a small, purpose-built model that understands beekeeping and YOUR data.
+
+### 17.2 Implementation Phases
+
+| Phase | Implementation |
+|-------|----------------|
+| **MVP** | Rule engine (hardcoded patterns, zero download) |
+| **Phase 2** | Mini ML model (~300-500MB, fine-tuned) |
+| **Future** | Community learning (anonymized patterns) |
+
+### 17.3 Per-Section Analysis
+
+BeeBrain provides contextual analysis in each portal section:
+
+| Section | BeeBrain Analyzes |
+|---------|-------------------|
+| **Dashboard** | Today's summary + concerns |
+| **Hive Detail** | Health + recommendations |
+| **Financial** | Profitability, cost per kg |
+| **Maintenance** | Priority actions |
+| **Season Review** | Year summary, next year prep |
+| **Hornet Patterns** | Correlations found |
+
+### 17.4 Analysis UI Pattern
+
+```
+┌──────────────────────────────────────────┐
+│ 🧠 BeeBrain Analysis                     │
+│ Last updated: 2 hours ago  [↻ Refresh]   │
+│                                          │
+│ "Your cost per kg of honey is €4.20,     │
+│  which is below average. Hive 2 is your  │
+│  most profitable at €2.80/kg."           │
+└──────────────────────────────────────────┘
+```
+
+- Timestamp shows when analysis ran
+- Refresh button for on-demand re-analysis
+- Runs async (can queue overnight on slow hardware)
+
+### 17.5 Proactive Insights
+
+BeeBrain surfaces insights without waiting for questions:
+
+```
+💡 BeeBrain noticed:
+"Queen is entering her 3rd year and productivity dropped 23%.
+ Consider requeening in spring."
+[Dismiss]  [Add to reminders]  [Tell me more]
+```
+
+### 17.6 Data Export for External LLMs
+
+Configurable export with checkbox selection:
+
+| Format | Use Case |
+|--------|----------|
+| **Quick summary** | Post on Reddit/forums |
+| **Detailed markdown** | Paste into ChatGPT/Claude |
+| **Full JSON** | Programmatic analysis |
+
+Users select what to include: basics, inspections, hornet data, weight, weather, BeeBrain insights, financials.
+
+---
+
+## 18. Mobile PWA Requirements
+
+### 18.1 Glove-Friendly Design
+
+Beekeepers wear gloves that reduce touch precision:
+
+| Standard | APIS Mobile |
+|----------|-------------|
+| 44px tap targets | **64px minimum** |
+| Small checkboxes | Large toggle switches |
+| Keyboard input | Voice input primary |
+| Precise gestures | Swipe navigation |
+| 16px body text | 18px body text |
+
+### 18.2 Inspection Flow (Mobile)
+
+```
+Select Hive (or scan QR)
+        ↓
+Quick Entry Cards (swipe through)
+        ↓
+Notes + Photos (voice input)
+        ↓
+Review Summary
+        ↓
+[SAVE] ← 64px full-width button
+```
+
+### 18.3 Voice Input Options
+
+| Option | Accuracy | Offline | Implementation |
+|--------|----------|---------|----------------|
+| **Native dictation** | Good | ✅ | Browser SpeechRecognition API (Android/iOS built-in) |
+| **Server Whisper** | Best | ❌ | Stream audio to APIS server, Whisper transcribes |
+
+**Approach:** Mobile web (not native app). Voice input uses either:
+1. Native browser dictation (Android/iOS built-in) — works offline, good accuracy
+2. Server-side Whisper — for users wanting better accuracy when online
+
+No local WASM model — too heavy for mobile browsers.
+
+### 18.4 Offline-First Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│              Phone Browser (PWA)            │
+├─────────────────────────────────────────────┤
+│  Service Worker (app shell, cached)         │
+│  IndexedDB (Dexie.js) for local data        │
+│  Sync Queue (background sync when online)   │
+└─────────────────────────────────────────────┘
+```
+
+| Feature | Offline Behavior |
+|---------|------------------|
+| View dashboard | Cached data from last sync |
+| Create inspection | Saved locally, synced later |
+| Voice transcription | Local Whisper if downloaded |
+| Photos | Stored locally, synced later |
+
+### 18.5 Sync Status Indicator
+
+```
+⚡ Offline — 3 inspections pending
+```
+
+```
+✓ Synced
+```
+
+### 18.6 QR Code Navigation
+
+For large apiaries (50+ hives):
+
+- Dashboard generates printable QR codes per hive
+- User scans QR → instant hive page
+- Format: `apis://hive/{site_id}/{hive_id}`
+
+---
+
+## 19. Data Architecture
+
+### 19.1 Core Entities
+
+```sql
+-- Sites (apiaries)
+sites: id, name, gps_lat, gps_lng, timezone
+
+-- Units (APIS hardware devices)
+units: id, site_id, serial, name, last_seen, status
+
+-- Hives
+hives: id, site_id, name, queen_age, queen_source, notes
+
+-- Unit-Hive coverage (which units protect which hives)
+unit_hives: unit_id, hive_id
+
+-- Inspections
+inspections: id, hive_id, date, queen_seen, brood_frames, ...
+
+-- Treatments
+treatments: id, hive_id, date, type, method, dose, notes
+
+-- Feedings
+feedings: id, hive_id, date, type, amount, notes
+
+-- Harvests
+harvests: id, hive_id, date, frames, amount_kg, notes
+
+-- Hornet detections (from device)
+detections: id, unit_id, timestamp, clip_path, confidence
+
+-- Daily stats (aggregated)
+daily_stats: id, unit_id, date, detections, weather_temp, weather_desc
+```
+
+### 19.2 Custom Labels
+
+```sql
+-- User-defined categories
+custom_labels: id, user_id, category, label
+-- category: 'feed_type', 'treatment_type', 'equipment', 'issue'
+```
+
+---
+
+## 20. Portal Technical Stack
+
+### 20.1 Technology Choices
 
 | Component | Technology | Rationale |
 |-----------|------------|-----------|
-| **Backend** | Python + FastAPI | Async, good for video streaming |
-| **Database** | SQLite | No setup needed, file-based |
-| **Frontend** | HTML + HTMX + TailwindCSS | Lightweight, no complex JS |
-| **Video player** | HTML5 `<video>` | Built into browsers |
-| **Weather API** | OpenWeatherMap (free tier) | Simple integration |
-| **Auth** | Simple password | Single-user, basic security |
+| **Backend** | Go 1.22 + Chi | Idiomatic, no frameworks, per CLAUDE.md |
+| **Frontend** | React + Refine + Ant Design | Dashboard framework with data management |
+| **Charts** | @ant-design/charts | Themed with Honey Beegood colors |
+| **Database** | SQLite (modernc.org/sqlite) | Pure Go, no CGO |
+| **PWA** | Service Worker + IndexedDB | Offline-first |
+| **Voice** | Whisper (local WASM or server) | Transcription |
 
-### 13.4 Data Model
+### 20.2 Visual Design
 
-```sql
--- Devices (for multi-hive support)
-CREATE TABLE devices (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    ip_address TEXT,
-    last_seen DATETIME,
-    status TEXT DEFAULT 'offline'
-);
+**Honey Beegood Palette:**
+- Sea Buckthorn `#f7a42d` — Primary
+- Coconut Cream `#fbf9e7` — Background
+- Brown Bramble `#662604` — Text
+- Salomie `#fcd483` — Cards
 
--- Incident recordings
-CREATE TABLE incidents (
-    id INTEGER PRIMARY KEY,
-    device_id INTEGER REFERENCES devices(id),
-    timestamp DATETIME NOT NULL,
-    clip_path TEXT NOT NULL,
-    thumbnail_path TEXT,
-    duration_sec REAL
-);
+**Style:** Warm, natural, soft corners (8-12px radius), not clinical IoT.
 
--- Daily statistics with weather
-CREATE TABLE daily_stats (
-    id INTEGER PRIMARY KEY,
-    device_id INTEGER REFERENCES devices(id),
-    date DATE NOT NULL,
-    detections INTEGER DEFAULT 0,
-    laser_activations INTEGER DEFAULT 0,
-    weather_temp REAL,
-    weather_desc TEXT,
-    weather_icon TEXT
-);
-
--- Device logs (boots, errors, etc.)
-CREATE TABLE device_logs (
-    id INTEGER PRIMARY KEY,
-    device_id INTEGER REFERENCES devices(id),
-    timestamp DATETIME NOT NULL,
-    event_type TEXT NOT NULL,
-    message TEXT
-);
-```
-
-### 13.5 API Endpoints (Device → Server)
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| POST | `/api/device/register` | Device announces itself on boot |
-| POST | `/api/heartbeat` | Periodic health check (every 60s) |
-| POST | `/api/incident` | Upload incident clip + metadata |
-| POST | `/api/log` | Send log entry (boot, error, etc.) |
-
-### 13.6 API Endpoints (Dashboard → Server)
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| GET | `/` | Dashboard HTML page |
-| GET | `/api/status` | Current device status |
-| GET | `/api/incidents` | List incidents (paginated) |
-| GET | `/api/incidents/{id}` | Get incident details |
-| GET | `/api/clips/{filename}` | Stream/download clip file |
-| GET | `/api/history` | Daily stats for date range |
-| GET | `/api/stream` | Proxy live stream from device |
-| POST | `/api/device/arm` | Send arm command to device |
-| POST | `/api/device/disarm` | Send disarm command to device |
-
-### 13.7 Deployment Options
+### 20.3 Deployment Options
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **Old PC/laptop** | Free, always on | Power consumption |
-| **Raspberry Pi 4** | Low power (~5W), cheap | Need to set up |
-| **Synology/QNAP NAS** | Already running 24/7 | Docker setup |
-| **Cloud VM (Hetzner, OVH)** | €3-5/month, accessible anywhere | Monthly cost |
-| **Home Assistant add-on** | Integrates with existing smart home | Requires HA |
-
-### 13.8 Clip Storage
-
-**Naming convention:**
-```
-/clips/
-  2026/
-    01/
-      21/
-        hornet_2026-01-21_14-32-05.mp4
-        hornet_2026-01-21_14-32-05.jpg  (thumbnail)
-        hornet_2026-01-21_11-47-22.mp4
-        ...
-```
-
-**Storage estimate:**
-- 10-second clip at VGA: ~2-5 MB
-- 10 detections/day × 5 MB = 50 MB/day
-- 30 days = 1.5 GB/month
-- 1 year = ~18 GB (very manageable)
+| Old PC/laptop | Free | Power consumption |
+| Raspberry Pi 4 | Low power | Setup required |
+| NAS (Docker) | Already running | Docker knowledge |
+| Cloud VM | Accessible anywhere | Monthly cost |
 
 ---
 
-## 15. Bill of Materials
+# Part C: Future & Research
 
-### 12.1 Path C: Prototype (Jermoo's Build)
+## 21. Future Sensors
 
-| Item | Specification | Qty | Have? | Est. Cost (€) | Source |
-|------|---------------|-----|-------|---------------|--------|
-| Raspberry Pi 5 | 4GB or 8GB | 1 | ✅ | 0 | - |
-| Pi Camera | OV5647 5MP | 1 | ✅ | 0 | - |
-| CSI Ribbon Cable | 15-pin to 22-pin for Pi 5 | 1 | ✅ | 0 | - |
-| SG90 Servo | 9g micro servo | 1 | ❌ | 2-3 | Amazon/AliExpress |
-| Green Line Laser | 5mW 520-532nm | 1 | ❌ | 5-10 | Amazon/AliExpress |
-| 2N2222 Transistor | NPN for laser switching | 1 | ❌ | 0.50 | Electronics shop |
-| 1kΩ Resistor | For transistor base | 1 | ❌ | 0.10 | Electronics shop |
-| 100µF Capacitor | Servo power smoothing | 1 | ❌ | 0.50 | Electronics shop |
-| Jumper Wires | Female-to-female | 10 | ❌ | 2-3 | Amazon |
-| USB-C Power Supply | 5V 3A+ (27W recommended) | 1 | ❓ | 0-15 | If not owned |
-| Extension Cord | Outdoor rated | 1 | ❓ | 0-15 | If not owned |
-| **TOTAL** | | | | **~€10-25** | |
+### 21.1 Planned Sensor Expansion
 
-### 12.2 Path A: ESP32-CAM Production Version
+| Sensor | Hardware | Data | Beekeeper Insight |
+|--------|----------|------|-------------------|
+| **Inside temp** | DHT22/BME280 | °C continuous | Brood health, cluster |
+| **Outside temp** | DHT22/BME280 | °C continuous | Weather correlation |
+| **Humidity** | DHT22/BME280 | % continuous | Ventilation |
+| **Weight** | HX711 + load cells | kg continuous | Nectar flow, stores |
+| **Sound** | USB microphone | Frequency | Queen status, swarming |
 
-| Item | Specification | Qty | Est. Cost (€) |
-|------|---------------|-----|---------------|
-| ESP32-CAM-MB | With USB programmer board | 1 | 10-12 |
-| SG90 Servo | 9g micro servo | 1 | 2-3 |
-| Green Line Laser | 5mW 520-532nm | 1 | 5-10 |
-| 2N2222 Transistor | NPN | 1 | 0.50 |
-| Resistors/Capacitors | Assorted | - | 1 |
-| Jumper Wires | | 10 | 2 |
-| USB Power Supply | 5V 2A | 1 | 5-10 |
-| **TOTAL** | | | **~€25-40** |
+### 21.2 Implementation Priority
 
-### 12.3 3D Printed Parts (Request for Jermoo's Friend)
+| Priority | Sensor | Effort | Hardware Cost | Value |
+|----------|--------|--------|---------------|-------|
+| P1 | Temp/Humidity | 2 hours | €8 | High |
+| P2 | Weight | 8 hours | €20 | High |
+| P3 | Sound | 16 hours | €15 | Medium |
 
-| Part | Description | Material |
-|------|-------------|----------|
-| Servo Mount Bracket | Holds SG90, has mounting holes | PLA |
-| Laser Holder | Clips to servo horn, holds 6-12mm laser tube | PLA |
-| Camera Mount (optional) | Adjustable angle for Pi camera | PLA |
+### 21.3 Per-Hive Sensor Dashboard
 
-**Dimensions:**
-- Servo cavity: 23mm x 12mm x 29mm (SG90 body)
-- Laser tube: Measure actual module (common: 6mm, 9mm, 12mm diameter)
+When sensors available, each hive gets sensor graphs with same time range selector:
+
+- Temperature (inside vs outside)
+- Weight with trend analysis
+- Humidity with alerts
+- Sound frequency patterns (future)
+
+### 21.4 Automated Alerts
+
+| Alert | Trigger | Risk Level |
+|-------|---------|------------|
+| Sudden weight drop >1.5kg | Swarm or robbing | High |
+| Inside temp drop | Cluster shrinking | Medium |
+| Humidity >80% | Ventilation issue | Medium |
+| Weight plateau | Nectar flow ended | Info |
 
 ---
 
-## 16. Gap Analysis: Beehive Monitoring Features
+## 22. Research Sources
 
-This section compares features offered by commercial beehive monitoring systems (HiveTracks, BroodMinder, 3Bee Hive-tech) with what our hardware (Pi 5 + camera + servo + laser) could potentially support as future expansions.
-
-### 15.1 Market Comparison Overview
-
-| Feature Category | HiveTracks | BroodMinder | 3Bee Hive-tech | Our System (Potential) |
-|-----------------|------------|-------------|----------------|------------------------|
-| **Hive Weight** | ❌ App only | ✅ Load cells | ✅ Aluminum rails | ⚠️ Requires add-on |
-| **Temperature** | ❌ App only | ✅ Sensor | ✅ Internal/External | ✅ Easy GPIO add |
-| **Humidity** | ❌ App only | ✅ Sensor | ✅ Sensor | ✅ Easy GPIO add |
-| **Sound/Acoustics** | ❌ | ❌ | ✅ Intensity | ✅ USB mic possible |
-| **Visual Monitoring** | ❌ | ❌ | ❌ | ✅ **Native** |
-| **Predator Detection** | ❌ | ❌ | ❌ | ✅ **Core feature** |
-| **Active Deterrent** | ❌ | ❌ | ❌ | ✅ **Core feature** |
-| **Inspection Records** | ✅ App | ❌ | ✅ App | ⚠️ Dashboard add |
-| **AI/ML Features** | ✅ Plant ID | ❌ | ❌ | ⚠️ Extensible |
-| **Weather Integration** | ✅ Historical | ✅ Basic | ✅ External | ✅ API-ready |
-| **Alerts/Notifications** | ✅ Email | ✅ Email/SMS | ✅ Daily | ✅ Companion server |
-| **Offline Operation** | ✅ Sync | ✅ Local log | ⚠️ GSM req. | ✅ **Core design** |
-
-**Legend:** ✅ Supported | ⚠️ Requires add-on/future | ❌ Not available
-
-### 15.2 Unique Differentiators
-
-Our system offers capabilities no commercial solution currently provides:
-
-| Feature | Competition | Our System |
-|---------|-------------|------------|
-| Real-time predator detection | None | ✅ Camera-based motion/size/hover |
-| Active deterrent response | None | ✅ Servo-aimed laser |
-| Video clip recording | None | ✅ Per-incident clips |
-| Entrance monitoring camera | None | ✅ Continuous visual |
-| Open source hardware | None | ✅ Full BOM + STL files |
-| Zero ongoing costs | €5-15/mo subscriptions | ✅ Self-hosted |
-
-### 15.3 Feature Gap: Add-on Potential
-
-With our existing hardware, these features could be added with minimal extra components:
-
-#### 15.3.1 Temperature & Humidity (LOW effort)
-
-**Components:** DHT22 or BME280 sensor (~€5-10)
-
-**Implementation:**
-- Connect to Pi GPIO (I2C for BME280, single-wire for DHT22)
-- BME280 preferred: ±0.5°C accuracy, also measures pressure
-- Log to companion server dashboard
-- Alert thresholds: <10°C (cluster), >40°C (overheating), >80% humidity
-
-**Value:** Monitor brood nest conditions, detect swarming preparation (temp rise)
-
-#### 15.3.2 Hive Weight (MEDIUM effort)
-
-**Components:** HX711 load cell amplifier + 50kg load cells (~€15-25)
-
-**Implementation:**
-- 4x load cells in Wheatstone bridge configuration
-- HX711 connects to GPIO
-- Resolution: ~10g (sufficient for honey flow detection)
-- Log daily weight curve to companion server
-
-**Value:**
-- Honey flow detection (weight gain pattern)
-- Robbing detection (rapid weight loss)
-- Winter stores monitoring
-- Swarm departure (~2-3kg sudden loss)
-
-#### 15.3.3 Acoustic Monitoring (MEDIUM effort)
-
-**Components:** USB microphone (~€10-20)
-
-**Implementation:**
-- Record short samples (10s every hour)
-- FFT analysis for frequency patterns
-- Key signatures: 200-300Hz worker piping, 400-500Hz queen piping
-
-**Value:**
-- Queenlessness detection
-- Pre-swarm behavior (increased 400Hz activity)
-- Winter cluster activity verification
-
-#### 15.3.4 Bee Counter (HIGH effort)
-
-**Components:** IR break-beam sensors or second camera
-
-**Implementation:**
-- Entrance tunnel with directional sensors
-- Count in/out traffic patterns
-- Alternative: ML model on existing camera for bee counting
-
-**Value:**
-- Forager activity levels
-- Orientation flight patterns
-- Colony strength estimation
-- Pesticide incident detection (mass forager loss)
-
-### 15.4 Software Feature Gaps
-
-Features requiring only software updates to companion server:
-
-| Feature | HiveTracks Has | Implementation Effort |
-|---------|----------------|----------------------|
-| Inspection templates | ✅ | Low - web form |
-| Weather historical data | ✅ | Low - OpenWeather API |
-| Plant/flora calendar | ✅ | Low - regional database |
-| Task reminders | ✅ | Low - notification system |
-| PDF/CSV export | ✅ | Low - data formatting |
-| Multi-hive dashboard | ✅ | Medium - device registry |
-| Seasonal comparison | ✅ | Medium - data visualization |
-| Community data sharing | ✅ | High - authentication/privacy |
-
-### 15.5 Roadmap Priority
-
-Based on value vs. effort, recommended expansion order:
-
-| Priority | Feature | Effort | Hardware Cost | Value Add |
-|----------|---------|--------|---------------|-----------|
-| **P1** | Temp/Humidity | 2 hours | €8 | High |
-| **P2** | Weather API | 1 hour | €0 | Medium |
-| **P3** | Inspection forms | 4 hours | €0 | Medium |
-| **P4** | Hive weight | 8 hours | €20 | High |
-| **P5** | Acoustic analysis | 16 hours | €15 | Medium |
-| **P6** | Bee counting | 40+ hours | €0-30 | High |
-
-### 15.6 Cost Comparison
-
-| System | Initial Cost | Annual Subscription | 5-Year TCO |
-|--------|-------------|---------------------|------------|
-| **BroodMinder TH** | ~€50-80 | €50-100 | €300-580 |
-| **BroodMinder W (weight)** | ~€150 | €50-100 | €400-650 |
-| **3Bee Hive-tech** | ~€200 | Unknown | Unknown |
-| **HiveTracks Pro** | €0 | €60-120 | €300-600 |
-| **Our System (base)** | ~€40-50 | €0 | €40-50 |
-| **Our System + sensors** | ~€80-100 | €0 | €80-100 |
-
-**Advantage:** Our system costs less and does more (predator detection + deterrent), with no ongoing subscription fees.
-
-### 15.7 Research Sources
-
-- [HiveTracks App Store](https://apps.apple.com/us/app/hivetracks/id1667408004)
-- [BroodMinder Hobbyist Features](https://broodminder.com/pages/mybroodminderfeatures-hobby)
-- [3Bee Hive-tech Technology](https://www.3bee.com/en/technology/)
-- [Smart Hive Monitoring Trends 2025](https://beekeepingideas.com/smart-hive-monitoring/)
-
----
-
-## 17. Research Sources
-
-### 16.1 Asian Hornet Behavior
+### 22.1 Asian Hornet Behavior
 - Tan et al. (2007). "Bee-hawking by Vespa velutina" - Naturwissenschaften
 - PMC Studies on Hornet-Bee interactions
 - CABI Compendium - Vespa velutina
 - EPPO Global Database - 2024 spread updates
 
-### 16.2 Laser Safety
+### 22.2 Laser Safety
 - IEC 60825-1 / EN 60825-1 - Laser classification standards
 - EN 50689:2021 - Consumer laser product safety
 - EU regulations on laser pointer sales
 
-### 16.3 Existing Projects
+### 22.3 Existing Projects
 - VespAI - University of Exeter (Nature Communications Biology, 2024)
 - Hornet Sentry Gun - Hackaday.io
 - hornet3000 - GitHub (vespCV)
 - BeeAlarmed - GitHub
 
-### 16.4 Hardware Specifications
+### 22.4 Hardware Specifications
 - OV2640 Datasheet - Omnivision
 - ESP32-CAM benchmarks - arXiv study
 - Raspberry Pi 5 specifications - raspberrypi.com
 - SG90 Servo specifications - ServoDatabase
 
-### 16.5 Insect Vision
+### 22.5 Insect Vision
 - Hymenoptera spectral sensitivity studies
 - MDPI Animals (2024) - Vespinae LED wavelength response
 - Journal of Experimental Biology - Compound eye spatial resolution
@@ -1150,13 +1436,15 @@ Based on value vs. effort, recommended expansion order:
 
 ## Appendix B: Software Architecture
 
-*To be added during development*
+*See architecture.md for detailed software architecture*
 
-## Appendix C: Installation Guide
+## Appendix C: UX Design Specification
 
-*To be added after prototype validation*
+*See ux-design-specification.md for complete UX design*
 
 ---
 
 **Document Status:** Ready for Review
-**Next Step:** Begin prototype build with available components
+**Version:** 2.0
+**Last Updated:** 2026-01-22
+**Next Step:** Review architecture alignment, then create Epics & Stories

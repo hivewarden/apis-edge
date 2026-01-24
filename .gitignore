@@ -1,0 +1,31 @@
+# Environment files (contain secrets)
+.env
+.env.local
+.env.*.local
+
+# SOPS decrypted secrets (NEVER commit)
+secrets/*.dec.yaml
+secrets/*.dec.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Build artifacts
+apis-server/apis-server
+*.exe
+
+# Node
+node_modules/
+dist/
+build/
+
+# Go
+*.test
+coverage.out
+
+# Logs
+*.log

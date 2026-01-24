@@ -1,5 +1,7 @@
 # APIS Hardware Specification
 
+**Version:** 1.4
+
 **Document Purpose:** Complete hardware build guide for the APIS (Anti-Predator Interference System). Written for someone with minimal electronics experience — every concept is explained, every decision has rationale.
 
 **Document Status:** Living document — update as you learn and build.
@@ -23,6 +25,8 @@
 13. [Testing & Validation](#13-testing--validation)
 14. [Troubleshooting](#14-troubleshooting)
 15. [Glossary](#15-glossary)
+16. [Recommended Spare Parts](#16-recommended-spare-parts)
+17. [Software Setup Reference](#17-software-setup-reference)
 
 ---
 
@@ -69,7 +73,11 @@ PWM Signal for Servo:
    │  │      │  │      │  │
 ───┘  └──────┘  └──────┘  └───
    1ms = 0°   1.5ms = 90°   2ms = 180°
+
+   ├──────── 20ms ────────┤  (50Hz = 50 pulses per second)
 ```
+
+**PWM Frequency:** Standard servos expect pulses at **50Hz** (one pulse every 20ms). The pulse width (1-2ms) determines position; the remaining time (~18-19ms) is "off" time.
 
 ### 1.4 I2C and SPI (Communication Protocols)
 
@@ -104,7 +112,7 @@ Pull-up resistor:
           GND        (reads LOW when pressed)
 ```
 
-**For APIS:** The arm/disarm button needs a pull-up resistor.
+**For APIS:** The arm/disarm button uses the MCU's built-in pull-up resistor (enabled in software) — no external resistor needed.
 
 ### 1.6 Power Supply Basics
 
@@ -186,21 +194,37 @@ We support three microcontroller options. Choose based on your needs:
 
 ## 3. Component Selection
 
-### 3.1 Bill of Materials (All Paths)
+### 3.1 Bill of Materials
 
-These components are shared across all hardware paths:
+**Shared across ALL paths:**
 
 | Component | Specification | Why This One | Approx. Cost | Example Part |
 |-----------|---------------|--------------|--------------|--------------|
 | **Pan Servo** | SG90 or MG90S | Small, cheap, sufficient torque for laser | €2-4 | Tower Pro SG90 |
-| **Laser Module** | 5mW 650nm (red) Class 3R | Legal limit, visible, safe-ish | €3-5 | KY-008 module |
-| **Status LED** | 5mm RGB common cathode | Shows system state | €0.50 | Any RGB LED |
+| **Laser Module** | 5mW 650nm (red) Class 3R | Common consumer class; still hazardous — see §9.1 | €3-5 | KY-008 module |
 | **Push Button** | Momentary, normally open | Arm/disarm control | €0.30 | 6mm tactile |
-| **Resistors** | 330Ω × 4 (LED, laser) | Current limiting | €0.10 | 1/4W through-hole |
 | **Wires** | Dupont jumper wires | Connections | €3 | 40-pin M-F, M-M |
-| **Power Supply** | 5V 2A USB-C | Powers everything | €5-10 | Any quality USB-C |
 
-**Total shared components:** ~€15-25
+**Path A & C only (external RGB LED):**
+
+| Component | Specification | Why This One | Approx. Cost | Example Part |
+|-----------|---------------|--------------|--------------|--------------|
+| **Status LED** | 5mm RGB common cathode | Shows system state | €0.50 | Any RGB LED |
+| **Resistors** | 330Ω × 3 (for LED) | Current limiting for each LED channel | €0.10 | 1/4W through-hole |
+
+⚠️ **Path B (ESP32-CAM) uses the built-in red LED on GPIO 33** — do not purchase an external RGB LED unless you redesign GPIO usage. The ESP32-CAM has very limited available pins.
+
+**Total shared components:** ~€12-20 (excluding power supply)
+
+**Power Supply (per path):**
+
+| Path | Requirement | Why | Approx. Cost |
+|------|-------------|-----|--------------|
+| **A (Pi 5)** | Official Pi 5 PSU (5V 5A USB-C PD) | Pi 5 is power hungry; cheap adapters cause brownouts | €12-15 |
+| **B (ESP32-CAM)** | 5V 3A USB adapter | Servo stall + WiFi TX can exceed 1.6A; 2A is marginal | €5-10 |
+| **C (XIAO)** | 5V 3A USB adapter | Same reason as Path B | €5-10 |
+
+⚠️ **Do not use a generic 2A adapter for Path B/C.** While 2A may work during testing with servo idle, a stalled servo draws 1.2A alone — add WiFi transmission and you'll brownout.
 
 ### 3.2 Path A: Raspberry Pi 5 Specific
 
@@ -208,7 +232,7 @@ These components are shared across all hardware paths:
 |-----------|---------------|--------------|--------------|
 | **Raspberry Pi 5** | 4GB or 8GB RAM | Runs OpenCV, has GPIO | €60-80 |
 | **Pi Camera Module 3** | 12MP, autofocus | Official, well-supported | €25-35 |
-| **Camera ribbon cable** | 15-pin, 30cm | Connects camera to Pi | €3 |
+| **Pi 5 Camera Cable** | 22-pin to 15-pin FFC, 30cm | Pi 5 uses smaller connectors — need adapter cable | €5 |
 | **microSD Card** | 32GB+ Class 10 | Stores OS and clips | €8-15 |
 | **Heatsink/Fan** | Active cooling | Pi 5 runs hot | €5-10 |
 
@@ -221,6 +245,51 @@ These components are shared across all hardware paths:
 | **ESP32-CAM** | AI-Thinker module | Camera built-in, cheap | €6-10 |
 | **FTDI USB-Serial** | FT232RL or CP2102 | For programming (no USB on board) | €3-5 |
 | **External antenna** | 2.4GHz with IPEX | Better WiFi range | €2 |
+
+**⚠️ IMPORTANT: External Antenna Requires Hardware Modification**
+
+The ESP32-CAM (AI-Thinker) uses the on-board PCB antenna by default. Simply screwing on an external antenna does **NOT** automatically switch to it — and may actually make WiFi **worse** due to impedance mismatch!
+
+**To enable external antenna, you must move a tiny 0Ω resistor:**
+
+```
+ESP32-CAM Antenna Selection (look near IPEX connector):
+
+Before (default - PCB antenna):
+    ┌────────────────────────────────┐
+    │                                │
+    │   IPEX        0Ω Resistor      │
+    │   ┌─┐            ┌─┐           │
+    │   │ │            │█│────► PCB Antenna
+    │   └─┘            └─┘           │
+    │    │              │            │
+    │    └──────────────┘            │
+    │      (disconnected)            │
+    └────────────────────────────────┘
+
+After (external antenna):
+    ┌────────────────────────────────┐
+    │                                │
+    │   IPEX        0Ω Resistor      │
+    │   ┌─┐            ┌─┐           │
+    │   │█│────────────│ │           │
+    │   └─┘            └─┘           │
+    │    │              │            │
+    │    └──► External  └──► PCB Antenna
+    │        Antenna       (disconnected)
+    └────────────────────────────────┘
+```
+
+**How to move the resistor:**
+1. You need a **soldering iron** with a fine tip and good lighting (magnifying glass helps)
+2. The 0Ω resistor is a tiny SMD component — looks like a small black or grey rectangle
+3. Heat one end, slide the resistor toward the IPEX pad
+4. Re-solder to the IPEX antenna pad
+
+**Alternative if you can't solder SMD:**
+- Use the on-board PCB antenna (good for short range)
+- For outdoor use, position the device for line-of-sight to your router
+- Consider Path C (XIAO) which has better antenna design
 
 **Path B total:** ~€25-40
 
@@ -287,7 +356,7 @@ These components are shared across all hardware paths:
 | **Laser Control** | GPIO 23 | 16 | Any GPIO works. Close to servo for neat wiring. |
 | **LED Red** | GPIO 24 | 18 | Near other LED pins. |
 | **LED Green** | GPIO 25 | 22 | Near other LED pins. |
-| **LED Blue** | GPIO 12 | 32 | Hardware PWM1 if we want brightness control. |
+| **LED Blue** | GPIO 12 | 32 | Use as simple on/off; for dimming use software PWM. |
 | **Button** | GPIO 20 | 38 | Has internal pull-up available. |
 
 ### 4.4 Pi 5 Wiring Diagram
@@ -339,10 +408,36 @@ These components are shared across all hardware paths:
 ```
 Why: Establish power distribution before connecting components.
 
+⚠️ IMPORTANT: Check for SPLIT POWER RAILS on your breadboard!
+
+Many breadboards have power rails that are SPLIT in the middle:
+
+    Full-length rail (continuous):
+    +━━━━━━━━━━━━━━━━━━━━━━━━━━━━━+
+
+    Split rail (COMMON - watch out!):
+    +━━━━━━━━━━━━━+    +━━━━━━━━━━━+
+                 ↑    ↑
+           Gap or break in the rail
+
+If your breadboard has split rails:
+- Power connected at one end does NOT reach the other end
+- Components on the "unpowered" half won't work
+- This looks like a dead component but it's just a wiring issue
+
+How to check:
+1. Use your multimeter in continuity mode
+2. Touch probes to both ends of the power rail
+3. If it beeps: rail is continuous
+4. If no beep: rail is split — you need a jumper wire to bridge the gap
+
+Steps:
 1. Connect a jumper from Pi Pin 2 (5V) to your breadboard + rail
 2. Connect a jumper from Pi Pin 6 (GND) to your breadboard - rail
+3. If rails are split, add jumper wires to bridge the gap in both + and - rails
 
-Verify: Use multimeter between + and - rails. Should read ~5V.
+Verify: AFTER powering on the Pi, measure voltage between + and - rails.
+        Should read ~5V. Check BOTH HALVES if your rails are split.
 ```
 
 **Step 2: Servo Connection**
@@ -371,7 +466,7 @@ Why: Laser needs power and an on/off signal from GPIO.
 
 ⚠️ SAFETY: Never look into laser. Even 5mW can damage eyes.
 
-Most laser modules have 3 pins:
+Most laser modules (like KY-008) have 3 pins:
 - GND/- = Ground
 - VCC/+ = Power (usually 5V, check your module!)
 - S/Signal = Enable (HIGH = on, LOW = off)
@@ -379,9 +474,11 @@ Most laser modules have 3 pins:
 Connections:
 1. Laser GND → Breadboard - rail (GND)
 2. Laser VCC → Breadboard + rail (5V)
-3. Laser S → 330Ω resistor → Pi GPIO 23 (Pin 16)
+3. Laser S → Pi GPIO 23 (Pin 16) — direct connection is fine
 
-Why the resistor? Current limiting. Protects both GPIO and laser input.
+Note: Unlike LEDs, laser modules have built-in current limiting.
+The signal pin just enables/disables the internal driver.
+A series resistor is optional (for GPIO protection if the module misbehaves).
 
 Test: Laser should be OFF (GPIO 23 defaults to LOW/input on boot).
 If laser is ON at boot: Your module might be "active low" — we'll handle in software.
@@ -460,6 +557,12 @@ How it works with internal pull-up enabled:
 - Pressed: GPIO 20 reads LOW (connected to GND through button)
 
 Test: Use multimeter continuity mode. Beeps when button pressed.
+
+Note on button "bounce":
+Mechanical buttons produce multiple rapid on/off transitions when pressed
+(electrical contact bounces for 1-10ms). This is normal hardware behavior.
+The software includes a debounce delay to treat these as a single press.
+If you see double-triggering, the debounce delay may need adjustment in code.
 ```
 
 **Step 6: Camera Connection**
@@ -467,15 +570,34 @@ Test: Use multimeter continuity mode. Beeps when button pressed.
 ```
 Why: This is how we see the hornets!
 
-Pi Camera Module 3 uses a ribbon cable to the CSI port.
+⚠️ IMPORTANT: Pi 5 uses DIFFERENT camera connectors than Pi 4!
 
-1. Power OFF the Pi (important!)
-2. Locate CSI port (between HDMI ports)
-3. Gently lift the black plastic clip on the CSI connector
-4. Insert ribbon cable with blue side facing USB ports
-5. Push clip back down to lock cable
+Pi 5 Camera Connection Details:
+- Pi 5 has TWO small 22-pin camera/display connectors (labeled CAM0, CAM1)
+- The Pi Camera Module 3 has a 15-pin connector
+- You NEED a "Pi 5 camera cable" (22-pin to 15-pin adapter cable)
+- Standard Pi 4 cables will NOT physically fit
 
-⚠️ Ribbon cables are delicate. Don't bend sharply.
+Using the WRONG cable is the #1 beginner mistake with Pi 5 cameras.
+
+Step-by-step:
+1. Power OFF the Pi (unplug completely — important!)
+2. Locate the camera port labeled "CAM0" or "CAM1" (either works)
+   - These are the small FFC connectors, NOT the large ribbon connector
+   - CAM0 is typically closer to the USB-C power port
+3. The connector has a small plastic latch — gently pull it UP (not out)
+4. Insert the 22-pin end of the cable with:
+   - Metal contacts facing DOWN (toward the PCB)
+   - Blue backing facing UP
+5. While holding cable in place, push latch back DOWN to lock
+6. Connect the 15-pin end to the camera module the same way
+
+Verification before powering on:
+- Cable clicks into both connectors (no loose wiggle)
+- No bent pins visible
+- Cable not twisted or kinked
+
+⚠️ Ribbon cables are delicate. Don't bend sharply or crease.
 
 Test: Will verify with software after OS setup.
 ```
@@ -550,73 +672,138 @@ ESP32-CAM Board (AI-Thinker)
 
 ### 5.3 ESP32-CAM GPIO Availability
 
-**Problem:** Most GPIOs are used by the camera.
+**Problem:** The ESP32-CAM (AI-Thinker) has very few available GPIOs because pins are shared between camera, SD card, flash, and boot strapping.
 
-| GPIO | Used By | Available? |
-|------|---------|------------|
-| 0 | Boot mode select | ⚠️ Must be HIGH during boot |
-| 2 | Built-in LED + camera | ❌ No |
-| 4 | Flash LED | ⚠️ Use carefully |
-| 12 | Camera | ❌ No |
-| 13 | Camera | ❌ No |
-| 14 | Camera | ❌ No |
-| 15 | Camera | ❌ No |
-| 16 | PSRAM | ⚠️ Avoid if using PSRAM |
-| 1 | TX (Serial) | ⚠️ Needed for debugging |
-| 3 | RX (Serial) | ⚠️ Needed for debugging |
+⚠️ **CRITICAL: Understand what each GPIO does before using it!**
+
+| GPIO | Primary Function | Boot Behavior | Available for APIS? |
+|------|------------------|---------------|---------------------|
+| 0 | Camera XCLK (clock) + Boot mode | Must be HIGH at boot or enters flash mode | ❌ No — breaks camera |
+| 1 | Serial TX | — | ⚠️ Only after debugging done |
+| 2 | SD card (DATA0) + Boot strap | **Must be LOW at boot** or enters wrong mode | ❌ No — boot-critical pin |
+| 3 | Serial RX | — | ⚠️ Only after debugging done |
+| 4 | Flash LED | — | ✅ Yes — we use for laser |
+| 12 | SD card (DATA2) + Boot voltage | **Must be LOW at boot** or sets wrong voltage | ⚠️ Dangerous — can prevent boot |
+| 13 | SD card (DATA3) | — | ⚠️ Usable if no SD card |
+| 14 | SD card (CLK) | — | ⚠️ Usable if no SD card |
+| 15 | SD card (CMD) | Must be HIGH at boot for normal boot messages | ⚠️ Usable if no SD card |
+| 16 | PSRAM (CS) | — | ❌ No — breaks PSRAM |
+| 33 | On-board red LED | — | ✅ Yes — built-in status LED |
 
 **Legend:**
-- ❌ = Cannot use — will break camera functionality
-- ⚠️ = Can use with caveats — read notes carefully
+- ❌ = Do not use — will break essential functionality
+- ⚠️ = Can use with caveats — read warnings carefully
+- ✅ = Safe to use
 
-**What the caveats mean:**
-- **GPIO 0**: Must be HIGH (not connected to GND) when board powers on, or it enters programming mode. You can use it AFTER boot.
-- **GPIO 4**: Controls both the flash LED AND your laser. When you turn on the laser, the flash LED also lights up. This is fine for APIS — the flash LED just adds more light.
-- **GPIO 16**: Used by PSRAM (extra memory). If you use it, you can't use high resolutions. APIS uses 640x480, so this is acceptable.
-- **GPIO 1/3**: Serial TX/RX. You can repurpose them, but you lose USB serial debugging. Keep them for debugging during development.
+**Boot Strapping Pins Explained:**
 
-**Available GPIOs for our use:**
-- **GPIO 4** — We use this for laser (the flash LED turning on is acceptable side-effect)
-- **GPIO 14** — We reclaim this for servo (firmware configures camera to not use it)
-- **GPIO 13** — We use this for button
+The ESP32 reads certain GPIO states at power-on to decide how to boot:
+- **GPIO 0**: LOW = enter flashing mode, HIGH = normal boot
+- **GPIO 12**: Sets internal voltage regulator. If HIGH at boot, can cause crashes or brown-outs on some boards
+- **GPIO 15**: Controls boot log output
+
+**Why beginners brick ESP32-CAMs:**
+If you connect a button or pull-up resistor to GPIO 12 and it's HIGH when power is applied, the ESP32 may not boot correctly. This looks like a dead board but it's actually a wiring problem.
+
+**SD Card vs GPIO Trade-off:**
+
+GPIO 12, 13, 14, 15 are the SD card interface (SDMMC). Since APIS streams clips via WiFi instead of storing on SD card, we can safely use GPIO 13 and GPIO 14 for other purposes — but NOT GPIO 12 (boot sensitive) or GPIO 15 (boot messages).
+
+**Our safe GPIO choices for APIS:**
+- **GPIO 4** — Laser control (flash LED also lights up — acceptable)
+- **GPIO 13** — Button input (SD DATA3 — we're not using SD card)
+- **GPIO 33** — Built-in red LED for status (internal, always safe)
 
 ### 5.4 ESP32-CAM Pin Assignments
 
-Given the constraints, we'll use:
+Given the GPIO constraints, here's our pin plan:
 
 | Function | GPIO | Notes |
 |----------|------|-------|
-| **Servo PWM** | GPIO 14 | Reclaimed from camera (reduces quality slightly) |
-| **Laser Control** | GPIO 4 | Shared with flash LED |
-| **Button** | GPIO 13 | |
-| **Status LED** | (Use built-in) | GPIO 33 (red on-board) |
+| **Servo PWM** | GPIO 14 | SD card CLK pin — safe since we're not using SD card |
+| **Laser Control** | GPIO 4 | Shared with flash LED (LED lights up = boot self-test) |
+| **Button** | GPIO 13 | SD card DATA3 — safe since we're not using SD card |
+| **Status LED** | GPIO 33 | Built-in red LED (no wiring needed) |
 
-**Trade-off:** We sacrifice one camera data line (GPIO 14) to get a GPIO for the servo. This limits max resolution but is acceptable.
+**⚠️ CRITICAL: Do NOT use GPIO 2 for anything!**
+GPIO 2 is a boot-strapping pin that must be LOW at power-on. A servo or other device can pull it HIGH and prevent the ESP32 from booting. Many tutorials incorrectly suggest GPIO 2 is available — it is NOT safe on ESP32-CAM.
+
+**Trade-off:** We're not using the SD card slot because:
+1. APIS streams clips to the server via WiFi — no local storage needed
+2. This frees GPIO 13 for the button and GPIO 14 for the servo
+3. If you later want SD card storage, you must move servo/button to serial pins (GPIO 1/3) after debugging is complete
+
+**Flash LED as Boot Self-Test:**
+When the laser activates, the on-board flash LED (GPIO 4) also lights up. This is actually useful — at power-on, a brief flash confirms the system is alive. To prevent false detections from the bright LED:
+- Cover the flash LED with opaque tape (electrical tape works well)
+- Or desolder the LED if you're comfortable with SMD work
+- The laser still works fine with LED disabled
 
 ### 5.5 ESP32-CAM Wiring
+
+⚠️ **CRITICAL: FTDI Adapter Voltage Selection**
+
+Many FTDI adapters have a voltage jumper or switch. **Check yours before connecting!**
+
+| FTDI Setting | What It Does | Safe for ESP32-CAM? |
+|--------------|--------------|---------------------|
+| **3.3V** | Powers and signals at 3.3V | ✅ SAFE — use this |
+| **5V** | Powers and signals at 5V | ⚠️ DANGEROUS for signals |
+
+**What can go wrong:**
+- ESP32 GPIO pins are **3.3V only**. They cannot tolerate 5V logic.
+- If your FTDI sends 5V signals on TX, you will **permanently damage** the ESP32's RX pin.
+- Some cheap FTDI clones output 5V on TX even when set to "3.3V mode."
+
+**How to check:**
+1. Set FTDI to 3.3V mode (jumper or switch)
+2. With FTDI plugged into USB but NOT connected to ESP32:
+   - Measure voltage between FTDI GND and FTDI TX pin
+   - Should read 3.3V (acceptable: 3.0-3.6V)
+   - If it reads ~5V, don't use that adapter without a level shifter
+
+**Power from FTDI — COMMON MISTAKE:**
+
+⚠️ **Most FTDI boards tie logic level to the VCC jumper!** Setting VCC to 5V usually means TX outputs 5V too, which will damage the ESP32.
+
+**Recommended beginner setup (safest):**
+
+Use **separate power** for the ESP32-CAM and connect **FTDI for signals only**:
+- Power ESP32-CAM from external **5V 3A** USB supply (shared with servo/laser)
+- FTDI provides **only GND, TX, RX, and GPIO0→GND jumper** (for flashing)
+- **Leave FTDI VCC disconnected** — do not connect any wire to FTDI VCC
+
+This approach avoids all voltage mixing problems and ensures reliable 5V power for the servo.
+
+**Alternative (experienced users only):**
+If your FTDI has truly independent logic/VCC settings AND you've measured TX=3.3V, you may power from FTDI at 3.3V during programming — but the servo won't work until you switch to external 5V.
 
 ```
                      ESP32-CAM          FTDI Adapter
                    ┌───────────┐       ┌───────────┐
                    │           │       │           │
-              5V ──┤  ●     ●  ├───────┤ VCC (5V)  │
-             GND ──┤  ●     ●  ├───────┤ GND       │
+              5V ──┤  ●        │       │ VCC       │  ← DO NOT CONNECT
+             GND ──┤  ●     ●  ├───────┤ GND       │  ← Required
                    │           │       │           │
-          GPIO 1 ──┤  ●     ●  ├───────┤ RX        │  ← TX crosses to RX!
-          GPIO 3 ──┤  ●     ●  ├───────┤ TX        │  ← RX crosses to TX!
+          GPIO 1 ──┤  ●     ●  ├───────┤ RX        │  ← TX→RX
+          GPIO 3 ──┤  ●     ●  ├───────┤ TX        │  ← RX←TX
                    │           │       │           │
           GPIO 0 ──┤  ●        │       └───────────┘
                    │  │        │
-                   │  └────────┼──► Connect to GND during upload
+                   │  └────────┼──► Connect to GND during upload ONLY
                    │           │
          GPIO 14 ──┤──────────►│──► Servo Signal (Orange)
                    │           │
           GPIO 4 ──┤──[330Ω]──►│──► Laser Signal
                    │           │
-         GPIO 13 ──┤──────────►│──► Button
+         GPIO 13 ──┤──────────►│──► Button (uses internal pull-up)
                    │           │
                    │           │
                    └───────────┘
+
+Power (from external 5V 3A USB supply):
+    5V  ──────────► ESP32-CAM 5V pin
+    GND ──────────► ESP32-CAM GND (common with FTDI GND)
 ```
 
 **⚠️ CRITICAL: TX/RX Crossover**
@@ -632,7 +819,7 @@ Why? The transmitter of one device must connect to the receiver of the other. Th
 The ESP32-CAM cannot supply enough current for the servo. You need a separate power connection:
 
 ```
-USB Power Supply (5V 2A)
+USB Power Supply (5V 3A minimum)
          │
          ├──► ESP32-CAM 5V pin
          │
@@ -656,23 +843,58 @@ All GND wires connect together (common ground)
 **Option C: Separate power supplies**
 - One USB for ESP32-CAM
 - One USB for servo/laser
-- Connect GND wires together!
+- **CRITICAL: Connect GND wires together!**
+
+**⚠️ Why Ground Must Be Connected (Common Beginner Mistake)**
+
+Ground (GND) is the voltage reference point — like sea level for electricity. Without a shared ground:
+- The ESP32 thinks "0V" is one level
+- The servo thinks "0V" is a different level
+- GPIO signals appear as random noise to the servo
+- The servo ignores commands completely
+
+**Correct procedure:**
+1. **BEFORE powering anything:** Connect all GND wires together at one point
+2. Then connect signal wires (servo orange to GPIO 14)
+3. Then power on both supplies
+
+**If you forget ground:**
+- Servo won't respond to commands
+- You might see random twitching
+- In worst case, voltage difference between grounds can damage GPIO pins
+
+**⚠️ Back-Feed Warning (Two 5V Supplies)**
+
+If you have FTDI connected AND an external 5V supply:
+- Disconnect FTDI VCC wire — use only GND/TX/RX/GPIO0
+- Two 5V sources can "fight" each other
+- Current can flow backwards through FTDI into your computer's USB port
+- This can damage the USB port or FTDI adapter
 
 ### 5.6 ESP32-CAM Programming Mode
 
 **Critical:** ESP32-CAM has no USB. You need an FTDI adapter.
 
+**⚠️ Safety: Disconnect or cover laser during programming!**
+GPIOs may glitch during boot/flash, briefly activating the laser. Either:
+- Unplug the laser module
+- Cover the laser lens with opaque tape
+- Keep laser safety glasses on
+
 **To enter programming mode:**
-1. Connect GPIO 0 to GND (use a jumper wire)
-2. Power cycle the board (unplug and replug power)
-3. Upload your code
-4. Disconnect GPIO 0 from GND
-5. Power cycle again to run normally
+1. Disconnect laser (or cover it) and servo power
+2. Connect GPIO 0 to GND (use a jumper wire)
+3. Power cycle the board (unplug and replug power)
+4. Upload your code
+5. Disconnect GPIO 0 from GND
+6. Reconnect laser/servo
+7. Power cycle again to run normally
 
 **Common problems:**
 - "Failed to connect": GPIO 0 not grounded during boot
 - "Wrong boot mode": GPIO 0 still grounded after upload
 - "Brownout": Power supply too weak
+- "No serial port": Using a charge-only USB cable (see §12.1.1)
 
 ---
 
@@ -705,7 +927,7 @@ XIAO ESP32S3 Sense (with camera expansion)
  D2 ─┤●            ●├─ D8
  D3 ─┤●            ●├─ D7
  D4 ─┤●            ●├─ D6
- D5 ─┤●            ●├─ D5
+ D5 ─┤●              │
      │              │
 GND ─┤●            ●├─ 3V3
 5V  ─┤●            ●├─ GND
@@ -760,22 +982,27 @@ Power: USB-C provides power to board.
 
 **What draws power:**
 
-| Component | Voltage | Current (typical) | Current (peak) |
-|-----------|---------|-------------------|----------------|
+| Component | Voltage | Current (typical) | Current (peak/stall) |
+|-----------|---------|-------------------|----------------------|
 | Raspberry Pi 5 | 5V | 600mA (idle) | 2500mA (load) |
 | ESP32-CAM | 5V | 180mA | 310mA (WiFi TX) |
 | XIAO ESP32S3 | 5V | 150mA | 280mA (WiFi TX) |
-| Servo SG90 | 5V | 10mA (idle) | 500mA (moving) |
+| Servo SG90 | 5V | 10mA (idle) | **1200mA (stall)** |
 | Laser 5mW | 5V | 30mA | 40mA |
-| RGB LED | 3.3V | 20mA | 60mA (all on) |
+| RGB LED | 3.3V | ~4mA per channel* | 12mA (all on) |
 
-**Total for each path:**
+*LED current note: With 330Ω resistors as specified in §4.5 Step 4, actual current is ~4mA per channel (calculated from voltage drop). The 20mA "max rated" figure often seen is the LED's absolute maximum — our design runs well under that for long life.
 
-| Path | Typical | Peak |
-|------|---------|------|
-| A (Pi 5) | 680mA | 3100mA |
-| B (ESP32-CAM) | 240mA | 910mA |
-| C (XIAO) | 210mA | 880mA |
+**⚠️ Servo Stall Current Warning:**
+The 500mA figure often quoted is for *normal movement*. If the servo hits an obstacle or mechanical stop, it can draw **800-1200mA continuously** until it overheats. Size your power supply for stall current, not movement current.
+
+**Total for each path (with servo stall):**
+
+| Path | Typical | Peak (stall) |
+|------|---------|--------------|
+| A (Pi 5) | 680mA | 3800mA |
+| B (ESP32-CAM) | 240mA | 1600mA |
+| C (XIAO) | 210mA | 1580mA |
 
 ### 7.2 Power Supply Selection
 
@@ -783,9 +1010,10 @@ Power: USB-C provides power to board.
 - Pi 5 is power hungry. Cheap adapters cause problems.
 - Must be USB-C PD (Power Delivery) capable.
 
-**Path B & C:** Any quality 5V 2A USB adapter works
-- The ESP32 boards are efficient.
-- Add 50% headroom: 1A needed → use 2A supply.
+**Path B & C:** Use 5V 3A USB adapter (or dedicated 5V BEC)
+- A 2A adapter is marginal — stalled servo + WiFi TX can exceed 1.6A
+- For reliability, use 3A supply or separate servo power (5V 2A BEC)
+- Add a 1000µF capacitor near ESP32 when sharing supply with servo
 
 ### 7.3 Power Distribution
 
@@ -838,9 +1066,11 @@ Electrolytic capacitors are POLARIZED — they have a positive and negative lead
 The capacitor can EXPLODE or catch fire. This is not a gentle failure — it can spray hot electrolyte. Always double-check polarity before powering on.
 
 **How to identify polarity:**
-1. Look for the stripe with minus signs (─) — this is NEGATIVE
-2. Longer lead = positive (on new capacitors)
-3. When in doubt, check with multimeter in capacitance mode
+1. **Stripe marking**: Look for the stripe with minus signs (─) on the body — this indicates the NEGATIVE lead
+2. **Lead length**: Longer lead = positive (only reliable on NEW capacitors — trimmed leads don't count)
+3. **Can marking**: Some capacitors show an arrow pointing to negative
+
+**⚠️ Note:** A multimeter in capacitance mode does NOT tell you polarity — it only measures capacitance value. You must identify polarity from the markings on the capacitor body or check the datasheet.
 
 ---
 
@@ -900,6 +1130,20 @@ Mounting considerations:
 2. **Secure attachment:** Use screws through servo horn holes
 3. **Range of motion:** Ensure laser can sweep the detection zone
 4. **Cable management:** Laser wires shouldn't tangle when servo moves
+
+**Horn Attachment Procedure (Do This Right!):**
+
+The servo horn must be attached at the correct angle, or your "center" will be off:
+
+1. **Power the servo** and command it to center position (90°) using test code
+2. **While powered at center**, press the horn onto the splined shaft (don't screw yet)
+3. **Rotate the horn** so it points straight forward (perpendicular to servo body)
+4. **Insert the tiny screw** through the center hole into the shaft
+5. **Don't overtighten** — these screws strip easily in plastic
+
+⚠️ **Common mistake:** Attaching the horn while servo is unpowered. The servo shaft can be at any random angle. When you later command "center", the horn points the wrong way and your sweep range is asymmetric.
+
+⚠️ **If you stripped the gears:** Forcing the horn onto the wrong position can strip the plastic gears inside. The servo will buzz but not move. Unfortunately, this means you need a new servo.
 
 ```
 Front View:
@@ -987,9 +1231,12 @@ We use a Class 3R laser (5mW, 650nm red).
 
 **Class 3R means:**
 - Can cause eye injury if beam enters eye directly
-- Safe if viewed briefly (blink reflex protects)
+- Even brief exposure can cause damage — do NOT rely on blink reflex
 - NOT safe for prolonged exposure
 - NOT safe if focused with optics
+- Specular reflections (mirrors, shiny metal, glass) are also hazardous
+
+**⚠️ DO NOT assume "it's only 5mW, it's safe."** Treat any direct beam exposure as hazardous.
 
 **Safety rules:**
 1. NEVER look directly into the beam
@@ -1019,18 +1266,42 @@ When testing the laser at close range on your workbench:
 
 **Hardware Failsafe Option (Recommended)**
 
-For additional safety, wire the laser through a normally-open relay:
+For additional safety, wire the laser through a relay MODULE (not a bare relay!).
 
+**⚠️ WARNING: You cannot drive a bare relay coil with a GPIO pin!**
+- A relay coil needs 50-150mA — GPIO pins provide only 10-20mA
+- The inductive kickback from a coil can destroy GPIO pins
+- You MUST use a relay MODULE (has driver transistor and flyback diode built-in)
+
+**Relay Module Wiring (Correct):**
 ```
-GPIO Pin ────► Relay Coil ────► GND
-                   │
-                   └── Relay contacts in series with laser power
+                    Relay Module (3-pin or 4-pin)
+                   ┌─────────────────────────┐
+    5V ────────────┤ VCC                     │
+   GND ────────────┤ GND                     │
+  GPIO ────────────┤ IN (Signal)             │
+                   │                         │
+                   │    ┌──────┐             │
+                   │    │ Relay│──── COM ────┼──► Laser VCC
+                   │    │      │──── NO  ────┼──► +5V Power
+                   │    └──────┘             │
+                   └─────────────────────────┘
 
-When GPIO is LOW or microcontroller loses power:
-  → Relay opens → Laser power cut → Laser OFF
+How it works:
+- GPIO HIGH → Relay energizes → NO (Normally Open) closes → Laser gets power
+- GPIO LOW or MCU loses power → Relay de-energizes → Contact opens → Laser OFF
 ```
 
-This ensures the laser cannot stay on if the software crashes or power is lost. A small 5V relay module (~€2) provides this protection.
+**Important notes:**
+- Use a "5V relay module" (often blue PCB, ~€2)
+- Most relay modules are "active LOW" — check yours!
+- Active LOW: GPIO LOW = relay ON, GPIO HIGH = relay OFF (inverted)
+- Active HIGH: GPIO HIGH = relay ON (matches our logic)
+
+**What this failsafe does:**
+- If software crashes: GPIO goes to default state (usually LOW) → laser OFF
+- If microcontroller loses power: relay de-energizes → laser OFF
+- If firmware hangs with GPIO stuck HIGH: laser STAYS ON (watchdog timer in firmware is the solution here)
 
 **Aircraft Safety**
 
@@ -1068,11 +1339,14 @@ Laser Module (KY-008):
         │    │    │
         │    │    └── GND → Power supply GND
         │    └─────── VCC → Power supply 5V
-        └──────────── S → [330Ω] → GPIO (control pin)
+        └──────────── S → GPIO (control pin)
 
-Why 330Ω resistor?
-The signal pin controls a transistor. The resistor limits base current.
-Some modules have this built-in. Extra resistor doesn't hurt.
+Note on resistors:
+- The 330Ω resistors listed in the BOM are for the RGB LED channels (current limiting)
+- For KY-008 signal pin: a series resistor is OPTIONAL (for GPIO protection only)
+- The laser diode current is controlled by the module's built-in driver — NOT by any resistor you add
+
+⚠️ IMPORTANT: Only use laser modules with built-in drivers (like KY-008) that specify "5V operation with signal/enable input." NEVER use bare laser diodes — they require precise constant-current drivers and will be destroyed by direct 5V.
 ```
 
 ### 9.4 Laser Aiming
@@ -1138,9 +1412,41 @@ Side View:
 - Excellent OpenCV support
 
 **Installation:**
-1. Connect ribbon cable to CSI port (blue side toward USB)
-2. Enable camera in `raspi-config`
+1. Connect ribbon cable to CSI port (metal contacts facing DOWN — see §4.5 Step 6 for details)
+2. On modern Pi OS (Bookworm and later), camera is enabled by default — **no `raspi-config` step needed**
 3. Test with `libcamera-hello`
+
+**If `libcamera-hello` fails:**
+- Command not found → Install with: `sudo apt install libcamera-apps`
+- "No cameras available" → Re-seat ribbon cable; verify 22-to-15 pin cable (§4.5); confirm latch is closed
+- Black image → Remove lens protective sticker if present
+
+**Locking Focus for Fixed Distance (Important!):**
+
+The Pi Camera Module 3 has autofocus (PDAF) that continuously hunts for focus. For hornet detection at a fixed 1-2m distance, this causes problems:
+- Frame-to-frame focus changes confuse detection algorithm
+- Blurry captures if AF locks on background
+- Wasted processing time
+
+**To set fixed focus:**
+
+```bash
+# Find the right focus value for your distance:
+libcamera-hello -t 0 --lens-position 0    # Start at infinity
+# Adjust --lens-position until image is sharp at your hive distance
+# Typical value for 1.5m distance: --lens-position 1.8
+
+# In Python code (picamera2):
+from picamera2 import Picamera2
+picam2 = Picamera2()
+picam2.set_controls({"AfMode": 0, "LensPosition": 1.8})  # 0 = Manual mode
+```
+
+**Lens position reference:**
+- 0.0 = Infinity focus
+- 1.0 = ~1m distance
+- 2.0 = ~0.5m distance
+- Adjust based on your actual hive-to-camera distance
 
 ### 10.3 Path B: ESP32-CAM OV2640
 
@@ -1289,13 +1595,38 @@ Touch something grounded every few minutes. It's not perfect, but much better th
 - Anti-static mat (optional but recommended)
 - Magnifying glass helpful for small components
 
+**USB Cable Verification (Important!):**
+
+Many USB cables are "charge-only" — they have power wires but no data wires. With a charge-only cable:
+- FTDI adapter won't be detected by your computer
+- You'll see "no serial port found" errors
+- Everything looks connected but nothing works
+
+**How to identify data cables:**
+- Data cables have 4 wires inside (red, black, green, white)
+- Charge-only cables have only 2 wires (red, black)
+- Quick test: Plug in a USB device (phone, keyboard). If your computer makes a sound or shows a notification, it's a data cable.
+
+**Recommendation:** Find a known-good data cable and label it with tape so you don't grab the wrong one later.
+
+**Wire Gauge Recommendations:**
+
+| Connection | Current Draw | Recommended Wire |
+|------------|--------------|------------------|
+| 5V power rail | 1-3A | 20 AWG or thicker |
+| Servo power | 500mA-1.2A | 22 AWG minimum |
+| Signal wires | <20mA | 24-26 AWG is fine |
+| Ground bus | Sum of all | Match power wire gauge |
+
+Dupont jumper wires (typically 22-24 AWG) are fine for prototyping but marginal for permanent installation with servo. For production, use thicker wires for power connections.
+
 ### 12.2 Assembly Sequence
 
 **Phase 1: Verify Components (30 min)**
 
 1. ☐ Lay out all components
 2. ☐ Verify each component powers on (plug in microcontroller, LED should blink)
-3. ☐ Test servo with power only (should hold position)
+3. ☐ Test servo with power AND a known-good PWM signal (see §13.1); without PWM, servo may be limp or jitter — this is normal
 4. ☐ Test laser briefly with power (SAFETY: aim at wall)
 5. ☐ Test button continuity with multimeter
 
@@ -1333,7 +1664,7 @@ Touch something grounded every few minutes. It's not perfect, but much better th
 3. ☐ Verify laser sweep covers detection zone
 4. ☐ Connect power
 5. ☐ Run software tests
-6. ☐ Celebrate! 🎉
+6. Done — take a break, you've earned it
 
 ### 12.3 Checkpoint Tests
 
@@ -1342,7 +1673,7 @@ After each phase, verify:
 | Checkpoint | Test Method | Expected Result |
 |------------|-------------|-----------------|
 | Power | Measure voltage at rails | 5V ± 0.25V |
-| Servo | Send test PWM | Smooth movement 0-180° |
+| Servo | Send test PWM | Smooth movement over calibrated safe range (§8.4) |
 | Laser | Toggle GPIO | Laser on/off cleanly |
 | LED | Toggle each color | R, G, B individually |
 | Button | Read GPIO | LOW when pressed, HIGH when released |
@@ -1537,6 +1868,9 @@ For software installation and configuration, see:
 |------|---------|---------|
 | 2026-01-21 | 1.0 | Initial comprehensive hardware specification |
 | 2026-01-21 | 1.1 | Added: TX/RX crossover warning, capacitor polarity, laser safety glasses, hardware failsafe, ESD protection, servo calibration, spare parts list, software reference |
+| 2026-01-21 | 1.2 | **Critical fixes from GPT-5.2 review:** Pi 5 camera connector (22-pin FFC), ESP32-CAM GPIO table corrected (SD/boot pins not camera), relay MODULE diagram (not bare coil), removed dangerous "blink reflex" advice, FTDI 3.3V/5V voltage warning, capacitor polarity test correction, ESP32-CAM antenna 0Ω resistor mod, breadboard split rails warning, TOC updated |
+| 2026-01-21 | 1.3 | **Dual audit fixes (Opus 4.5 + GPT-5.1):** GPIO 2→14 for ESP32-CAM servo (boot-critical fix), ground reference explanation, FTDI voltage guidance corrected (can't mix 5V power with 3.3V logic), servo stall current updated (500→1200mA), power supply upgraded to 3A, FTDI back-feed warning, Pi Camera autofocus lock procedure, flash LED disable as boot self-test, button debounce note, servo horn attachment procedure, USB data cable diagnostics, wire gauge table, pull-up resistor clarification, PWM frequency spec, version header added |
+| 2026-01-22 | 1.4 | **Final GPT-5.2 review fixes:** FTDI diagram fixed (VCC removed, single clear recommendation), power supply BOM made path-specific (5A for Pi, 3A for ESP32/XIAO), Pi Camera install updated for modern Pi OS (no raspi-config needed), PWM channel note corrected (GPIO12 is PWM0), camera ribbon references unified to §4.5, servo test clarified (needs PWM signal), BOM split into shared vs path-specific (ESP32-CAM uses built-in LED), laser resistor guidance clarified (LED vs signal), LED power budget corrected to actual current with 330Ω, "safe-ish" language replaced with proper safety reference |
 
 ---
 

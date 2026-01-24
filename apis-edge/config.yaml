@@ -1,0 +1,42 @@
+# APIS Edge Device Configuration
+# This file configures the hornet detection and deterrent system.
+#
+# Pi: Reads this file at startup
+# ESP32: Uses compile-time defaults (NVS in future story)
+
+camera:
+  device_path: /dev/video0    # USB webcam or Pi Camera (via libcamera)
+  width: 640                   # Frame width in pixels
+  height: 480                  # Frame height in pixels
+  fps: 10                      # Target frames per second
+  focus_distance: 1.5          # Pi Camera only (meters, 0 = infinity)
+
+storage:
+  data_dir: ./data             # Base data directory
+  clips_dir: ./data/clips      # Video clip storage
+  db_path: ./data/detections.db # Detection events database
+  max_storage_mb: 0            # Max storage (0 = unlimited)
+  clip_retention_days: 30      # Days to keep clips (0 = forever)
+
+logging:
+  level: INFO                  # DEBUG, INFO, WARN, ERROR
+  file_path: ./logs/apis.log   # Log file path (empty = stdout)
+  json_format: true            # Use JSON log format
+
+server:
+  url: ""                      # APIS server URL (empty = standalone)
+  api_key: ""                  # Device API key
+  heartbeat_interval: 60       # Heartbeat interval (seconds)
+
+detection:
+  motion_threshold: 0.02       # Motion sensitivity (0.0-1.0)
+  min_contour_area: 100        # Minimum blob size (pixels)
+  max_contour_area: 50000      # Maximum blob size (pixels)
+  hover_duration: 2.0          # Hover time threshold (seconds)
+  hover_radius: 30.0           # Max movement for hover (pixels)
+
+recording:
+  pre_roll_frames: 20          # Frames before detection (~2s at 10 FPS)
+  post_roll: 3                 # Seconds after detection ends
+  max_duration: 30             # Maximum clip length (seconds)
+  format: mp4                  # Clip format (mp4 or jpeg_sequence)

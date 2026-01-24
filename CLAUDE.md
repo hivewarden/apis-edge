@@ -41,10 +41,83 @@ For hardware stories, include:
 |-----------|------------|-------|
 | Server | Go 1.22 + Chi | Idiomatic, no frameworks |
 | Dashboard | React + Refine + Ant Design | Vite build |
-| Database | SQLite (modernc.org/sqlite) | Pure Go, no CGO |
-| Edge (Pi) | Python 3.11+ | OpenCV for detection |
-| Edge (ESP32) | C++ / PlatformIO | Custom detection |
+| Database | YugabyteDB | PostgreSQL-compatible distributed DB |
+| Edge (Pi + ESP32) | C / ESP-IDF | Single codebase with HAL abstraction |
 | Container | Podman | Rootless, Alpine base |
+| Secrets | OpenBao | Vault-compatible, swappable |
+| Encryption | SOPS + age | Local dev secrets |
+
+## Secrets Management
+
+**Architecture:** OpenBao (Vault-compatible) for secrets, SOPS for encrypted local files.
+
+**Go Server reads secrets from OpenBao:**
+```go
+import "github.com/jermoo/apis/apis-server/internal/secrets"
+
+client := secrets.NewClient()
+dbConfig, _ := client.GetDatabaseConfig()
+connStr := dbConfig.ConnectionString()
+```
+
+**To connect to external OpenBao (e.g., existing stack):**
+```bash
+# Just change these environment variables:
+OPENBAO_ADDR=https://your-openbao.example.com:8200
+OPENBAO_TOKEN=hvs.your-actual-token
+OPENBAO_SECRET_PATH=secret/data/apis
+```
+
+**Local dev:** OpenBao runs in docker-compose with dev token. No setup needed.
+
+**Secret paths in OpenBao:**
+- `secret/data/apis/database` - DB credentials
+- `secret/data/apis/zitadel` - Zitadel config
+- `secret/data/apis/api` - API configuration
+
+**Shared infrastructure:** APIS is designed to run alongside other apps on shared infrastructure (YugabyteDB, OpenBao, VyOS). See `docs/INFRASTRUCTURE-INTEGRATION.md` for details on connecting to an existing stack.
+
+## Target Infrastructure
+
+APIS deploys to a shared Hetzner infrastructure stack alongside RTP (RateThePlate). Reference architecture: `/Users/jermodelaruelle/Projects/RTP-SK/zzWegoVPS-v2/docs/architecture/SCALING-ARCHITECTURE.md`
+
+### Infrastructure Summary
+
+| Phase | Servers | APIS Location | OpenBao | YugabyteDB |
+|-------|---------|---------------|---------|------------|
+| 1-2 | 4-9 | `rtp-app-01` (10.0.1.10) | `rtp-sec-01` (10.0.1.20) | Shared on app-01 or data nodes |
+| 3+ | 13+ | Dedicated `apis-app-01` or shared | `rtp-data-0X` (Raft HA) | Bare metal data tier |
+
+### Key Infrastructure Details
+
+```
+SHARED STACK (Nuremberg DC)
+├── VyOS Firewall (10.0.1.1/2) - VRRP HA, Suricata IDS
+├── OpenBao (10.0.1.20 or data nodes) - Secrets at secret/data/apis/*
+├── YugabyteDB (shared cluster) - APIS uses dedicated 'apis' database
+├── Zitadel (shared) - APIS can use same instance, separate project
+├── BunkerWeb (WAF) - Routes traffic to APIS
+├── VictoriaMetrics - APIS exports /metrics for scraping
+└── Wazuh - Security monitoring
+
+APIS INTEGRATION POINTS
+├── Secrets: OPENBAO_ADDR=http://10.0.1.20:8200, path=secret/data/apis/*
+├── Database: postgres://apis:xxx@yugabytedb:5433/apis
+├── Auth: Shared Zitadel or dedicated
+└── Monitoring: Prometheus metrics at :3000/metrics
+```
+
+### Isolated vs Integrated Mode
+
+```bash
+# ISOLATED (default for local dev) - runs everything locally
+docker compose up
+
+# INTEGRATED (connects to shared stack) - set env vars first
+OPENBAO_ADDR=http://10.0.1.20:8200 \
+OPENBAO_TOKEN=hvs.xxx \
+docker compose up apis-server apis-dashboard
+```
 
 ## Repository Structure
 
@@ -55,9 +128,12 @@ apis/
 │   └── internal/         # handlers/, models/, storage/, middleware/
 ├── apis-dashboard/       # React + Refine
 │   └── src/              # components/, pages/, providers/, hooks/
-├── apis-edge/
-│   ├── pi/               # Python
-│   └── esp32/            # C++ / PlatformIO
+├── apis-edge/            # Edge device firmware (C with HAL)
+│   ├── src/              # Shared C source code
+│   ├── hal/              # Hardware Abstraction Layer
+│   │   ├── pi/           # Pi-specific HAL implementation
+│   │   └── esp32/        # ESP32-specific HAL implementation
+│   └── platforms/        # Platform-specific build configs
 ├── hardware/             # Wiring diagrams, STL files
 └── docs/
 ```
@@ -130,7 +206,7 @@ func respondError(w http.ResponseWriter, msg string, code int) {
 
 - **Dashboard:** Bcrypt password + secure sessions
 - **Device → Server:** API key in `X-API-Key` header over HTTPS
-- **Secrets:** Environment variables only, never hardcoded
+- **Secrets:** OpenBao for production, SOPS-encrypted files for dev, never hardcoded
 
 ## Device Communication
 
@@ -161,3 +237,49 @@ func respondError(w http.ResponseWriter, msg string, code int) {
 - Don't hardcode secrets or API keys
 - Don't use SSH for device management (ESP32 can't do it)
 - Don't design pull-based communication (device pushes only)
+
+
+
+---
+
+## Epic Development Orchestration
+
+**Story Loop:** create-story → dev-story → code-review → remediate → re-review (until pass)
+
+**Epic Flow:** Stories sequential → Holistic epic review → Remediate integration issues → Mark epic done
+
+### Agent Responsibilities
+
+| Agent | Workflow | Responsibility |
+|-------|----------|----------------|
+| **Story Creator** | create-story | Generate detailed story file with tasks, acceptance criteria, technical context |
+| **Developer** | dev-story | Implement code meeting all acceptance criteria |
+| **Reviewer** | code-review | Adversarial review finding 3-10 issues minimum |
+| **Remediator** | (manual) | Fix issues from review, can auto-fix with approval |
+| **Epic Reviewer** | (manual) | Holistic integration review of complete epic |
+
+### Review Quality Gates
+
+**Story Review Must Check:**
+- [ ] All acceptance criteria implemented
+- [ ] Tests written and passing
+- [ ] Code follows project patterns (CLAUDE.md)
+- [ ] No security vulnerabilities
+- [ ] Error handling complete
+- [ ] Logging implemented per standards
+
+**Epic Holistic Review Must Check:**
+- [ ] All stories integrate correctly
+- [ ] Cross-story data flows work
+- [ ] Full test suite passes
+- [ ] Docker Compose starts cleanly
+- [ ] All FRs from epic satisfied
+- [ ] Architecture decisions followed
+- [ ] No regressions in earlier stories
+
+### Escalation Rules
+
+1. **Story review fails 3 times** → Escalate to human for decision
+2. **Epic holistic review fails 2 times** → Escalate to human
+3. **Circular dependency detected** → Stop and document for human
+4. **Architecture deviation required** → Human approval before proceeding

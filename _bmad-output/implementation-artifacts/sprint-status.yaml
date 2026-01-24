@@ -1,0 +1,167 @@
+# generated: 2026-01-22
+# project: APIS - Anti-Predator Interference System
+# project_key: apis
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-01-22
+project: APIS - Anti-Predator Interference System
+project_key: apis
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 0: Technical Infrastructure (Standalone)
+  epic-0: done
+  0-1-infrastructure-consolidation-secrets-hardening: done
+  epic-0-retrospective: optional
+
+  # Epic 1: Portal Foundation & Authentication
+  epic-1: done
+  1-1-project-scaffolding-docker-compose: done
+  1-2-ant-design-theme-configuration: done
+  1-3-sidebar-layout-navigation-shell: done
+  1-4-zitadel-oidc-integration: done
+  1-5-tenant-context-database-setup: done
+  1-6-health-endpoint-deployment-verification: done
+  epic-1-retrospective: optional
+
+  # Epic 2: Site & Unit Management
+  epic-2: done
+  2-1-create-and-manage-sites: done
+  2-2-register-apis-units: done
+  2-3-unit-heartbeat-reception: done
+  2-4-unit-status-dashboard-cards: done
+  2-5-live-video-websocket-proxy: done
+  epic-2-retrospective: optional
+
+  # Epic 3: Hornet Detection Dashboard
+  epic-3: done
+  3-1-detection-events-table-api: done
+  3-2-todays-detection-count-card: done
+  3-3-weather-integration: done
+  3-4-time-range-selector: done
+  3-5-activity-clock-visualization: done
+  3-6-temperature-correlation-chart: done
+  3-7-daily-weekly-trend-line-chart: done
+  epic-3-retrospective: optional
+
+  # Epic 4: Clip Archive & Video Review
+  epic-4: backlog
+  4-1-clip-upload-storage: backlog
+  4-2-clip-archive-list-view: backlog
+  4-3-clip-video-playback: backlog
+  4-4-clip-management-delete-archive: backlog
+  4-5-nest-radius-estimator-map: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Hive Management & Inspections
+  epic-5: backlog
+  5-1-create-and-configure-hives: backlog
+  5-2-hive-list-detail-view: backlog
+  5-3-quick-entry-inspection-form: backlog
+  5-4-inspection-history-view: backlog
+  5-5-frame-level-data-tracking: backlog
+  5-6-frame-development-graphs: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Treatments, Feedings & Harvests
+  epic-6: backlog
+  6-1-treatment-log: backlog
+  6-2-feeding-log: backlog
+  6-3-harvest-tracking: backlog
+  6-4-equipment-log: backlog
+  6-5-custom-labels-system: backlog
+  6-6-treatment-calendar-reminders: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Mobile PWA & Field Mode
+  epic-7: backlog
+  7-1-service-worker-app-shell-caching: backlog
+  7-2-indexeddb-offline-storage: backlog
+  7-3-offline-inspection-creation: backlog
+  7-4-automatic-background-sync: backlog
+  7-5-voice-input-for-notes: backlog
+  7-6-qr-code-hive-navigation: backlog
+  epic-7-retrospective: optional
+
+  # Epic 8: BeeBrain AI Insights
+  epic-8: backlog
+  8-1-beebrain-rule-engine-mvp: backlog
+  8-2-dashboard-beebrain-card: backlog
+  8-3-hive-detail-beebrain-analysis: backlog
+  8-4-proactive-insight-notifications: backlog
+  8-5-maintenance-priority-view: backlog
+  epic-8-retrospective: optional
+
+  # Epic 9: Data Export & Emotional Moments
+  epic-9: backlog
+  9-1-configurable-data-export: backlog
+  9-2-first-harvest-celebration: backlog
+  9-3-hive-loss-post-mortem: backlog
+  9-4-season-recap-summary: backlog
+  9-5-overwintering-success-report: backlog
+  epic-9-retrospective: optional
+
+  # Epic 10: Edge Detection Software
+  epic-10: done
+  10-1-camera-capture-module: done
+  10-2-motion-detection-pipeline: done
+  10-3-size-filtering-hover-detection: done
+  10-4-detection-event-logging: done
+  10-5-clip-recording-storage: done
+  10-6-http-control-api: done
+  10-7-server-communication-heartbeat: done
+  10-8-clip-upload-with-retry: done
+  10-9-led-status-indicator: done
+  10-10-configuration-persistence: done
+  epic-10-retrospective: optional
+
+  # Epic 11: Hardware Assembly Documentation
+  epic-11: done
+  11-1-hardware-overview-concepts-guide: done
+  11-2-pi-5-assembly-manual: done
+  11-3-esp32-cam-assembly-manual: done
+  11-4-xiao-esp32s3-assembly-manual: done
+  11-5-enclosure-mounting-guide: done
+  11-6-troubleshooting-safety-guide: done
+  epic-11-retrospective: optional
+
+  # Epic 12: Edge Laser Deterrent Software
+  epic-12: done
+  12-1-servo-control-module: done
+  12-2-coordinate-mapping-pixel-to-servo: done
+  12-3-laser-activation-control: done
+  12-4-targeting-sweep-pattern: done
+  12-5-physical-arm-disarm-button: done
+  12-6-safety-enforcement-layer: done
+  epic-12-retrospective: optional
