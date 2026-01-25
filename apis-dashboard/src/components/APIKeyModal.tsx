@@ -1,6 +1,7 @@
 import { Modal, Button, Alert, Input, Typography, Space, message } from 'antd';
 import { CopyOutlined, CheckOutlined } from '@ant-design/icons';
 import { useState } from 'react';
+import { colors } from '../theme/apisTheme';
 
 const { Text } = Typography;
 
@@ -83,7 +84,7 @@ export function APIKeyModal({ visible, apiKey, onClose, isRegenerate = false }: 
               fontFamily: 'monospace',
               fontSize: '13px',
               marginTop: 8,
-              backgroundColor: '#f5f5f5',
+              backgroundColor: colors.coconutCream,
             }}
           />
         </div>

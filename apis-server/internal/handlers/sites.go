@@ -37,7 +37,9 @@ type SiteDataResponse struct {
 
 // MetaResponse contains pagination metadata.
 type MetaResponse struct {
-	Total int `json:"total"`
+	Total   int `json:"total"`
+	Page    int `json:"page,omitempty"`
+	PerPage int `json:"per_page,omitempty"`
 }
 
 // CreateSiteRequest represents the request body for creating a site.

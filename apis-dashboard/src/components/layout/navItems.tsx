@@ -6,6 +6,7 @@ import {
   BarChartOutlined,
   SettingOutlined,
   EnvironmentOutlined,
+  ToolOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -20,6 +21,7 @@ export const navItems: MenuProps['items'] = [
   { key: '/sites', icon: <EnvironmentOutlined />, label: 'Sites' },
   { key: '/units', icon: <ApiOutlined />, label: 'Units' },
   { key: '/hives', icon: <HomeOutlined />, label: 'Hives' },
+  { key: '/maintenance', icon: <ToolOutlined />, label: 'Maintenance' },
   { key: '/clips', icon: <VideoCameraOutlined />, label: 'Clips' },
   { key: '/statistics', icon: <BarChartOutlined />, label: 'Statistics' },
   { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },

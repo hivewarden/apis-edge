@@ -1,9 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Typography, Row, Col, Empty, Spin, Button, message, Divider, Select } from 'antd';
-import { PlusOutlined, ReloadOutlined, EnvironmentOutlined } from '@ant-design/icons';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Typography, Row, Col, Empty, Spin, Button, message, Divider, Select, Alert } from 'antd';
+import { PlusOutlined, ReloadOutlined, EnvironmentOutlined, TrophyOutlined } from '@ant-design/icons';
 import { UnitStatusCard, Unit } from '../components/UnitStatusCard';
+import { TodayActivityCard } from '../components/TodayActivityCard';
+import { WeatherCard } from '../components/WeatherCard';
+import { TimeRangeSelector } from '../components/TimeRangeSelector';
+import { ActivityClockCard } from '../components/ActivityClockCard';
+import { TemperatureCorrelationCard } from '../components/TemperatureCorrelationCard';
+import { TrendChartCard } from '../components/TrendChartCard';
+import { NestEstimatorCard } from '../components/NestEstimatorCard';
+import { BeeBrainCard } from '../components/BeeBrainCard';
+import { SyncStatus } from '../components/SyncStatus';
+import { ProactiveInsightBanner } from '../components/ProactiveInsightBanner';
+import { TimeRangeProvider } from '../context';
 import { apiClient } from '../providers/apiClient';
+import { colors } from '../theme/apisTheme';
+import { getLastSyncTime, calculateStorageSize } from '../services/offlineCache';
+import { useRecapTime } from '../hooks/useSeasonRecap';
 
 const { Title, Paragraph } = Typography;
 
@@ -37,11 +51,17 @@ const POLL_INTERVAL_MS = 30000; // 30 seconds
  * Main landing page showing overview of APIS system status.
  * Displays:
  * - Site selector for filtering data
+ * - Time range selector for filtering detection data (Epic 3, Story 3.4)
+ * - Today's activity card with detection stats (Epic 3, Story 3.2)
+ * - Weather card showing current conditions (Epic 3, Story 3.3)
+ * - Activity clock showing hourly patterns (Epic 3, Story 3.5)
+ * - Temperature correlation scatter plot (Epic 3, Story 3.6)
+ * - Trend chart showing detection trends over time (Epic 3, Story 3.7)
  * - Unit status cards with auto-refresh every 30 seconds
  *
- * Part of Epic 2, Story 2.4
+ * Part of Epic 2, Story 2.4 (base), Epic 3, Stories 3.1-3.7
  */
-export function Dashboard() {
+function DashboardContent() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -56,6 +76,14 @@ export function Dashboard() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Offline sync status (Epic 7, Story 7.2)
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [storageMB, setStorageMB] = useState(0);
+
+  // Season recap prompt (Epic 9, Story 9.4)
+  const { isRecapTime, currentSeason } = useRecapTime('northern');
+  const [recapBannerDismissed, setRecapBannerDismissed] = useState(false);
 
   // Fetch sites for selector
   const fetchSites = useCallback(async () => {
@@ -102,6 +130,19 @@ export function Dashboard() {
     }
   }, [selectedSiteId]);
 
+  // Load offline sync status
+  useEffect(() => {
+    const loadSyncStatus = async () => {
+      const [syncTime, storage] = await Promise.all([
+        getLastSyncTime(),
+        calculateStorageSize(),
+      ]);
+      setLastSynced(syncTime);
+      setStorageMB(storage);
+    };
+    loadSyncStatus();
+  }, []);
+
   // Initial fetch
   useEffect(() => {
     fetchSites();
@@ -123,11 +164,14 @@ export function Dashboard() {
 
   const handleSiteChange = (siteId: string | null) => {
     setSelectedSiteId(siteId);
+    // Preserve existing params (range, date) when changing site
+    const newParams = new URLSearchParams(searchParams);
     if (siteId) {
-      setSearchParams({ site_id: siteId });
+      newParams.set('site_id', siteId);
     } else {
-      setSearchParams({});
+      newParams.delete('site_id');
     }
+    setSearchParams(newParams, { replace: true });
   };
 
   const handleUnitClick = (id: string) => {
@@ -146,7 +190,14 @@ export function Dashboard() {
 
   return (
     <div>
-      <Title level={2}>Dashboard</Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Title level={2} style={{ margin: 0 }}>Dashboard</Title>
+        <SyncStatus
+          lastSynced={lastSynced}
+          storageUsedMB={storageMB}
+          compact
+        />
+      </div>
       <Paragraph>
         Welcome to APIS Dashboard. Your hornet detection and deterrent system overview.
       </Paragraph>
@@ -154,7 +205,7 @@ export function Dashboard() {
       {/* Site Selector */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <EnvironmentOutlined style={{ fontSize: 18, color: '#f7a42d' }} />
+          <EnvironmentOutlined style={{ fontSize: 18, color: colors.seaBuckthorn }} />
           <Select
             placeholder="Select a site"
             loading={sitesLoading}
@@ -175,6 +226,75 @@ export function Dashboard() {
             </Paragraph>
           )}
         </div>
+      </div>
+
+      {/* Season Recap Prompt Banner - Story 9.4 - Shows in November (Northern) */}
+      {isRecapTime && !recapBannerDismissed && (
+        <Alert
+          type="info"
+          icon={<TrophyOutlined />}
+          message={`Your ${currentSeason} beekeeping season has ended!`}
+          description={
+            <span>
+              Take a moment to review your achievements and create a season recap to share with fellow beekeepers.{' '}
+              <Link to="/recap" style={{ fontWeight: 600, color: colors.seaBuckthorn }}>
+                View Season Recap
+              </Link>
+            </span>
+          }
+          closable
+          onClose={() => setRecapBannerDismissed(true)}
+          style={{ marginBottom: 16 }}
+          showIcon
+        />
+      )}
+
+      {/* Proactive Insights Banner - Story 8.4 - Positioned at top for visibility */}
+      <ProactiveInsightBanner siteId={selectedSiteId} />
+
+      <Divider />
+
+      {/* Time Range Selector */}
+      <div style={{ marginBottom: 16 }}>
+        <TimeRangeSelector />
+      </div>
+
+      {/* Detection Activity Section */}
+      <div style={{ marginBottom: 24 }}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={12} lg={8}>
+            <TodayActivityCard siteId={selectedSiteId} />
+          </Col>
+          <Col xs={24} sm={12} lg={8}>
+            <WeatherCard
+              siteId={selectedSiteId}
+              hasGPS={!!(selectedSite?.latitude && selectedSite?.longitude)}
+            />
+          </Col>
+          <Col xs={24} lg={8}>
+            <ActivityClockCard siteId={selectedSiteId} />
+          </Col>
+        </Row>
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={24} lg={12}>
+            <TemperatureCorrelationCard siteId={selectedSiteId} />
+          </Col>
+          <Col xs={24} lg={12}>
+            <TrendChartCard siteId={selectedSiteId} />
+          </Col>
+        </Row>
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={24} lg={12}>
+            <BeeBrainCard siteId={selectedSiteId} />
+          </Col>
+          <Col xs={24} lg={12}>
+            <NestEstimatorCard
+              siteId={selectedSiteId}
+              latitude={selectedSite?.latitude ?? null}
+              longitude={selectedSite?.longitude ?? null}
+            />
+          </Col>
+        </Row>
       </div>
 
       <Divider />
@@ -226,6 +346,20 @@ export function Dashboard() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Dashboard with TimeRangeProvider wrapper.
+ *
+ * Wraps the dashboard content in TimeRangeProvider to enable
+ * time range selection across all dashboard components.
+ */
+export function Dashboard() {
+  return (
+    <TimeRangeProvider>
+      <DashboardContent />
+    </TimeRangeProvider>
   );
 }
 

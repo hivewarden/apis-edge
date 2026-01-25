@@ -52,7 +52,7 @@ describe('Login', () => {
 
   it('renders description text', () => {
     renderWithProviders(<Login />);
-    expect(screen.getByText(/sign in to access your hive monitoring dashboard/i)).toBeInTheDocument();
+    expect(screen.getByText(/sign in to monitor your hives/i)).toBeInTheDocument();
   });
 
   it('renders Zitadel attribution', () => {

@@ -4,6 +4,7 @@ import {
   EnvironmentOutlined,
   ApiOutlined,
 } from '@ant-design/icons';
+import { colors } from '../theme/apisTheme';
 
 const { Title, Text } = Typography;
 
@@ -43,19 +44,19 @@ export function UnitStatusCard({ unit, onClick }: UnitStatusCardProps) {
         return {
           badgeStatus: 'success' as const,
           label: 'Armed',
-          color: '#52c41a',
+          color: colors.success,
         };
       case 'error':
         return {
           badgeStatus: 'warning' as const,
           label: 'Disarmed',
-          color: '#faad14',
+          color: colors.warning,
         };
       default:
         return {
           badgeStatus: 'error' as const,
           label: 'Offline',
-          color: '#ff4d4f',
+          color: colors.error,
         };
     }
   };

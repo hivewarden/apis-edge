@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Background circle -->
+  <circle cx="16" cy="16" r="16" fill="#662604"/>
+  <!-- Simplified bee body -->
+  <ellipse cx="16" cy="17" rx="7" ry="5" fill="#f7a42d"/>
+  <!-- Bee stripes -->
+  <rect x="11" y="15" width="10" height="2" fill="#662604"/>
+  <rect x="12" y="18" width="8" height="2" fill="#662604"/>
+  <!-- Bee head -->
+  <circle cx="24" cy="15" r="4" fill="#662604"/>
+  <!-- Bee eye -->
+  <circle cx="25" cy="14" r="1" fill="#fbf9e7"/>
+  <!-- Bee wings -->
+  <ellipse cx="14" cy="12" rx="4" ry="2.5" fill="#fbf9e7" opacity="0.8"/>
+  <!-- Shield hint -->
+  <path d="M16 26 L12 23 L12 20 Q12 18 16 17 Q20 18 20 20 L20 23 Z"
+        fill="none" stroke="#f7a42d" stroke-width="1" opacity="0.9"/>
+</svg>

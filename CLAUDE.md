@@ -47,6 +47,15 @@ For hardware stories, include:
 | Secrets | OpenBao | Vault-compatible, swappable |
 | Encryption | SOPS + age | Local dev secrets |
 
+## Frontend Development
+
+**IMPORTANT:** When working on frontend code in `apis-dashboard/`, always use the `/frontend-design` skill. This applies to:
+- Epics 1-9 (all have React dashboard work)
+- Any component, page, or hook in `apis-dashboard/src/`
+- Styling, theming, and UI/UX improvements
+
+Epics 10-12 are edge device firmware (C/ESP-IDF) and hardware documentation — no frontend skill needed.
+
 ## Secrets Management
 
 **Architecture:** OpenBao (Vault-compatible) for secrets, SOPS for encrypted local files.

@@ -1,0 +1,112 @@
+/**
+ * QR Code Print Stylesheet
+ *
+ * Optimizes QR code display for printing:
+ * - Hides all UI elements except QR code
+ * - Sizes QR for reliable scanning (minimum 2.5cm)
+ * - Adds crop marks for easy cutting
+ * - Ensures text is readable when laminated
+ *
+ * Part of Epic 7, Story 7.6: QR Code Hive Navigation
+ */
+
+@media print {
+  /* Hide everything except QR print area */
+  body * {
+    visibility: hidden;
+  }
+
+  .qr-print-area,
+  .qr-print-area * {
+    visibility: visible;
+  }
+
+  /* Position QR code centered on page */
+  .qr-print-area {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 8cm;
+    padding: 1cm;
+    border: 1px dashed #ccc;
+    background: #fff;
+  }
+
+  /* QR code should be minimum 2.5cm for reliable scanning
+     Set to 6cm for comfortable outdoor use */
+  .qr-print-area canvas {
+    width: 6cm !important;
+    height: 6cm !important;
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* Hive name - large enough to read (minimum 14pt) */
+  .qr-print-area h4 {
+    font-size: 18pt !important;
+    margin-top: 0.5cm !important;
+    text-align: center;
+    color: #000 !important;
+  }
+
+  /* Site name - secondary text */
+  .qr-print-area .ant-typography-secondary {
+    font-size: 12pt !important;
+    text-align: center;
+    display: block;
+  }
+
+  /* Container styling */
+  .qr-print-area .qr-code-container {
+    padding: 0 !important;
+  }
+
+  /* Crop marks for easy cutting */
+  .qr-print-area::before {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border: 1px solid #000;
+    top: -15px;
+    left: -15px;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  .qr-print-area::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border: 1px solid #000;
+    bottom: -15px;
+    right: -15px;
+    border-left: none;
+    border-top: none;
+  }
+
+  /* Additional crop marks - top-right and bottom-left */
+  .qr-print-area .crop-mark-tr,
+  .qr-print-area .crop-mark-bl {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border: 1px solid #000;
+  }
+
+  .qr-print-area .crop-mark-tr {
+    top: -15px;
+    right: -15px;
+    border-left: none;
+    border-bottom: none;
+  }
+
+  .qr-print-area .crop-mark-bl {
+    bottom: -15px;
+    left: -15px;
+    border-right: none;
+    border-top: none;
+  }
+}

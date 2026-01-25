@@ -12,6 +12,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      // Mock vite-plugin-pwa virtual module for tests
+      'virtual:pwa-register': resolve(__dirname, './tests/__mocks__/virtual-pwa-register.ts'),
     },
   },
 });

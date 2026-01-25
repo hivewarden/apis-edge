@@ -3,6 +3,8 @@ package storage
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
@@ -99,4 +101,15 @@ func RequireConn(ctx context.Context) *pgxpool.Conn {
 // WithConn returns a new context with the database connection attached.
 func WithConn(ctx context.Context, conn *pgxpool.Conn) context.Context {
 	return context.WithValue(ctx, ConnKey, conn)
+}
+
+// GenerateID generates a random ID for use in temporary file paths.
+// For database IDs, use gen_random_uuid() in PostgreSQL instead.
+func GenerateID() string {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to timestamp-based ID if random fails
+		return fmt.Sprintf("id_%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(bytes)
 }

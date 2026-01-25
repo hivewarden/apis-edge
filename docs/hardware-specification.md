@@ -1874,6 +1874,299 @@ For software installation and configuration, see:
 
 ---
 
+## 18. Shopping List: Lab + Outdoor Testing Kit
+
+**Purpose:** Complete parts list for building 3 test units (1 lab breadboard setup + 2 outdoor deployment units) to cover 4 Dadant beehives.
+
+**Last Updated:** 2026-01-25
+
+### 18.1 Coverage Calculations for 4 Hives
+
+**Dadant Hive Dimensions:**
+- Single hive width: ~51 cm (Dadant-Blatt)
+- 4 hives + 20cm spacing between: **2.5-3.0 meters** total width
+
+**Can ONE device cover 4 hives?**
+
+| Component | Spec Needed | Coverage at 2.5m | Verdict |
+|-----------|-------------|------------------|---------|
+| Stock camera (66° FOV) | 53° horizontal | ~2.5m | ⚠️ Tight margins |
+| Wide-angle camera (100° FOV) | 80° horizontal | ~4.2m | ✓ Comfortable |
+| Laser 30° fan | — | 1.3m line | ❌ Not enough |
+| Laser 90° fan | — | 5.0m line | ✓ Good coverage |
+
+**Conclusion:** One device CAN cover 4 hives with:
+- 90° fan angle laser (not 30°)
+- Wide-angle camera lens upgrade recommended
+
+**Mounting Position:**
+```
+                   APIS Device (centered)
+                        ▼
+                       ╔═╗
+                       ║█║  ← 1.5-2m height, angled 15-20° down
+                       ╚═╝
+                        │
+                    2.5-3m distance
+                        │
+    ┌───┐    ┌───┐    ┌───┐    ┌───┐
+    │ H1│    │ H2│    │ H3│    │ H4│
+    └───┘    └───┘    └───┘    └───┘
+
+    ◄──────── 2.5-3.0m total ────────►
+```
+
+### 18.2 Green Laser Selection (Updated from Red)
+
+**Why green instead of red (as in original spec):**
+- Asian hornets perceive green light (520-530nm) extremely well
+- Hornet green photoreceptor peaks at ~528nm — almost exact match
+- Hornets barely see red (650nm)
+- Green is the correct choice for deterrence
+
+**Line Pattern Rationale:**
+- Line laser covers vertical axis automatically
+- Only need horizontal (pan) servo movement
+- Simplifies hardware to single-axis control
+
+**Power Recommendation:**
+
+| Power | Line Visibility in Sunlight | Hornet Perception | Recommendation |
+|-------|----------------------------|-------------------|----------------|
+| <5mW | Invisible | Weak | ❌ Too weak |
+| 10mW | Invisible | Moderate | ⚠️ Marginal |
+| 20mW | Invisible | Better | ⚠️ Borderline |
+| **50mW** | Invisible to humans | Good | ✓ **Recommended** |
+| 100mW+ | Faint | Excellent | Overkill, eye hazard |
+
+**Key insight:** Line lasers are invisible to humans in direct sunlight regardless of power (beam spreads too thin). But hornets can perceive the light hitting them. 50mW compensates for the power spread across the line.
+
+**Recommended Laser Specs:**
+- Wavelength: 520nm (green)
+- Pattern: LINE (not dot, not cross)
+- Power: 50mW
+- Fan angle: 90° (covers 5m line at 2.5m distance)
+- Voltage: Accepts 5V DC (or comes with adapter)
+- Focus: Adjustable preferred
+
+### 18.3 Complete Shopping List
+
+**For: 1 Lab Unit + 2 Outdoor Units (covers 4 hives)**
+
+#### Microcontroller (XIAO ESP32S3 Sense)
+
+| Item | Qty | Unit Price | Total | Notes |
+|------|-----|------------|-------|-------|
+| XIAO ESP32S3 Sense | 3 | ~€13 | ~€39 | From Seeed Studio German warehouse |
+| Wide-angle OV2640 lens (100°+) | 3 | ~€5 | ~€15 | Optional but recommended for 4-hive coverage |
+
+**Best source:** Seeed Studio DE warehouse (no customs, ~€13/unit)
+
+#### Laser Modules
+
+| Item | Qty | Unit Price | Total | Notes |
+|------|-----|------------|-------|-------|
+| Green line laser 520nm 50mW 90° | 3 | ~€16 | ~€48 | TYLASER or similar, with EU adapter |
+| DC Jack Female 5.5mm to Terminal Block | 3 | ~€1 | ~€3 | Connect laser barrel jack without cutting |
+
+**Laser selection criteria:**
+- Must be 515-532nm (green)
+- Must be LINE pattern
+- 50mW power (minimum 30mW)
+- 90° fan angle (minimum 60°)
+- 5V operation or included power adapter
+
+#### Servos
+
+| Item | Qty | Unit Price | Total | Notes |
+|------|-----|------------|-------|-------|
+| SG90 Servo (plastic gears) | 1 | ~€3 | ~€3 | You have 2 already |
+
+**You already have:** 2 servos (1× SG90 plastic, 1× MG90S metal) — sufficient for 3 units with 1 spare.
+
+#### Power System (Battery-Powered)
+
+| Item | Qty | Unit Price | Total | Notes |
+|------|-----|------------|-------|-------|
+| 4× AA Battery Holder with leads | 3 | ~€1 | ~€3 | 6V output |
+| LM2596 Buck Converter (adjustable, screw terminals) | 3 | ~€3 | ~€9 | Steps 6V→5V, screw terminals = no soldering |
+| AA Batteries | 24+ | ~€0.30 | ~€8 | Get 30 for spares |
+
+**Why 4× AA + buck converter:**
+- 4× AA = 6V (better servo performance than 3× AA = 4.5V)
+- 6V is too high for XIAO/laser directly
+- Buck converter steps down to clean 5V
+- Screw terminal version = no soldering required
+
+#### Switches & Buttons
+
+| Item | Qty | Unit Price | Total | Notes |
+|------|-----|------------|-------|-------|
+| Toggle Switch with screw terminals (E-TEN1021) | 3 | ~€1.75 | ~€5.25 | Power on/off, no soldering |
+| Tactile push buttons 6mm | 10 pack | ~€1 | ~€1 | User input / arm-disarm |
+
+#### Connectors & Wiring
+
+| Item | Qty | Unit Price | Total | Notes |
+|------|-----|------------|-------|-------|
+| Wago 3-way push connectors | 50 pack | ~€8 | ~€8 | Wire-to-wire connections, no soldering |
+| Jumper wires M-F | — | — | — | You have these |
+| Jumper wires M-M | — | — | — | You have these |
+
+#### Enclosures (Outdoor Units Only)
+
+| Item | Qty | Unit Price | Total | Notes |
+|------|-----|------------|-------|-------|
+| ABS Project Box ~100×60×25mm | 2 | ~€3 | ~€6 | For outdoor units |
+| Zip ties | 1 pack | ~€2 | ~€2 | Mounting laser to servo |
+
+#### Lab Equipment
+
+| Item | Qty | Unit Price | Total | Notes |
+|------|-----|------------|-------|-------|
+| Breadboard | 1 | ~€3 | ~€3 | If you don't have one |
+| Multimeter (ANENG AN8205C or similar) | 1 | ~€14 | ~€14 | Essential for setting buck converter |
+| USB-C cable (data, not charge-only) | 1 | ~€3 | ~€3 | For programming XIAO |
+
+#### Optional but Recommended
+
+| Item | Qty | Unit Price | Total | Notes |
+|------|-----|------------|-------|-------|
+| Soldering iron kit | 1 | ~€20 | ~€20 | For permanent connections later |
+| Lead solder 60/40 | 1 | ~€5 | ~€5 | Easier for beginners than lead-free |
+| Spare XIAO ESP32S3 Sense | 1 | ~€13 | ~€13 | In case of ESD damage |
+| Spare laser module | 1 | ~€16 | ~€16 | Variable quality control |
+
+### 18.4 Shopping Summary
+
+**Essential Items:**
+
+| Category | Cost |
+|----------|------|
+| XIAO ESP32S3 Sense × 3 | €39 |
+| Wide-angle lenses × 3 | €15 |
+| Green line lasers × 3 | €48 |
+| DC jack adapters × 3 | €3 |
+| Servo × 1 (have 2 already) | €3 |
+| Battery holders × 3 | €3 |
+| Buck converters × 3 | €9 |
+| AA Batteries (30) | €8 |
+| Toggle switches × 3 | €5 |
+| Push buttons (10 pack) | €1 |
+| Wago connectors (50 pack) | €8 |
+| Project boxes × 2 | €6 |
+| Zip ties | €2 |
+| Multimeter | €14 |
+| USB-C cable | €3 |
+| Breadboard | €3 |
+| **TOTAL ESSENTIAL** | **~€170** |
+
+**Optional (Recommended):**
+
+| Category | Cost |
+|----------|------|
+| Soldering iron + solder | €25 |
+| Spare XIAO | €13 |
+| Spare laser | €16 |
+| **TOTAL OPTIONAL** | **~€54** |
+
+**Grand Total: ~€170 essential, ~€224 with spares**
+
+### 18.5 Recommended Suppliers (EU)
+
+| Component | Recommended Supplier | Notes |
+|-----------|---------------------|-------|
+| XIAO ESP32S3 Sense | Seeed Studio (DE warehouse) | No customs, official source |
+| Lasers | AliExpress / Amazon.de | Search "520nm green line laser 50mW 90°" |
+| Electronics (switches, Wago, etc.) | TinyTronics.nl | Fast shipping within EU |
+| Multimeter | AliExpress / Amazon.de | ANENG brand good value |
+| Project boxes | TinyTronics / Conrad | Local stock |
+
+### 18.6 Assembly Notes
+
+**Lab Setup (Breadboard):**
+1. XIAO on breadboard
+2. Servo connects via jumper wires
+3. Laser connects via DC jack adapter + Wago
+4. Power from USB-C (for programming) or batteries + buck converter
+5. No enclosure needed — exposed for easy debugging
+
+**Outdoor Setup (Enclosed):**
+```
+4× AA Battery Box
+       │
+       ▼
+[Toggle Switch] ──► [Buck Converter 6V→5V] ──► [Wago 3-way]
+                                                    │
+                                    ┌───────────────┼───────────────┐
+                                    ▼               ▼               ▼
+                                  XIAO           Servo           Laser
+                                    │                              ▲
+                                    └──────── Signal wires ────────┘
+```
+
+**Wiring inside project box:**
+1. Battery box outside (replaceable) → wires through hole
+2. Toggle switch mounted on box lid
+3. Buck converter inside, set to 5.0V with multimeter
+4. XIAO mounted inside
+5. Servo body inside, horn protrudes through slot
+6. Laser mounted on servo horn with zip ties
+
+---
+
+## 19. Laser Safety Update (Green Line Laser)
+
+**This section supplements §9 for the green line laser option.**
+
+### 19.1 Green Laser Safety Classification
+
+A 50mW green laser is **Class 3B** (higher than the 5mW Class 3R in original spec):
+
+| Class | Power | Hazard Level | Our Laser |
+|-------|-------|--------------|-----------|
+| 3R | 1-5mW | Low risk, avoid direct eye | Original red spec |
+| **3B** | 5-500mW | **Immediate eye hazard** | **Green 50mW** |
+| 4 | >500mW | Burn hazard, fire risk | Not used |
+
+**Class 3B means:**
+- Direct beam causes **instant, permanent eye damage**
+- Diffuse reflections (matte surfaces) are generally safe
+- Specular reflections (mirrors, shiny metal, water) are hazardous
+- Must NEVER point at people, animals (except target hornets), or aircraft
+
+### 19.2 Required Safety Measures
+
+1. **Laser safety glasses** — OD4+ at 520nm (green), ~€15-30
+2. **Never operate at eye level** — mount high, angle downward
+3. **Limit servo range in software** — prevent upward sweep
+4. **Physical beam block** — cover lens during maintenance
+5. **Warning labels** — "Class 3B Laser" on enclosure
+6. **Software interlocks** — max 3 second burst, cooldown period
+
+### 19.3 Why 50mW is Acceptable for This Application
+
+- Laser points at hornets in flight, not at humans
+- Mounted high (1.5-2m), angled down toward hive entrance
+- Servo physically limited to ~120° horizontal sweep
+- Detection zone is away from human activity areas
+- Software limits activation to detected threats only
+
+**Installation requirement:** Device must be positioned so the laser beam path is ALWAYS above head height or aimed at the ground. Never install where people could walk through the beam.
+
+---
+
+| Date | Version | Changes |
+|------|---------|---------|
+| 2026-01-21 | 1.0 | Initial comprehensive hardware specification |
+| 2026-01-21 | 1.1 | Added: TX/RX crossover warning, capacitor polarity, laser safety glasses, hardware failsafe, ESD protection, servo calibration, spare parts list, software reference |
+| 2026-01-21 | 1.2 | **Critical fixes from GPT-5.2 review:** Pi 5 camera connector (22-pin FFC), ESP32-CAM GPIO table corrected (SD/boot pins not camera), relay MODULE diagram (not bare coil), removed dangerous "blink reflex" advice, FTDI 3.3V/5V voltage warning, capacitor polarity test correction, ESP32-CAM antenna 0Ω resistor mod, breadboard split rails warning, TOC updated |
+| 2026-01-21 | 1.3 | **Dual audit fixes (Opus 4.5 + GPT-5.1):** GPIO 2→14 for ESP32-CAM servo (boot-critical fix), ground reference explanation, FTDI voltage guidance corrected (can't mix 5V power with 3.3V logic), servo stall current updated (500→1200mA), power supply upgraded to 3A, FTDI back-feed warning, Pi Camera autofocus lock procedure, flash LED disable as boot self-test, button debounce note, servo horn attachment procedure, USB data cable diagnostics, wire gauge table, pull-up resistor clarification, PWM frequency spec, version header added |
+| 2026-01-22 | 1.4 | **Final GPT-5.2 review fixes:** FTDI diagram fixed (VCC removed, single clear recommendation), power supply BOM made path-specific (5A for Pi, 3A for ESP32/XIAO), Pi Camera install updated for modern Pi OS (no raspi-config needed), PWM channel note corrected (GPIO12 is PWM0), camera ribbon references unified to §4.5, servo test clarified (needs PWM signal), BOM split into shared vs path-specific (ESP32-CAM uses built-in LED), laser resistor guidance clarified (LED vs signal), LED power budget corrected to actual current with 330Ω, "safe-ish" language replaced with proper safety reference |
+| 2026-01-25 | 1.5 | **Added:** §18 Complete shopping list for lab + outdoor testing (3 units, 4 hives), §19 Green line laser safety update, coverage calculations for Dadant hives, 4×AA + buck converter power system, Wago/screw terminal no-solder approach, EU supplier recommendations |
+
+---
+
 **End of Hardware Specification**
 
 *This document will guide your build from zero electronics experience to a working hornet deterrent system. Take your time, test at each checkpoint, and don't hesitate to revisit earlier sections if something isn't clear.*

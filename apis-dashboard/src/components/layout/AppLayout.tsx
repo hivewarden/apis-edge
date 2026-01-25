@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Layout, Menu, Button, Drawer, Grid, Avatar, Typography, Space } from 'antd';
-import { MenuOutlined, MenuFoldOutlined, MenuUnfoldOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { Layout, Menu, Button, Drawer, Grid, Avatar, Typography, Space, Tooltip } from 'antd';
+import { MenuOutlined, MenuFoldOutlined, MenuUnfoldOutlined, LogoutOutlined, UserOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { Logo } from './Logo';
 import { navItems } from './navItems';
 import { colors } from '../../theme/apisTheme';
-import { useAuth } from '../../hooks';
+import { useAuth, useQRScanner, useOnlineStatus } from '../../hooks';
+import { useBackgroundSyncContext } from '../../context';
+import { OfflineBanner } from '../OfflineBanner';
+import { QRScannerModal } from '../QRScannerModal';
 
 const { Sider, Content, Header } = Layout;
 const { useBreakpoint } = Grid;
@@ -38,6 +41,11 @@ export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { isSyncing, progress } = useBackgroundSyncContext();
+
+  // QR Scanner state - Epic 7, Story 7.6
+  const { isSupported: qrSupported, isOpen: qrScannerOpen, openScanner, closeScanner } = useQRScanner();
+  const isOnline = useOnlineStatus();
 
   // Initialize collapse state from localStorage
   const [collapsed, setCollapsed] = useState(() => {
@@ -208,15 +216,29 @@ export function AppLayout() {
 
       {/* Mobile Header with Hamburger */}
       {isMobile && (
-        <Header style={{ padding: '0 16px', display: 'flex', alignItems: 'center' }}>
-          <Button
-            type="text"
-            icon={<MenuOutlined />}
-            onClick={() => setDrawerOpen(true)}
-            style={{ color: colors.coconutCream }}
-            aria-label="Open navigation menu"
-          />
-          <Logo collapsed={false} style={{ marginLeft: 16 }} />
+        <Header style={{ padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <Button
+              type="text"
+              icon={<MenuOutlined />}
+              onClick={() => setDrawerOpen(true)}
+              style={{ color: colors.coconutCream }}
+              aria-label="Open navigation menu"
+            />
+            <Logo collapsed={false} style={{ marginLeft: 16 }} />
+          </div>
+          {/* QR Scan button in header - Epic 7, Story 7.6 */}
+          {qrSupported && isOnline && (
+            <Tooltip title="Scan QR Code">
+              <Button
+                type="text"
+                icon={<QrcodeOutlined />}
+                onClick={openScanner}
+                style={{ color: colors.coconutCream, minHeight: 64, minWidth: 64 }}
+                aria-label="Scan QR Code"
+              />
+            </Tooltip>
+          )}
         </Header>
       )}
 
@@ -276,9 +298,18 @@ export function AppLayout() {
         </div>
       </Drawer>
 
-      <Content style={{ padding: 24 }}>
-        <Outlet />
-      </Content>
+      <Layout style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+        <OfflineBanner
+          isSyncing={isSyncing}
+          syncProgress={progress ? { completed: progress.completed, total: progress.total } : null}
+        />
+        <Content style={{ padding: 24, flex: 1 }}>
+          <Outlet />
+        </Content>
+      </Layout>
+
+      {/* QR Scanner Modal - Epic 7, Story 7.6 */}
+      <QRScannerModal open={qrScannerOpen} onClose={closeScanner} />
     </Layout>
   );
 }

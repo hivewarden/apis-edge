@@ -65,71 +65,71 @@ development_status:
   epic-2-retrospective: optional
 
   # Epic 3: Hornet Detection Dashboard
-  epic-3: backlog
-  3-1-detection-events-table-api: backlog
-  3-2-todays-detection-count-card: backlog
-  3-3-weather-integration: backlog
-  3-4-time-range-selector: backlog
-  3-5-activity-clock-visualization: backlog
-  3-6-temperature-correlation-chart: backlog
-  3-7-daily-weekly-trend-line-chart: backlog
+  epic-3: done
+  3-1-detection-events-table-api: done
+  3-2-todays-detection-count-card: done
+  3-3-weather-integration: done
+  3-4-time-range-selector: done
+  3-5-activity-clock-visualization: done
+  3-6-temperature-correlation-chart: done
+  3-7-daily-weekly-trend-line-chart: done
   epic-3-retrospective: optional
 
   # Epic 4: Clip Archive & Video Review
-  epic-4: backlog
-  4-1-clip-upload-storage: backlog
-  4-2-clip-archive-list-view: backlog
-  4-3-clip-video-playback: backlog
-  4-4-clip-management-delete-archive: backlog
-  4-5-nest-radius-estimator-map: backlog
+  epic-4: done
+  4-1-clip-upload-storage: done
+  4-2-clip-archive-list-view: done
+  4-3-clip-video-playback: done
+  4-4-clip-management-delete-archive: done
+  4-5-nest-radius-estimator-map: done
   epic-4-retrospective: optional
 
   # Epic 5: Hive Management & Inspections
-  epic-5: backlog
-  5-1-create-and-configure-hives: backlog
-  5-2-hive-list-detail-view: backlog
-  5-3-quick-entry-inspection-form: backlog
-  5-4-inspection-history-view: backlog
-  5-5-frame-level-data-tracking: backlog
-  5-6-frame-development-graphs: backlog
+  epic-5: done
+  5-1-create-and-configure-hives: done
+  5-2-hive-list-detail-view: done
+  5-3-quick-entry-inspection-form: done
+  5-4-inspection-history-view: done
+  5-5-frame-level-data-tracking: done
+  5-6-frame-development-graphs: done
   epic-5-retrospective: optional
 
   # Epic 6: Treatments, Feedings & Harvests
-  epic-6: backlog
-  6-1-treatment-log: backlog
-  6-2-feeding-log: backlog
-  6-3-harvest-tracking: backlog
-  6-4-equipment-log: backlog
+  epic-6: in-progress
+  6-1-treatment-log: done
+  6-2-feeding-log: done
+  6-3-harvest-tracking: done
+  6-4-equipment-log: done
   6-5-custom-labels-system: backlog
   6-6-treatment-calendar-reminders: backlog
   epic-6-retrospective: optional
 
   # Epic 7: Mobile PWA & Field Mode
-  epic-7: backlog
-  7-1-service-worker-app-shell-caching: backlog
-  7-2-indexeddb-offline-storage: backlog
-  7-3-offline-inspection-creation: backlog
-  7-4-automatic-background-sync: backlog
-  7-5-voice-input-for-notes: backlog
-  7-6-qr-code-hive-navigation: backlog
+  epic-7: done
+  7-1-service-worker-app-shell-caching: done
+  7-2-indexeddb-offline-storage: done
+  7-3-offline-inspection-creation: done
+  7-4-automatic-background-sync: done
+  7-5-voice-input-for-notes: done
+  7-6-qr-code-hive-navigation: done
   epic-7-retrospective: optional
 
   # Epic 8: BeeBrain AI Insights
-  epic-8: backlog
-  8-1-beebrain-rule-engine-mvp: backlog
-  8-2-dashboard-beebrain-card: backlog
-  8-3-hive-detail-beebrain-analysis: backlog
-  8-4-proactive-insight-notifications: backlog
-  8-5-maintenance-priority-view: backlog
+  epic-8: done
+  8-1-beebrain-rule-engine-mvp: done
+  8-2-dashboard-beebrain-card: done
+  8-3-hive-detail-beebrain-analysis: done
+  8-4-proactive-insight-notifications: done
+  8-5-maintenance-priority-view: done
   epic-8-retrospective: optional
 
   # Epic 9: Data Export & Emotional Moments
-  epic-9: backlog
-  9-1-configurable-data-export: backlog
-  9-2-first-harvest-celebration: backlog
-  9-3-hive-loss-post-mortem: backlog
-  9-4-season-recap-summary: backlog
-  9-5-overwintering-success-report: backlog
+  epic-9: in-progress
+  9-1-configurable-data-export: done
+  9-2-first-harvest-celebration: done
+  9-3-hive-loss-post-mortem: done
+  9-4-season-recap-summary: done
+  9-5-overwintering-success-report: in-progress
   epic-9-retrospective: optional
 
   # Epic 10: Edge Detection Software

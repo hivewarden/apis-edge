@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -20,6 +21,7 @@ import (
 	"github.com/jermoo/apis/apis-server/internal/config"
 	"github.com/jermoo/apis/apis-server/internal/handlers"
 	authmw "github.com/jermoo/apis/apis-server/internal/middleware"
+	"github.com/jermoo/apis/apis-server/internal/services"
 	"github.com/jermoo/apis/apis-server/internal/storage"
 )
 
@@ -60,6 +62,21 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create auth middleware - check ZITADEL_ISSUER and ZITADEL_CLIENT_ID")
 	}
+
+	// Initialize BeeBrain service
+	// Look for rules.yaml in the internal/beebrain directory relative to the executable
+	// or use BEEBRAIN_RULES_PATH environment variable
+	rulesPath := os.Getenv("BEEBRAIN_RULES_PATH")
+	if rulesPath == "" {
+		// Default path relative to project structure
+		rulesPath = filepath.Join("internal", "beebrain", "rules.yaml")
+	}
+	beeBrainService, err := services.NewBeeBrainService(rulesPath)
+	if err != nil {
+		log.Warn().Err(err).Str("rules_path", rulesPath).Msg("BeeBrain service initialization failed - BeeBrain endpoints will be unavailable")
+		beeBrainService = nil
+	}
+	beeBrainHandler := handlers.NewBeeBrainHandler(beeBrainService)
 
 	r := chi.NewRouter()
 
@@ -131,6 +148,135 @@ func main() {
 		// WebSocket stream endpoint - Epic 2, Story 2.5
 		// Proxies MJPEG video from unit to dashboard via WebSocket
 		r.Get("/ws/stream/{id}", handlers.Stream)
+
+		// Detection endpoints - Epic 3, Story 3.1
+		r.Get("/api/detections", handlers.ListDetections)
+		r.Get("/api/detections/stats", handlers.GetDetectionStats)
+		r.Get("/api/detections/temperature-correlation", handlers.GetTemperatureCorrelation)
+		r.Get("/api/detections/trend", handlers.GetTrendData)
+		r.Get("/api/detections/{id}", handlers.GetDetectionByID)
+
+		// Weather endpoint - Epic 3, Story 3.3
+		r.Get("/api/sites/{id}/weather", handlers.GetSiteWeather)
+
+		// Nest estimate endpoint - Epic 4, Story 4.5
+		r.Get("/api/sites/{id}/nest-estimate", handlers.GetNestEstimate)
+
+		// Hives endpoints - Epic 5, Story 5.1
+		r.Get("/api/hives", handlers.ListHives)
+		r.Get("/api/hives/{id}", handlers.GetHive)
+		r.Put("/api/hives/{id}", handlers.UpdateHive)
+		r.Delete("/api/hives/{id}", handlers.DeleteHive)
+		r.Post("/api/hives/{id}/replace-queen", handlers.ReplaceQueen)
+		r.Get("/api/sites/{site_id}/hives", handlers.ListHivesBySite)
+		r.Post("/api/sites/{site_id}/hives", handlers.CreateHive)
+
+		// Hive Loss endpoints - Epic 9, Story 9.3
+		r.Post("/api/hives/{id}/loss", handlers.CreateHiveLoss)
+		r.Get("/api/hives/{id}/loss", handlers.GetHiveLoss)
+		r.Get("/api/hive-losses", handlers.ListHiveLosses)
+		r.Get("/api/hive-losses/stats", handlers.GetHiveLossStats)
+
+		// Inspections endpoints - Epic 5, Stories 5.3, 5.4, 5.5
+		r.Get("/api/hives/{hive_id}/inspections", handlers.ListInspectionsByHive)
+		r.Get("/api/hives/{hive_id}/inspections/export", handlers.ExportInspections)
+		r.Get("/api/hives/{hive_id}/frame-history", handlers.GetFrameHistory)
+		r.Post("/api/hives/{hive_id}/inspections", handlers.CreateInspection)
+		r.Get("/api/inspections/{id}", handlers.GetInspection)
+		r.Put("/api/inspections/{id}", handlers.UpdateInspection)
+		r.Delete("/api/inspections/{id}", handlers.DeleteInspection)
+
+		// Treatments endpoints - Epic 6, Story 6.1
+		r.Post("/api/treatments", handlers.CreateTreatment)
+		r.Get("/api/hives/{hive_id}/treatments", handlers.ListTreatmentsByHive)
+		r.Get("/api/treatments/{id}", handlers.GetTreatment)
+		r.Put("/api/treatments/{id}", handlers.UpdateTreatment)
+		r.Delete("/api/treatments/{id}", handlers.DeleteTreatment)
+
+		// Feedings endpoints - Epic 6, Story 6.2
+		r.Post("/api/feedings", handlers.CreateFeeding)
+		r.Get("/api/hives/{hive_id}/feedings", handlers.ListFeedingsByHive)
+		r.Get("/api/hives/{hive_id}/feedings/season-totals", handlers.GetFeedingSeasonTotals)
+		r.Get("/api/feedings/{id}", handlers.GetFeeding)
+		r.Put("/api/feedings/{id}", handlers.UpdateFeeding)
+		r.Delete("/api/feedings/{id}", handlers.DeleteFeeding)
+
+		// Harvests endpoints - Epic 6, Story 6.3
+		r.Post("/api/harvests", handlers.CreateHarvest)
+		r.Get("/api/hives/{hive_id}/harvests", handlers.ListHarvestsByHive)
+		r.Get("/api/sites/{site_id}/harvests", handlers.ListHarvestsBySite)
+		r.Get("/api/harvests/analytics", handlers.GetHarvestAnalytics)
+		r.Get("/api/harvests/{id}", handlers.GetHarvest)
+		r.Put("/api/harvests/{id}", handlers.UpdateHarvest)
+		r.Delete("/api/harvests/{id}", handlers.DeleteHarvest)
+
+		// Equipment endpoints - Epic 6, Story 6.4
+		r.Post("/api/hives/{hive_id}/equipment", handlers.CreateEquipmentLog)
+		r.Get("/api/hives/{hive_id}/equipment", handlers.ListEquipmentByHive)
+		r.Get("/api/hives/{hive_id}/equipment/current", handlers.GetCurrentlyInstalled)
+		r.Get("/api/hives/{hive_id}/equipment/history", handlers.GetEquipmentHistory)
+		r.Get("/api/equipment/{id}", handlers.GetEquipmentLog)
+		r.Put("/api/equipment/{id}", handlers.UpdateEquipmentLog)
+		r.Delete("/api/equipment/{id}", handlers.DeleteEquipmentLog)
+
+		// Clips endpoints - Epic 4, Stories 4.2-4.4
+		r.Get("/api/clips", handlers.ListClips)
+		r.Get("/api/clips/{id}/thumbnail", handlers.GetClipThumbnail)
+		r.Get("/api/clips/{id}/video", handlers.GetClipVideo)
+		r.Delete("/api/clips/{id}", handlers.DeleteClip)
+
+		// BeeBrain endpoints - Epic 8, Story 8.1
+		if beeBrainService != nil {
+			r.Get("/api/beebrain/dashboard", beeBrainHandler.GetDashboard)
+			r.Get("/api/beebrain/hive/{id}", beeBrainHandler.GetHiveAnalysis)
+			r.Get("/api/beebrain/maintenance", beeBrainHandler.GetMaintenance)
+			r.Post("/api/beebrain/refresh", beeBrainHandler.RefreshAnalysis)
+			r.Post("/api/beebrain/insights/{id}/dismiss", beeBrainHandler.DismissInsight)
+			r.Post("/api/beebrain/insights/{id}/snooze", beeBrainHandler.SnoozeInsight)
+		}
+
+		// Export endpoints - Epic 9, Story 9.1
+		// Export preset endpoints (no rate limit)
+		r.Get("/api/export/presets", handlers.ListExportPresets)
+		r.Post("/api/export/presets", handlers.CreateExportPreset)
+		r.Delete("/api/export/presets/{id}", handlers.DeleteExportPreset)
+
+		// Milestones endpoints - Epic 9, Story 9.2
+		r.Post("/api/milestones/photos", handlers.UploadMilestonePhoto)
+		r.Get("/api/milestones/photos", handlers.ListMilestonePhotos)
+		r.Delete("/api/milestones/photos/{id}", handlers.DeleteMilestonePhoto)
+		r.Get("/api/milestones/flags", handlers.GetMilestoneFlags)
+		r.Post("/api/milestones/flags/{flag}", handlers.SetMilestoneFlag)
+
+		// Season Recap endpoints - Epic 9, Story 9.4
+		r.Get("/api/recap", handlers.GetRecap)
+		r.Get("/api/recap/seasons", handlers.GetAvailableSeasons)
+		r.Post("/api/recap/regenerate", handlers.RegenerateRecap)
+		r.Get("/api/recap/text", handlers.GetRecapText)
+		r.Get("/api/recap/is-time", handlers.IsRecapTime)
+
+		// Overwintering endpoints - Epic 9, Story 9.5
+		r.Get("/api/overwintering/prompt", handlers.GetOverwinteringPrompt)
+		r.Get("/api/overwintering/hives", handlers.GetOverwinteringHives)
+		r.Post("/api/overwintering", handlers.CreateOverwinteringRecord)
+		r.Get("/api/overwintering/report", handlers.GetWinterReport)
+		r.Get("/api/overwintering/trends", handlers.GetSurvivalTrends)
+		r.Get("/api/overwintering/seasons", handlers.GetOverwinteringSeasons)
+
+		// Data export endpoint with rate limiting (10 requests per minute per tenant)
+		r.Group(func(r chi.Router) {
+			exportLimiter := authmw.NewRateLimiter(10, time.Minute)
+			r.Use(authmw.RateLimitMiddleware(exportLimiter))
+			r.Post("/api/export", handlers.GenerateExport)
+		})
+
+		// Voice transcription endpoint with rate limiting (10 requests per minute per tenant)
+		// Epic 7, Story 7.5: Voice Input for Notes
+		r.Group(func(r chi.Router) {
+			transcribeLimiter := authmw.NewRateLimiter(10, time.Minute)
+			r.Use(authmw.RateLimitMiddleware(transcribeLimiter))
+			r.Post("/api/transcribe", handlers.Transcribe)
+		})
 	})
 
 	// Unit-authenticated routes (X-API-Key header for device-to-server communication)
@@ -142,6 +288,14 @@ func main() {
 		// Heartbeat endpoint - Epic 2, Story 2.3
 		// Units send heartbeats to update last_seen, ip_address, status, and optional telemetry
 		r.Post("/api/units/heartbeat", handlers.Heartbeat)
+
+		// Detection endpoint - Epic 3, Story 3.1
+		// Units report hornet detection events
+		r.Post("/api/units/detections", handlers.CreateDetection)
+
+		// Clip upload endpoint - Epic 4, Story 4.1
+		// Units upload detection clips for archive
+		r.Post("/api/units/clips", handlers.UploadClip)
 	})
 
 	portStr := os.Getenv("PORT")
@@ -154,11 +308,13 @@ func main() {
 	}
 
 	// Create server with timeouts
+	// WriteTimeout is set to 120s to accommodate video streaming (up to 10MB on slow connections)
+	// For a 10MB file at 1 Mbps, streaming takes ~80 seconds
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      r,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 120 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 

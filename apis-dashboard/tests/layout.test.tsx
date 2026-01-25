@@ -2,10 +2,52 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
+import 'fake-indexeddb/auto';
 import { apisTheme } from '../src/theme/apisTheme';
 import { AppLayout } from '../src/components/layout/AppLayout';
 import { Logo } from '../src/components/layout/Logo';
 import { navItems } from '../src/components/layout/navItems';
+import { BackgroundSyncProvider } from '../src/context/BackgroundSyncContext';
+
+// Mock useAuth for BackgroundSyncProvider
+vi.mock('../src/hooks/useAuth', () => ({
+  useAuth: vi.fn(() => ({
+    isAuthenticated: true,
+    isLoading: false,
+    user: { id: '1', name: 'Test', email: 'test@test.com' },
+    login: vi.fn(),
+    logout: vi.fn(),
+    getAccessToken: vi.fn().mockResolvedValue('mock-token'),
+  })),
+}));
+
+// Mock useOnlineStatus for BackgroundSyncProvider
+vi.mock('../src/hooks/useOnlineStatus', () => ({
+  useOnlineStatus: vi.fn(() => true),
+}));
+
+// Mock backgroundSync service
+vi.mock('../src/services/backgroundSync', () => ({
+  startBackgroundSync: vi.fn().mockResolvedValue({
+    success: true,
+    synced: 0,
+    failed: 0,
+    conflicts: [],
+  }),
+  resolveConflict: vi.fn(),
+  retryAllFailedItems: vi.fn(),
+  getPendingSyncCount: vi.fn().mockResolvedValue(0),
+}));
+
+// Mock useLiveQuery from dexie-react-hooks
+vi.mock('dexie-react-hooks', () => ({
+  useLiveQuery: vi.fn((queryFn, deps, defaultValue) => {
+    // Return the default value if provided, otherwise return appropriate empty values
+    if (defaultValue !== undefined) return defaultValue;
+    // For toArray() queries, return empty array
+    return [];
+  }),
+}));
 
 // Suppress React Router future flag warnings in tests
 const originalWarn = console.warn;
@@ -41,16 +83,21 @@ vi.mock('antd', async () => {
 // Test wrapper with all required providers
 const renderWithProviders = async (
   ui: React.ReactElement,
-  { route = '/' }: { route?: string } = {}
+  { route = '/', withSyncProvider = false }: { route?: string; withSyncProvider?: boolean } = {}
 ) => {
   let result: ReturnType<typeof render>;
   await act(async () => {
+    const content = withSyncProvider ? (
+      <BackgroundSyncProvider>{ui}</BackgroundSyncProvider>
+    ) : (
+      ui
+    );
     result = render(
       <MemoryRouter
         initialEntries={[route]}
         future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
       >
-        <ConfigProvider theme={apisTheme}>{ui}</ConfigProvider>
+        <ConfigProvider theme={apisTheme}>{content}</ConfigProvider>
       </MemoryRouter>
     );
   });
@@ -60,13 +107,16 @@ const renderWithProviders = async (
 describe('Logo Component', () => {
   it('renders full text when expanded', async () => {
     await renderWithProviders(<Logo collapsed={false} />);
-    expect(screen.getByText('🐝 APIS')).toBeInTheDocument();
+    // Bee icon and APIS text are now separate elements
+    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
+    expect(screen.getByText('APIS')).toBeInTheDocument();
   });
 
   it('renders only icon when collapsed', async () => {
     await renderWithProviders(<Logo collapsed={true} />);
-    expect(screen.getByText('🐝')).toBeInTheDocument();
-    expect(screen.queryByText('🐝 APIS')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
+    // APIS text should not be visible when collapsed
+    expect(screen.queryByText('APIS')).not.toBeInTheDocument();
   });
 });
 
@@ -105,7 +155,7 @@ describe('AppLayout Component (Desktop)', () => {
   });
 
   it('renders sidebar with all navigation items', async () => {
-    await renderWithProviders(<AppLayout />);
+    await renderWithProviders(<AppLayout />, { withSyncProvider: true });
 
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Units')).toBeInTheDocument();
@@ -116,12 +166,14 @@ describe('AppLayout Component (Desktop)', () => {
   });
 
   it('renders APIS logo', async () => {
-    await renderWithProviders(<AppLayout />);
-    expect(screen.getByText('🐝 APIS')).toBeInTheDocument();
+    await renderWithProviders(<AppLayout />, { withSyncProvider: true });
+    // Bee icon and APIS text are separate elements
+    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
+    expect(screen.getByText('APIS')).toBeInTheDocument();
   });
 
   it('has a collapse button', async () => {
-    await renderWithProviders(<AppLayout />);
+    await renderWithProviders(<AppLayout />, { withSyncProvider: true });
     const collapseButton = screen.getByRole('button', {
       name: /collapse sidebar/i,
     });
@@ -129,10 +181,11 @@ describe('AppLayout Component (Desktop)', () => {
   });
 
   it('toggles sidebar collapse state when button is clicked', async () => {
-    await renderWithProviders(<AppLayout />);
+    await renderWithProviders(<AppLayout />, { withSyncProvider: true });
 
-    // Initially expanded
-    expect(screen.getByText('🐝 APIS')).toBeInTheDocument();
+    // Initially expanded - Bee icon and APIS text are separate elements
+    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
+    expect(screen.getByText('APIS')).toBeInTheDocument();
 
     // Click collapse button
     const collapseButton = screen.getByRole('button', {
@@ -142,14 +195,15 @@ describe('AppLayout Component (Desktop)', () => {
       fireEvent.click(collapseButton);
     });
 
-    // After collapse, logo should show only icon
+    // After collapse, logo should show only icon (APIS text hidden)
     await waitFor(() => {
-      expect(screen.getByText('🐝')).toBeInTheDocument();
+      expect(screen.getByLabelText('Bee')).toBeInTheDocument();
+      expect(screen.queryByText('APIS')).not.toBeInTheDocument();
     });
   });
 
   it('persists collapse state to localStorage', async () => {
-    await renderWithProviders(<AppLayout />);
+    await renderWithProviders(<AppLayout />, { withSyncProvider: true });
 
     const collapseButton = screen.getByRole('button', {
       name: /collapse sidebar/i,
@@ -164,7 +218,7 @@ describe('AppLayout Component (Desktop)', () => {
   it('restores collapse state from localStorage', async () => {
     localStorage.setItem('apis-sidebar-collapsed', 'true');
 
-    await renderWithProviders(<AppLayout />);
+    await renderWithProviders(<AppLayout />, { withSyncProvider: true });
 
     // Should restore collapsed state - logo shows only icon
     expect(screen.getByText('🐝')).toBeInTheDocument();
@@ -174,10 +228,12 @@ describe('AppLayout Component (Desktop)', () => {
     // Set an invalid (non-boolean) value
     localStorage.setItem('apis-sidebar-collapsed', 'invalid');
 
-    await renderWithProviders(<AppLayout />);
+    await renderWithProviders(<AppLayout />, { withSyncProvider: true });
 
     // Should default to expanded when value is not 'true'
-    expect(screen.getByText('🐝 APIS')).toBeInTheDocument();
+    // Bee icon and APIS text are separate elements
+    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
+    expect(screen.getByText('APIS')).toBeInTheDocument();
   });
 });
 
@@ -189,7 +245,7 @@ describe('AppLayout Component (Mobile)', () => {
   });
 
   it('renders hamburger menu button on mobile', async () => {
-    await renderWithProviders(<AppLayout />);
+    await renderWithProviders(<AppLayout />, { withSyncProvider: true });
 
     const hamburgerButton = screen.getByRole('button', {
       name: /open navigation menu/i,
@@ -198,12 +254,14 @@ describe('AppLayout Component (Mobile)', () => {
   });
 
   it('renders logo in header on mobile', async () => {
-    await renderWithProviders(<AppLayout />);
-    expect(screen.getByText('🐝 APIS')).toBeInTheDocument();
+    await renderWithProviders(<AppLayout />, { withSyncProvider: true });
+    // Bee icon and APIS text are separate elements
+    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
+    expect(screen.getByText('APIS')).toBeInTheDocument();
   });
 
   it('opens drawer when hamburger is clicked', async () => {
-    await renderWithProviders(<AppLayout />);
+    await renderWithProviders(<AppLayout />, { withSyncProvider: true });
 
     const hamburgerButton = screen.getByRole('button', {
       name: /open navigation menu/i,
@@ -221,7 +279,7 @@ describe('AppLayout Component (Mobile)', () => {
   });
 
   it('closes drawer when a menu item is clicked', async () => {
-    await renderWithProviders(<AppLayout />);
+    await renderWithProviders(<AppLayout />, { withSyncProvider: true });
 
     // Open the drawer
     const hamburgerButton = screen.getByRole('button', {
@@ -259,7 +317,7 @@ describe('Navigation Active State', () => {
   });
 
   it('highlights Dashboard as active when on root route', async () => {
-    await renderWithProviders(<AppLayout />, { route: '/' });
+    await renderWithProviders(<AppLayout />, { route: '/', withSyncProvider: true });
 
     // The menu item with key "/" should be selected
     const menuItems = document.querySelectorAll('.ant-menu-item');
@@ -272,7 +330,7 @@ describe('Navigation Active State', () => {
   });
 
   it('highlights Units as active when on /units route', async () => {
-    await renderWithProviders(<AppLayout />, { route: '/units' });
+    await renderWithProviders(<AppLayout />, { route: '/units', withSyncProvider: true });
 
     const menuItems = document.querySelectorAll('.ant-menu-item');
     const unitsItem = Array.from(menuItems).find((item) =>
