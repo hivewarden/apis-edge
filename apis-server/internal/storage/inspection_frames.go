@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -62,39 +63,54 @@ func ValidateFrameInput(input *CreateInspectionFrameInput) error {
 	return nil
 }
 
-// CreateInspectionFrames creates frame data for an inspection.
+// CreateInspectionFrames creates frame data for an inspection using a single
+// pgx.Batch to reduce round-trips. Each insert uses ON CONFLICT ... DO UPDATE
+// so CopyFrom is not suitable here.
 func CreateInspectionFrames(ctx context.Context, conn *pgxpool.Conn, inspectionID string, frames []CreateInspectionFrameInput) ([]InspectionFrame, error) {
 	if len(frames) == 0 {
 		return []InspectionFrame{}, nil
 	}
 
-	results := make([]InspectionFrame, 0, len(frames))
-
-	for _, input := range frames {
-		if err := ValidateFrameInput(&input); err != nil {
-			return nil, fmt.Errorf("storage: invalid frame input for position %d: %w", input.BoxPosition, err)
+	// Validate all inputs before sending any queries.
+	for i := range frames {
+		if err := ValidateFrameInput(&frames[i]); err != nil {
+			return nil, fmt.Errorf("storage: invalid frame input for position %d: %w", frames[i].BoxPosition, err)
 		}
+	}
 
+	const upsertSQL = `INSERT INTO inspection_frames (inspection_id, box_position, box_type, total_frames, drawn_frames, brood_frames, honey_frames, pollen_frames)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 ON CONFLICT (inspection_id, box_position) DO UPDATE SET
+		     box_type = EXCLUDED.box_type,
+		     total_frames = EXCLUDED.total_frames,
+		     drawn_frames = EXCLUDED.drawn_frames,
+		     brood_frames = EXCLUDED.brood_frames,
+		     honey_frames = EXCLUDED.honey_frames,
+		     pollen_frames = EXCLUDED.pollen_frames
+		 RETURNING id, inspection_id, box_position, box_type, total_frames, drawn_frames, brood_frames, honey_frames, pollen_frames, created_at`
+
+	batch := &pgx.Batch{}
+	for _, input := range frames {
+		batch.Queue(upsertSQL,
+			inspectionID, input.BoxPosition, input.BoxType, input.TotalFrames,
+			input.DrawnFrames, input.BroodFrames, input.HoneyFrames, input.PollenFrames,
+		)
+	}
+
+	br := conn.SendBatch(ctx, batch)
+	defer br.Close()
+
+	results := make([]InspectionFrame, 0, len(frames))
+	for range frames {
 		var frame InspectionFrame
-		err := conn.QueryRow(ctx,
-			`INSERT INTO inspection_frames (inspection_id, box_position, box_type, total_frames, drawn_frames, brood_frames, honey_frames, pollen_frames)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			 ON CONFLICT (inspection_id, box_position) DO UPDATE SET
-			     box_type = EXCLUDED.box_type,
-			     total_frames = EXCLUDED.total_frames,
-			     drawn_frames = EXCLUDED.drawn_frames,
-			     brood_frames = EXCLUDED.brood_frames,
-			     honey_frames = EXCLUDED.honey_frames,
-			     pollen_frames = EXCLUDED.pollen_frames
-			 RETURNING id, inspection_id, box_position, box_type, total_frames, drawn_frames, brood_frames, honey_frames, pollen_frames, created_at`,
-			inspectionID, input.BoxPosition, input.BoxType, input.TotalFrames, input.DrawnFrames, input.BroodFrames, input.HoneyFrames, input.PollenFrames,
-		).Scan(&frame.ID, &frame.InspectionID, &frame.BoxPosition, &frame.BoxType, &frame.TotalFrames,
-			&frame.DrawnFrames, &frame.BroodFrames, &frame.HoneyFrames, &frame.PollenFrames, &frame.CreatedAt)
-
+		err := br.QueryRow().Scan(
+			&frame.ID, &frame.InspectionID, &frame.BoxPosition, &frame.BoxType,
+			&frame.TotalFrames, &frame.DrawnFrames, &frame.BroodFrames,
+			&frame.HoneyFrames, &frame.PollenFrames, &frame.CreatedAt,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("storage: failed to create inspection frame: %w", err)
 		}
-
 		results = append(results, frame)
 	}
 

@@ -155,4 +155,25 @@ const char *storage_manager_status_str(storage_manager_status_t status);
  */
 void storage_manager_set_clip_deleted_callback(storage_manager_clip_deleted_cb callback);
 
+/**
+ * Mark a clip as uploaded to the server.
+ * This makes the clip eligible for pruning according to retention policy.
+ * Uploaded clips are prioritized for deletion during storage cleanup
+ * since they are safely stored on the server.
+ *
+ * THREAD SAFETY: This function is thread-safe.
+ *
+ * @param clip_path Full path to the clip file
+ * @return STORAGE_MANAGER_OK on success
+ */
+storage_manager_status_t storage_manager_mark_uploaded(const char *clip_path);
+
+/**
+ * Check if a clip has been uploaded to the server.
+ *
+ * @param clip_path Full path to the clip file
+ * @return true if the clip is marked as uploaded
+ */
+bool storage_manager_is_uploaded(const char *clip_path);
+
 #endif // APIS_STORAGE_MANAGER_H

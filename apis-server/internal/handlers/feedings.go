@@ -104,6 +104,13 @@ func CreateFeeding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SECURITY FIX (S3A-M2): Limit batch array size to prevent resource exhaustion.
+	// Each hive ID triggers individual DB operations (ownership check + record creation).
+	if len(req.HiveIDs) > 100 {
+		respondError(w, "Too many hive IDs (maximum 100)", http.StatusBadRequest)
+		return
+	}
+
 	if req.FedAt == "" {
 		respondError(w, "fed_at is required", http.StatusBadRequest)
 		return
@@ -207,6 +214,11 @@ func CreateFeeding(w http.ResponseWriter, r *http.Request) {
 		Str("tenant_id", tenantID).
 		Str("feed_type", req.FeedType).
 		Msg("Feedings created")
+
+	// Audit log: record feeding creation for each feeding
+	for _, f := range feedings {
+		AuditCreate(r.Context(), "feedings", f.ID, f)
+	}
 
 	// Convert to response
 	responses := make([]FeedingResponse, 0, len(feedings))
@@ -329,6 +341,18 @@ func UpdateFeeding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch existing feeding before update for audit logging
+	existing, err := storage.GetFeedingByID(r.Context(), conn, feedingID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Feeding not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("feeding_id", feedingID).Msg("handler: failed to get feeding for update")
+		respondError(w, "Failed to get feeding", http.StatusInternalServerError)
+		return
+	}
+
 	var req UpdateFeedingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, "Invalid request body", http.StatusBadRequest)
@@ -422,6 +446,9 @@ func UpdateFeeding(w http.ResponseWriter, r *http.Request) {
 		Str("feeding_id", feeding.ID).
 		Msg("Feeding updated")
 
+	// Audit log: record feeding update with old and new values
+	AuditUpdate(r.Context(), "feedings", feeding.ID, existing, feeding)
+
 	respondJSON(w, FeedingDataResponse{Data: feedingToResponse(feeding)}, http.StatusOK)
 }
 
@@ -435,7 +462,19 @@ func DeleteFeeding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := storage.DeleteFeeding(r.Context(), conn, feedingID)
+	// Fetch existing feeding before delete for audit logging
+	existing, err := storage.GetFeedingByID(r.Context(), conn, feedingID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Feeding not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("feeding_id", feedingID).Msg("handler: failed to get feeding for delete")
+		respondError(w, "Failed to get feeding", http.StatusInternalServerError)
+		return
+	}
+
+	err = storage.DeleteFeeding(r.Context(), conn, feedingID)
 	if errors.Is(err, storage.ErrNotFound) {
 		respondError(w, "Feeding not found", http.StatusNotFound)
 		return
@@ -449,6 +488,9 @@ func DeleteFeeding(w http.ResponseWriter, r *http.Request) {
 	log.Info().
 		Str("feeding_id", feedingID).
 		Msg("Feeding deleted")
+
+	// Audit log: record feeding deletion with old values
+	AuditDelete(r.Context(), "feedings", feedingID, existing)
 
 	w.WriteHeader(http.StatusNoContent)
 }

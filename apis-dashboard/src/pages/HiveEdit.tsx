@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Typography,
@@ -20,26 +20,10 @@ import dayjs from 'dayjs';
 import axios from 'axios';
 import { apiClient } from '../providers/apiClient';
 import { colors } from '../theme/apisTheme';
+import { useHiveDetail } from '../hooks';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
-
-interface Hive {
-  id: string;
-  site_id: string;
-  name: string;
-  queen_introduced_at: string | null;
-  queen_source: string | null;
-  brood_boxes: number;
-  honey_supers: number;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface HiveResponse {
-  data: Hive;
-}
 
 interface EditHiveForm {
   name: string;
@@ -66,25 +50,23 @@ const QUEEN_SOURCES = [
  * Tracks box changes when brood boxes or honey supers are modified.
  *
  * Part of Epic 5, Story 5.1: Create and Configure Hives
+ * Refactored for Layered Hooks Architecture
  */
 export function HiveEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [form] = Form.useForm<EditHiveForm>();
-  const [hive, setHive] = useState<Hive | null>(null);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [boxChanges, setBoxChanges] = useState<{ type: 'brood' | 'super'; change: 'added' | 'removed'; count: number }[]>([]);
 
-  const fetchHive = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get<HiveResponse>(`/hives/${id}`);
-      const hiveData = response.data.data;
-      setHive(hiveData);
+  // Use hook for hive detail
+  const { hive, loading } = useHiveDetail(id || '');
 
+  // Set form values when hive loads
+  useEffect(() => {
+    if (hive) {
       // Parse queen source - if it starts with "other: ", split into dropdown + text
-      let queenSource = hiveData.queen_source || undefined;
+      let queenSource = hive.queen_source || undefined;
       let queenSourceOther = undefined;
       if (queenSource && queenSource.startsWith('other: ')) {
         queenSourceOther = queenSource.substring(7);
@@ -92,31 +74,16 @@ export function HiveEdit() {
       }
 
       form.setFieldsValue({
-        name: hiveData.name,
-        queen_introduced_at: hiveData.queen_introduced_at ? dayjs(hiveData.queen_introduced_at) : undefined,
+        name: hive.name,
+        queen_introduced_at: hive.queen_introduced_at ? dayjs(hive.queen_introduced_at) : undefined,
         queen_source: queenSource,
         queen_source_other: queenSourceOther,
-        brood_boxes: hiveData.brood_boxes,
-        honey_supers: hiveData.honey_supers,
-        notes: hiveData.notes || undefined,
+        brood_boxes: hive.brood_boxes,
+        honey_supers: hive.honey_supers,
+        notes: hive.notes || undefined,
       });
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        message.error('Hive not found');
-      } else {
-        message.error('Failed to load hive');
-      }
-      navigate('/hives');
-    } finally {
-      setLoading(false);
     }
-  }, [id, form, navigate]);
-
-  useEffect(() => {
-    if (id) {
-      fetchHive();
-    }
-  }, [id, fetchHive]);
+  }, [hive, form]);
 
   // Track box changes when form values change
   const handleValuesChange = (changedValues: Partial<EditHiveForm>) => {
@@ -174,8 +141,12 @@ export function HiveEdit() {
 
       message.success('Hive updated successfully');
       navigate(`/hives/${id}`);
-    } catch {
-      message.error('Failed to update hive');
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.data?.error) {
+        message.error(error.response.data.error);
+      } else {
+        message.error('Failed to update hive');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -245,6 +216,11 @@ export function HiveEdit() {
               placeholder="Select queen source"
               allowClear
               options={QUEEN_SOURCES}
+              onChange={(value) => {
+                if (value !== 'other') {
+                  form.setFieldValue('queen_source_other', undefined);
+                }
+              }}
             />
           </Form.Item>
 

@@ -82,6 +82,13 @@ export async function startRecording(): Promise<void> {
     throw new Error('Audio recording is not supported in this browser');
   }
 
+  // SECURITY (S6-M7): Guard against concurrent recordings to prevent
+  // audio data corruption and leaked media streams (microphone stays active).
+  if (isRecording()) {
+    // Stop the previous recording and clean up before starting a new one
+    cancelRecording();
+  }
+
   // Request microphone access
   let stream: MediaStream;
   try {
@@ -192,7 +199,8 @@ export function stopRecording(): Promise<Blob> {
  * Send audio to server for Whisper transcription
  *
  * Uploads the audio blob to the server's transcription endpoint
- * and returns the transcribed text.
+ * and returns the transcribed text. Uses apiClient for proper
+ * authentication handling (works with both local and Keycloak auth modes).
  *
  * @param audioBlob - The audio data to transcribe
  * @param language - Optional BCP 47 language code hint (e.g., 'en-US', 'fr-FR')
@@ -212,8 +220,8 @@ export function stopRecording(): Promise<Blob> {
  * ```
  */
 export async function transcribeAudio(audioBlob: Blob, language?: string): Promise<TranscriptionResult> {
-  // Get auth token from localStorage (set by auth provider)
-  const authToken = localStorage.getItem('apis_auth_token');
+  // Import apiClient dynamically to avoid circular dependencies
+  const { apiClient } = await import('../providers/apiClient');
 
   // Create form data with audio file
   const formData = new FormData();
@@ -224,49 +232,47 @@ export async function transcribeAudio(audioBlob: Blob, language?: string): Promi
     formData.append('language', language);
   }
 
-  // Send to server
-  const response = await fetch('/api/transcribe', {
-    method: 'POST',
-    headers: authToken
-      ? { Authorization: `Bearer ${authToken}` }
-      : {},
-    body: formData,
-  });
+  try {
+    // Use apiClient for proper auth handling (cookies in local mode, Bearer token in Keycloak mode)
+    const response = await apiClient.post('/transcribe', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
 
-  if (!response.ok) {
-    // Try to get error message from response
-    let errorMessage = 'Transcription failed';
-    try {
-      const errorData = await response.json();
-      errorMessage = errorData.error || errorMessage;
-    } catch {
-      // Use default message
+    const result = response.data;
+
+    return {
+      text: result.data?.text || result.text || '',
+      language: result.data?.language || result.language,
+      duration: result.data?.duration || result.duration,
+    };
+  } catch (error: unknown) {
+    // Handle axios errors with appropriate messages
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { response?: { status?: number; data?: { error?: string } }; message?: string };
+      const status = axiosError.response?.status;
+      const errorMessage = axiosError.response?.data?.error || axiosError.message || 'Transcription failed';
+
+      // Specific error messages for common status codes
+      if (status === 413) {
+        throw new Error('Audio file too large (max 10MB)');
+      }
+      if (status === 429) {
+        throw new Error('Too many requests. Please wait a moment and try again.');
+      }
+      if (status === 401) {
+        throw new Error('Authentication required');
+      }
+      if (status === 503) {
+        throw new Error('Transcription service unavailable. Please try again later.');
+      }
+
+      throw new Error(errorMessage);
     }
 
-    // Specific error messages for common status codes
-    if (response.status === 413) {
-      throw new Error('Audio file too large (max 10MB)');
-    }
-    if (response.status === 429) {
-      throw new Error('Too many requests. Please wait a moment and try again.');
-    }
-    if (response.status === 401) {
-      throw new Error('Authentication required');
-    }
-    if (response.status === 503) {
-      throw new Error('Transcription service unavailable. Please try again later.');
-    }
-
-    throw new Error(errorMessage);
+    throw new Error('Transcription failed');
   }
-
-  const result = await response.json();
-
-  return {
-    text: result.data?.text || result.text || '',
-    language: result.data?.language || result.language,
-    duration: result.data?.duration || result.duration,
-  };
 }
 
 /**

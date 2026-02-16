@@ -247,6 +247,9 @@ func CreateHarvest(w http.ResponseWriter, r *http.Request) {
 		Bool("is_first", isFirst).
 		Msg("Harvest created")
 
+	// Audit log: record harvest creation
+	AuditCreate(r.Context(), "harvests", harvest.ID, harvest)
+
 	resp := harvestToResponse(harvest)
 	resp.IsFirstHarvest = isFirst
 	if len(firstHiveIDs) > 0 {
@@ -372,6 +375,18 @@ func UpdateHarvest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch existing harvest before update for audit logging
+	existingHarvest, err := storage.GetHarvestByID(r.Context(), conn, harvestID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Harvest not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("harvest_id", harvestID).Msg("handler: failed to get harvest for update")
+		respondError(w, "Failed to get harvest", http.StatusInternalServerError)
+		return
+	}
+
 	var req UpdateHarvestRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, "Invalid request body", http.StatusBadRequest)
@@ -444,17 +459,8 @@ func UpdateHarvest(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			// Validate against existing harvest total when only updating breakdown
-			existing, err := storage.GetHarvestByID(r.Context(), conn, harvestID)
-			if errors.Is(err, storage.ErrNotFound) {
-				respondError(w, "Harvest not found", http.StatusNotFound)
-				return
-			}
-			if err != nil {
-				log.Error().Err(err).Str("harvest_id", harvestID).Msg("handler: failed to get harvest for validation")
-				respondError(w, "Failed to validate harvest update", http.StatusInternalServerError)
-				return
-			}
-			existingTotal, _ := existing.TotalKg.Float64()
+			// (existingHarvest already fetched above for audit logging)
+			existingTotal, _ := existingHarvest.TotalKg.Float64()
 			if math.Abs(breakdownTotal-existingTotal) > harvestSumTolerance {
 				respondError(w, "Sum of hive amounts must equal existing total_kg", http.StatusBadRequest)
 				return
@@ -484,6 +490,9 @@ func UpdateHarvest(w http.ResponseWriter, r *http.Request) {
 		Str("harvest_id", harvest.ID).
 		Msg("Harvest updated")
 
+	// Audit log: record harvest update with old and new values
+	AuditUpdate(r.Context(), "harvests", harvest.ID, existingHarvest, harvest)
+
 	respondJSON(w, HarvestDataResponse{Data: harvestToResponse(harvest)}, http.StatusOK)
 }
 
@@ -497,7 +506,19 @@ func DeleteHarvest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := storage.DeleteHarvest(r.Context(), conn, harvestID)
+	// Fetch existing harvest before delete for audit logging
+	existingHarvest, err := storage.GetHarvestByID(r.Context(), conn, harvestID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Harvest not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("harvest_id", harvestID).Msg("handler: failed to get harvest for delete")
+		respondError(w, "Failed to get harvest", http.StatusInternalServerError)
+		return
+	}
+
+	err = storage.DeleteHarvest(r.Context(), conn, harvestID)
 	if errors.Is(err, storage.ErrNotFound) {
 		respondError(w, "Harvest not found", http.StatusNotFound)
 		return
@@ -511,6 +532,9 @@ func DeleteHarvest(w http.ResponseWriter, r *http.Request) {
 	log.Info().
 		Str("harvest_id", harvestID).
 		Msg("Harvest deleted")
+
+	// Audit log: record harvest deletion with old values
+	AuditDelete(r.Context(), "harvests", harvestID, existingHarvest)
 
 	w.WriteHeader(http.StatusNoContent)
 }

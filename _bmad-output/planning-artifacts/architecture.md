@@ -20,12 +20,12 @@ workflowType: 'architecture'
 project_name: 'APIS - Anti-Predator Interference System'
 user_name: 'Jermoo'
 date: '2026-01-22'
-version: '3.0'
+version: '3.1'
 techStackPreferences:
   frontend: 'React + Refine + Ant Design + @ant-design/charts'
   backend: 'Go + Chi'
   database: 'YugabyteDB (PostgreSQL-compatible)'
-  identity: 'Zitadel (OIDC/OAuth2)'
+  identity: 'Keycloak (OIDC/OAuth2)'
   edge: 'C / ESP-IDF (ESP32 + Pi) with HAL abstraction'
   container: 'Podman / Docker Compose'
   repository: 'GitHub (public)'
@@ -40,7 +40,7 @@ techStackPreferences:
 **Project:** APIS — Anti-Predator Interference System
 **Repository:** `github.com/jermoo/apis` (public)
 **License:** MIT
-**Version:** 3.0 (SaaS-Ready Infrastructure)
+**Version:** 3.1 (Keycloak Migration)
 
 ---
 
@@ -104,7 +104,7 @@ Three-tier system architecture supporting edge hardware and full beekeeping port
 | **Charts** | @ant-design/charts | Activity Clock, pattern visualizations |
 | **APIS Edge** | C / ESP-IDF | Single codebase with HAL for Pi and ESP32 |
 | **Database** | YugabyteDB | PostgreSQL-compatible, distributed, scales horizontally |
-| **Identity Provider** | Zitadel | Multi-tenant auth, OIDC/JWT, user management |
+| **Identity Provider** | Keycloak | Multi-tenant auth, OIDC/JWT, user management |
 | **Metrics** | VictoriaMetrics | Time-series metrics, Prometheus-compatible |
 | **Container** | Podman / Docker Compose | Rootless, OCI-compatible |
 | **CI/CD** | GitHub Actions | Free, integrated with GHCR |
@@ -114,11 +114,27 @@ Three-tier system architecture supporting edge hardware and full beekeeping port
 
 ### Infrastructure Modes
 
-| Mode | Database | Identity | Metrics | Use Case |
-|------|----------|----------|---------|----------|
-| **Self-Hosted** | YugabyteDB (single node) | Zitadel (bundled) | Optional | Hobbyist, single tenant |
-| **SaaS** | YugabyteDB (cluster) | Zitadel Cloud | VictoriaMetrics | Multi-tenant, commercial |
-| **Development** | YugabyteDB (Docker) | Zitadel (Docker) | None | Local development |
+**Deployment modes determined by `AUTH_MODE` environment variable.**
+
+| Mode | AUTH_MODE | Database | Identity | Use Case |
+|------|-----------|----------|----------|----------|
+| **Standalone** | `local` | PostgreSQL or YugabyteDB | Local bcrypt + JWT | Solo beekeeper, small club |
+| **SaaS** | `keycloak` | YugabyteDB (cluster) | Keycloak OIDC | Multi-tenant, commercial |
+| **Development** | `local` | PostgreSQL (Docker) | Local auth | Local development |
+
+**Standalone Mode:**
+- Single default tenant (auto-created with UUID `00000000-0000-0000-0000-000000000000`)
+- Local user management (bcrypt passwords, JWT tokens)
+- No external identity provider required
+- Setup wizard creates first admin user
+
+**SaaS Mode:**
+- Multi-tenant via Keycloak Organizations (v25+)
+- Tenant ID from Keycloak `org_id` custom claim
+- Super-admin control panel for tenant management
+- Per-tenant limits and BeeBrain access control
+
+See `docs/PRD-ADDENDUM-DUAL-AUTH-MODE.md` for complete dual auth architecture.
 
 ### Repository Structure
 
@@ -165,17 +181,94 @@ apis/
 **Multi-Tenancy:** All tables include `tenant_id` with Row-Level Security (RLS) enforced.
 
 ```sql
--- Tenants (synced from Zitadel Organizations)
+-- Tenants (synced from Keycloak Organizations)
 CREATE TABLE tenants (
-    id TEXT PRIMARY KEY,                    -- Zitadel org_id
+    id TEXT PRIMARY KEY,                    -- Keycloak org_id
     name TEXT NOT NULL,
     plan TEXT DEFAULT 'free',               -- 'free', 'hobby', 'pro'
     settings JSONB DEFAULT '{}',            -- Per-tenant configuration
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- No users table needed! Zitadel manages users.
--- User info extracted from JWT claims: sub, org_id, roles, email
+-- Users (supports both local auth and Keycloak modes)
+-- See docs/PRD-ADDENDUM-DUAL-AUTH-MODE.md for dual auth architecture
+CREATE TABLE users (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id TEXT NOT NULL REFERENCES tenants(id),
+    email TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    password_hash TEXT,                     -- Local mode only (bcrypt)
+    external_user_id TEXT,                  -- SaaS mode only (Keycloak sub)
+    role TEXT NOT NULL DEFAULT 'member',    -- 'admin' or 'member'
+    is_active BOOLEAN DEFAULT true,
+    must_change_password BOOLEAN DEFAULT false,
+    invited_by TEXT REFERENCES users(id),
+    invited_at TIMESTAMPTZ,
+    last_login_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(tenant_id, email)
+);
+
+-- Tenant limits (SaaS mode - configurable per tenant)
+CREATE TABLE tenant_limits (
+    tenant_id TEXT PRIMARY KEY REFERENCES tenants(id),
+    max_hives INTEGER DEFAULT 100,
+    max_storage_bytes BIGINT DEFAULT 5368709120,  -- 5 GB
+    max_units INTEGER DEFAULT 10,
+    max_users INTEGER DEFAULT 20,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Audit log (tracks all data modifications)
+CREATE TABLE audit_log (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id TEXT NOT NULL REFERENCES tenants(id),
+    user_id TEXT REFERENCES users(id),
+    action TEXT NOT NULL,                   -- 'create', 'update', 'delete'
+    entity_type TEXT NOT NULL,              -- 'inspection', 'hive', etc.
+    entity_id TEXT NOT NULL,
+    old_values JSONB,
+    new_values JSONB,
+    ip_address INET,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Invite tokens (for user invitations)
+CREATE TABLE invite_tokens (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id TEXT NOT NULL REFERENCES tenants(id),
+    email TEXT,                             -- NULL for shareable links
+    role TEXT DEFAULT 'member',
+    token TEXT UNIQUE NOT NULL,
+    created_by TEXT REFERENCES users(id),
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- BeeBrain configuration (system-wide and per-tenant overrides)
+CREATE TABLE beebrain_config (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id TEXT REFERENCES tenants(id),  -- NULL = system default
+    backend TEXT NOT NULL,                  -- 'rules', 'local', 'external'
+    provider TEXT,                          -- 'openai', 'anthropic', etc.
+    endpoint TEXT,                          -- For local model
+    api_key_encrypted TEXT,                 -- For external API (encrypted)
+    is_tenant_override BOOLEAN DEFAULT false,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(tenant_id)
+);
+
+-- Impersonation log (super-admin support sessions)
+CREATE TABLE impersonation_log (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+    super_admin_id TEXT NOT NULL REFERENCES users(id),
+    tenant_id TEXT NOT NULL REFERENCES tenants(id),
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    ended_at TIMESTAMPTZ,
+    actions_taken INTEGER DEFAULT 0
+);
 
 -- Sites (apiaries / physical locations)
 CREATE TABLE sites (
@@ -399,7 +492,7 @@ CREATE POLICY tenant_isolation ON sites
 ### Data Hierarchy
 
 ```
-Zitadel Organization (= Tenant)
+Keycloak Organization (= Tenant)
 └── Tenant in APIS DB
     └── Sites (physical apiaries)
         └── Site "Home Apiary"
@@ -419,8 +512,8 @@ Zitadel Organization (= Tenant)
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **Identity Provider** | Zitadel | Multi-tenant, OIDC/OAuth2, handles users |
-| **Dashboard Auth** | OIDC + JWT | Zitadel issues tokens, server validates |
+| **Identity Provider** | Keycloak | Multi-tenant, OIDC/OAuth2, handles users |
+| **Dashboard Auth** | OIDC + JWT | Keycloak issues tokens, server validates |
 | **PWA Auth** | Long-lived device token | 30-day token stored in IndexedDB for offline |
 | **Device Auth** | Per-unit API key | Unique key per unit, scoped to tenant |
 | **Transport** | HTTPS required | Public internet, open source |
@@ -428,53 +521,76 @@ Zitadel Organization (= Tenant)
 | **Rate Limiting** | Per-IP on auth/upload/transcribe | Prevents brute force |
 | **Secrets** | Environment variables | Never hardcoded |
 
-### Zitadel Integration
+### Keycloak Integration
+
+**Realm:** APIS uses the `honeybee` realm in the shared Keycloak instance (managed by Keycloak Operator in K3s). See `prd-addendum-keycloak-migration.md` for full detail.
 
 **Authentication Flow:**
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Browser   │────▶│   Zitadel   │────▶│ APIS Server │
+│   Browser   │────▶│  Keycloak   │────▶│ APIS Server │
 │   (PWA)     │◀────│   (IdP)     │◀────│   (Go+Chi)  │
 └─────────────┘     └─────────────┘     └─────────────┘
       │                    │                    │
       │  1. Login redirect │                    │
-      │───────────────────▶│                    │
-      │                    │                    │
+      │───────────────────▶│  (Authorization    │
+      │                    │   Code + PKCE)     │
       │  2. Auth + consent │                    │
       │◀───────────────────│                    │
       │                    │                    │
-      │  3. JWT token      │                    │
+      │  3. Code exchange  │                    │
+      │     → JWT tokens   │                    │
       │◀───────────────────│                    │
       │                    │                    │
       │  4. API call + JWT │                    │
       │────────────────────┼───────────────────▶│
       │                    │                    │
       │                    │  5. Validate JWT   │
-      │                    │     (sig + claims) │
+      │                    │     (JWKS sig +    │
+      │                    │      issuer +      │
+      │                    │      claims)       │
       │                    │                    │
       │  6. Response       │                    │
       │◀───────────────────┼────────────────────│
 ```
 
-**JWT Claims Structure (from Zitadel):**
+**OIDC Discovery:**
+```
+https://keycloak.example.com/realms/honeybee/.well-known/openid-configuration
+```
+Note: Keycloak includes `/realms/{name}` in the issuer URL, unlike flat-path IdPs.
+
+**JWT Claims Structure (from Keycloak):**
 ```json
 {
+  "iss": "https://keycloak.example.com/realms/honeybee",
   "sub": "user_abc123",
-  "urn:zitadel:iam:org:id": "tenant_xyz789",
-  "urn:zitadel:iam:org:name": "Jermoo's Apiary",
-  "urn:zitadel:iam:user:roles": ["owner"],
   "email": "jermoo@example.com",
+  "name": "Jermoo",
+  "preferred_username": "jermoo",
+  "realm_access": {
+    "roles": ["admin", "user"]
+  },
+  "org_id": "tenant_xyz789",
+  "org_name": "Jermoo's Apiary",
   "exp": 1737590400
 }
 ```
 
+**Critical Keycloak Configuration:**
+- Protocol mappers for `realm_access.roles` must be explicitly added to the `roles` client scope (roles are NOT included by default — #1 integration pitfall)
+- Custom mappers for `org_id` and `org_name` (from Keycloak Organizations v25+)
+- Direct Access Grants **disabled** on all clients (OAuth 2.1 compliance)
+- PKCE `S256` enforced (not just supported)
+- Full Scope Allowed **disabled** (least privilege)
+
 **Go Middleware:**
 ```go
-func AuthMiddleware(zitadelIssuer string) func(http.Handler) http.Handler {
+func AuthMiddleware(keycloakIssuer string) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             token := extractBearerToken(r)
-            claims, err := zitadel.ValidateJWT(token, zitadelIssuer)
+            claims, err := validateJWT(token, keycloakIssuer) // JWKS via go-jose/v4
             if err != nil {
                 respondError(w, "Unauthorized", 401)
                 return
@@ -483,7 +599,7 @@ func AuthMiddleware(zitadelIssuer string) func(http.Handler) http.Handler {
             // Set tenant context for RLS
             ctx := context.WithValue(r.Context(), "tenant_id", claims.OrgID)
             ctx = context.WithValue(ctx, "user_id", claims.Sub)
-            ctx = context.WithValue(ctx, "roles", claims.Roles)
+            ctx = context.WithValue(ctx, "roles", claims.RealmRoles)
 
             next.ServeHTTP(w, r.WithContext(ctx))
         })
@@ -491,13 +607,41 @@ func AuthMiddleware(zitadelIssuer string) func(http.Handler) http.Handler {
 }
 ```
 
-**Roles:**
+**Token Lifetime Configuration (realm-level):**
+
+| Setting | Value | Keycloak Config Key |
+|---------|-------|---------------------|
+| Access token | 15 minutes | `accessTokenLifespan` |
+| SSO session idle | 12 hours | `ssoSessionIdleTimeout` |
+| SSO session max | 72 hours | `ssoSessionMaxLifespan` |
+| Refresh token | 30 minutes (with rotation) | Client-level override |
+
+**Dashboard OIDC:** `react-oidc-context` + `oidc-client-ts` (replaces `@zitadel/react`). Token storage in-memory (`InMemoryWebStorage`). Refresh via refresh tokens (not iframe-based silent refresh).
+
+**Machine Users / Service Accounts:** Keycloak uses `client_credentials` grant with `client_id` + `client_secret` (replaces Zitadel's JWT profile auth with RSA key pairs).
+
+**Roles (differ by deployment mode):**
+
+*Standalone Mode (AUTH_MODE=local):*
 | Role | Permissions |
 |------|-------------|
-| `owner` | Full access, can manage users |
+| `admin` | Full access, can manage users, tenant settings |
+| `member` | CRUD own data, view shared data |
+
+*SaaS Mode (AUTH_MODE=keycloak):*
+| Role | Permissions |
+|------|-------------|
+| `owner` | Full access, can manage users (from Keycloak) |
 | `admin` | Full access to data, no user management |
 | `member` | Create/edit own data |
 | `readonly` | View only |
+
+*Super-Admin (SaaS only):*
+| Role | Permissions |
+|------|-------------|
+| `super_admin` | Manage all tenants, system BeeBrain config, impersonation |
+
+Super-admin determined by `SUPER_ADMIN_EMAILS` environment variable.
 
 ### Per-Unit API Keys
 
@@ -689,6 +833,74 @@ On Detection:
 | **Layout** | Ant Design ProLayout | Sidebar navigation with collapsible menu |
 | **Theme** | Honey Beegood colors | Primary: #f7a42d, Background: #fbf9e7, Text: #662604 |
 
+### Frontend Architecture Pattern (Layered Hooks Architecture)
+
+**Pattern Name:** Layered Hooks Architecture — a React-specific adaptation of Clean Architecture principles.
+
+**Core Principle:** Separation of concerns through explicit layers. Each layer has a single responsibility and communicates only with adjacent layers.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              DATA FLOW                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────┐  │
+│   │   Services   │───▶│  Providers   │───▶│    Hooks     │───▶│   Pages  │  │
+│   │  (services/) │    │ (providers/) │    │   (hooks/)   │    │ (pages/) │  │
+│   └──────────────┘    └──────────────┘    └──────────────┘    └────┬─────┘  │
+│         │                    │                   │                  │        │
+│   IndexedDB, sync      API client,         Business logic,    Route entry,  │
+│   queue, offline       auth tokens         state, derived     compose       │
+│   storage              management          values, effects    components    │
+│                                                                    │        │
+│                                            ┌──────────────┐        │        │
+│                                            │  Components  │◀───────┘        │
+│                                            │(components/) │                 │
+│                                            └──────────────┘                 │
+│                                                   │                         │
+│                                            UI rendering,                    │
+│                                            event handlers,                  │
+│                                            local UI state                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Layer Responsibilities:**
+
+| Layer | Location | Responsibility | Can Import From |
+|-------|----------|----------------|-----------------|
+| **Services** | `services/` | Low-level data operations (IndexedDB, sync queue, offline cache) | External libs only |
+| **Providers** | `providers/` | API communication, auth token management, Refine integration | Services |
+| **Hooks** | `hooks/` | Business logic, server state, derived values, side effects | Providers, Services |
+| **Components** | `components/` | UI rendering, local UI state, event handlers | Hooks (via props) |
+| **Pages** | `pages/` | Route entry points, compose components, connect hooks to components | Hooks, Components |
+
+**Rules (Enforced by Convention):**
+
+1. **Components are dumb** — Components receive data via props and emit events. They don't call APIs directly.
+2. **Hooks own business logic** — All data fetching, mutations, and derived state live in hooks.
+3. **Services are pure** — Services have no React dependencies. They're plain TypeScript.
+4. **Pages are thin** — Pages wire hooks to components. Minimal logic.
+5. **No prop drilling** — Use hooks directly in components that need data, not prop chains.
+
+**State Management Approach:**
+
+| State Type | Location | Example |
+|------------|----------|---------|
+| Server state | Hooks via Refine `useList`, `useOne`, `useCreate` | Hives, inspections, clips |
+| Local UI state | Component `useState` | Modal open/close, form input |
+| Shared UI state | React Context | Time range selector, site filter |
+| Offline state | Services + Hooks | IndexedDB via `useOfflineSync` |
+
+**When to Create What:**
+
+| Scenario | Create |
+|----------|--------|
+| Fetching/mutating server data | Hook (e.g., `useHives`, `useCreateInspection`) |
+| Reusable UI element | Component (e.g., `HiveCard`, `TimeRangeSelector`) |
+| Low-level data operation | Service (e.g., `offlineCache.ts`, `syncQueue.ts`) |
+| Page-specific composition | Page (e.g., `HiveDetail.tsx`) |
+| Shared app-wide state | Context + Hook (e.g., `TimeRangeContext` + `useTimeRange`) |
+
 ### Live Video Streaming (WebSocket Proxy)
 
 **Problem:** Dashboard served over HTTPS, but direct MJPEG from device is HTTP. Browsers block mixed content.
@@ -835,6 +1047,44 @@ function LiveStream({ unitId }: { unitId: string }) {
 ✓ Synced
 ```
 
+### Code Splitting (Bundle Optimization)
+
+React lazy loading reduces initial bundle from ~4.6MB to ~350KB, enabling fast first paint and PWA compliance (Workbox requires chunks <2MB).
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Code Splitting Strategy                   │
+├─────────────────────────────────────────────────────────────┤
+│  Critical Path (Eager - in main bundle)                      │
+│  ├── Dashboard, Login, Setup, Callback                       │
+│  └── ~350KB initial load                                     │
+│                                                              │
+│  Lazy Loaded (On-demand chunks)                              │
+│  ├── pages/lazy.tsx    → All page components                 │
+│  ├── components/lazy.tsx → Heavy components (charts, maps)   │
+│  └── Loaded when route/component first accessed              │
+│                                                              │
+│  Chunk Groups (shared caching)                               │
+│  ├── page-sites, page-hives, page-units (by domain)          │
+│  ├── comp-charts (Ant Charts ~1.4MB)                         │
+│  ├── comp-maps (Leaflet ~150KB)                              │
+│  └── comp-qr (QR scanner/generator ~360KB)                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| Pattern | Location | Usage |
+|---------|----------|-------|
+| Page lazy exports | `pages/lazy.tsx` | All lazy page components with `Lazy*` prefix |
+| Component lazy exports | `components/lazy.tsx` | Heavy visualization components |
+| Route wrapper | `App.tsx` → `LazyRoute` | Wraps lazy pages in ErrorBoundary + Suspense |
+| Chunk naming | `/* webpackChunkName: "x" */` | Groups related code for caching |
+
+**Chunk Load Error Handling:**
+
+When deployments change chunk hashes, users with cached HTML may fail to load new chunks. The `ErrorBoundary` component detects chunk errors (across Chrome, Safari, Firefox) and shows an "Update Available" prompt with reload button instead of crashing.
+
+**Constraint:** All chunks must stay under 2MB for Workbox precaching. Heavy vendor chunks (antd ~1.3MB, charts ~1.4MB) are acceptable as they're loaded on-demand, not precached.
+
 ### Mobile Design (Glove-Friendly)
 
 | Standard | APIS Mobile |
@@ -865,7 +1115,7 @@ Implementation: React components detect conditions from data and render appropri
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **Container Strategy** | Docker Compose (multi-service) | Server + Zitadel + YugabyteDB |
+| **Container Strategy** | Docker Compose (multi-service) | Server + Keycloak + YugabyteDB |
 | **Container Runtime** | Podman / Docker Compose | Rootless, OCI-compatible |
 | **CI/CD** | GitHub Actions → GHCR | Free, integrated |
 | **Logging** | Structured JSON (stdout) | Container-friendly, AI-parseable |
@@ -886,15 +1136,15 @@ services:
       - "8080:8080"
     environment:
       - DATABASE_URL=postgres://yugabyte:yugabyte@yugabyte:5433/apis
-      - ZITADEL_ISSUER=http://zitadel:8080
-      - ZITADEL_CLIENT_ID=${ZITADEL_CLIENT_ID}
+      - KEYCLOAK_ISSUER=http://keycloak:8080/realms/honeybee
+      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
       - CLIPS_PATH=/data/clips
       - PHOTOS_PATH=/data/photos
     volumes:
       - ./data:/data
     depends_on:
       - yugabyte
-      - zitadel
+      - keycloak
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -915,24 +1165,41 @@ services:
       timeout: 10s
       retries: 5
 
-  zitadel:
-    image: ghcr.io/zitadel/zitadel:latest
-    command: start-from-init --masterkeyFromEnv --tlsMode disabled
+  keycloak-db:
+    image: postgres:16-alpine
     environment:
-      - ZITADEL_MASTERKEY=${ZITADEL_MASTERKEY:-MasterkeyNeedsToHave32Characters}
-      - ZITADEL_DATABASE_POSTGRES_HOST=yugabyte
-      - ZITADEL_DATABASE_POSTGRES_PORT=5433
-      - ZITADEL_DATABASE_POSTGRES_DATABASE=zitadel
-      - ZITADEL_DATABASE_POSTGRES_USER=yugabyte
-      - ZITADEL_DATABASE_POSTGRES_PASSWORD=yugabyte
-      - ZITADEL_DATABASE_POSTGRES_SSL_MODE=disable
-      - ZITADEL_EXTERNALDOMAIN=localhost
-      - ZITADEL_EXTERNALPORT=8081
-      - ZITADEL_EXTERNALSECURE=false
+      - POSTGRES_DB=keycloak
+      - POSTGRES_USER=keycloak
+      - POSTGRES_PASSWORD=${KC_DB_PASSWORD:-keycloak}
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25-alpine
+    command: start-dev --import-realm
+    environment:
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://keycloak-db:5432/keycloak
+      - KC_DB_USERNAME=keycloak
+      - KC_DB_PASSWORD=${KC_DB_PASSWORD:-keycloak}
+      - KC_HOSTNAME=localhost
+      - KC_HOSTNAME_PORT=8081
+      - KC_HOSTNAME_STRICT=false
+      - KC_PROXY_HEADERS=xforwarded
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
     ports:
-      - "8081:8080"   # Zitadel UI + API
+      - "8081:8080"   # Keycloak Admin + OIDC
+    volumes:
+      - ./deploy/keycloak/realm-honeybee.json:/opt/keycloak/data/import/realm-honeybee.json:ro
     depends_on:
-      - yugabyte
+      keycloak-db:
+        condition: service_healthy
 
   # Optional: Metrics
   victoriametrics:
@@ -949,6 +1216,7 @@ services:
 
 volumes:
   yugabyte-data:
+  keycloak-db-data:
   vm-data:
 ```
 
@@ -959,20 +1227,56 @@ volumes:
 git clone https://github.com/jermoo/apis.git
 cd apis
 
-# 2. Generate secrets
-export ZITADEL_MASTERKEY=$(openssl rand -base64 24 | tr -d '\n' | head -c 32)
-echo "ZITADEL_MASTERKEY=$ZITADEL_MASTERKEY" > .env
+# 2. Configure environment
+cp .env.saas.example .env
+# Edit .env to set KEYCLOAK_ADMIN_PASSWORD, KC_DB_PASSWORD, etc.
 
 # 3. Start services
-docker-compose up -d
+docker-compose --profile saas up -d
 
 # 4. Wait for initialization (~60s first time)
-docker-compose logs -f zitadel  # Watch for "server is listening"
+docker-compose logs -f keycloak  # Watch for "Listening on: http://0.0.0.0:8080"
 
 # 5. Access
 # - Dashboard: http://localhost:8080
-# - Zitadel Admin: http://localhost:8081 (admin@zitadel.localhost / Password1!)
+# - Keycloak Admin: http://localhost:8081 (admin / admin)
 # - YugabyteDB Admin: http://localhost:7000
+```
+
+### Environment Variables
+
+**Required (Both Modes):**
+```bash
+AUTH_MODE=local|keycloak              # REQUIRED: Determines auth mode
+DATABASE_URL=postgres://...          # Database connection string
+JWT_SECRET=<random-32-chars>         # For JWT signing (both modes)
+```
+
+**Standalone Mode Only (AUTH_MODE=local):**
+```bash
+SESSION_DURATION=168h                # Login session duration (default 7 days)
+PASSWORD_MIN_LENGTH=8                # Minimum password length
+# Optional SMTP for email invites:
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASSWORD=...
+SMTP_FROM=noreply@example.com
+```
+
+**SaaS Mode Only (AUTH_MODE=keycloak):**
+```bash
+KEYCLOAK_ISSUER=https://keycloak.example.com/realms/honeybee
+KEYCLOAK_CLIENT_ID=...               # Public SPA client ID
+KEYCLOAK_SERVICE_CLIENT_ID=...       # Service account client ID
+KEYCLOAK_SERVICE_CLIENT_SECRET=...   # For backend operations (client_credentials)
+SUPER_ADMIN_EMAILS=admin@example.com # Comma-separated super-admin emails
+```
+
+**Rate Limiting (Both Modes):**
+```bash
+RATE_LIMIT_LOGIN=5                   # Max login attempts per email per 15 min
+RATE_LIMIT_IP=20                     # Max attempts per IP per 15 min
 ```
 
 ### Container Build
@@ -1035,7 +1339,7 @@ For production SaaS, deploy to Kubernetes with:
 |-----------|---------------|
 | APIS Server | Deployment (3+ replicas), HPA |
 | YugabyteDB | YugabyteDB Operator (3-node cluster) |
-| Zitadel | Zitadel Cloud or self-managed HA |
+| Keycloak | Keycloak Operator (K3s, managed via KeycloakRealmImport CRD) |
 | VictoriaMetrics | VMCluster for HA |
 | Ingress | NGINX Ingress + cert-manager |
 
@@ -1067,15 +1371,61 @@ For production SaaS, deploy to Kubernetes with:
 
 ### Complete API Endpoints
 
-**Authentication (via Zitadel OIDC):**
+**Authentication (Dual Mode — see docs/PRD-ADDENDUM-DUAL-AUTH-MODE.md):**
+
+*Both Modes:*
 ```
-GET    /api/auth/config             # OIDC configuration (issuer, client_id)
-GET    /api/auth/me                 # Current user info (from JWT)
-POST   /api/auth/device-token       # Exchange JWT for long-lived device token (PWA)
+GET    /api/auth/config             # Returns mode, setup_required, Keycloak config (if SaaS)
+GET    /api/auth/me                 # Current user info (from JWT/session)
+POST   /api/auth/device-token       # Exchange for long-lived device token (PWA)
 DELETE /api/auth/device-token       # Revoke device token
 ```
 
-**Note:** Login/logout handled by Zitadel. Dashboard redirects to Zitadel for auth.
+*Standalone Mode Only (AUTH_MODE=local):*
+```
+POST   /api/auth/login              # Email + password → JWT
+POST   /api/auth/logout             # Clear session
+POST   /api/auth/change-password    # Change password (requires current password)
+POST   /api/auth/setup              # First-run: create admin user (only when no users exist)
+```
+
+*SaaS Mode Only (AUTH_MODE=keycloak):*
+```
+Note: Login/logout handled by Keycloak OIDC redirect flow (Authorization Code + PKCE).
+```
+
+**User Management (Standalone Mode):**
+```
+GET    /api/users                   # List tenant users (admin only)
+POST   /api/users                   # Create user (admin only)
+GET    /api/users/{id}              # Get user details
+PUT    /api/users/{id}              # Update user
+DELETE /api/users/{id}              # Delete user (admin only)
+POST   /api/users/invite            # Generate invite link/email
+GET    /api/invite/{token}          # Validate invite token
+POST   /api/invite/{token}/accept   # Accept invite, create account
+```
+
+**Super-Admin (SaaS Mode Only):**
+```
+GET    /api/admin/tenants           # List all tenants
+POST   /api/admin/tenants           # Create tenant
+GET    /api/admin/tenants/{id}      # Tenant details + usage stats
+PUT    /api/admin/tenants/{id}      # Update tenant (limits, status)
+DELETE /api/admin/tenants/{id}      # Delete tenant
+POST   /api/admin/tenants/{id}/invite      # Invite tenant admin
+POST   /api/admin/tenants/{id}/impersonate # Start support session
+DELETE /api/admin/impersonate              # End support session
+GET    /api/admin/beebrain          # System BeeBrain config
+PUT    /api/admin/beebrain          # Update system BeeBrain config
+PUT    /api/admin/tenants/{id}/beebrain    # Per-tenant BeeBrain access
+```
+
+**Audit & Activity:**
+```
+GET    /api/audit                   # Query audit log (admin only)
+GET    /api/activity                # Activity feed for dashboard
+```
 
 **Sites (Apiaries):**
 ```
@@ -1976,7 +2326,7 @@ This section documents the architectural decisions made in response to the GPT-5
 | 4 | ESP32 performance unproven | High | ESP32 is target; adapt during dev if needed |
 | 5 | Session auth vs offline PWA | Medium | Long-lived device tokens (30 days) |
 | 6 | Upload resilience | Medium | Retry with backoff + local spool (50 clips) |
-| 7 | SaaS-readiness overstated | Medium | Added tenant_id schema + Zitadel |
+| 7 | SaaS-readiness overstated | Medium | Added tenant_id schema + Keycloak OIDC |
 | 8 | CSRF/rate limiting missing | Medium | SameSite=Strict + CSRF tokens + rate limits |
 | 9 | Observability limited | Medium | /health endpoint + VictoriaMetrics (optional) |
 | 10 | Conflict resolution | Medium | Last-write-wins (documented behavior) |
@@ -1988,7 +2338,7 @@ This section documents the architectural decisions made in response to the GPT-5
 | Component | v2.0 | v3.0 |
 |-----------|------|------|
 | **Database** | SQLite (pure Go) | YugabyteDB (PostgreSQL-compatible) |
-| **Identity** | Bcrypt + sessions | Zitadel (OIDC/JWT) |
+| **Identity** | Bcrypt + sessions | Keycloak (OIDC/JWT) |
 | **Multi-Tenant** | user_id scoping | tenant_id + RLS |
 | **Live Video** | Direct MJPEG (HTTP) | WebSocket proxy (WSS) |
 | **Device Auth** | Shared API key | Per-unit API keys |
@@ -2004,8 +2354,8 @@ The PRD specifies ESP32 as the target platform. Pi 5 is used for development onl
 **Last-Write-Wins for Conflicts:**
 For a single-user self-hosted deployment, concurrent offline edits to the same record are rare. Last-write-wins is documented and accepted. CRDTs or optimistic locking can be added if users report issues.
 
-**Zitadel over Keycloak:**
-Zitadel was chosen for its Go-native implementation, first-class multi-tenant support (Organizations), and lighter resource footprint. Both are excellent; Zitadel aligns better with the stack.
+**Keycloak as Identity Provider (ADR — Decision Reversal):**
+The original architecture (v2.0→v3.0) selected Zitadel for its Go-native implementation and lighter resource footprint. The shared infrastructure was rebuilt on SSIK (Sovereign Secure Infrastructure Kit) running K3s, which standardizes on Keycloak across all hosted applications. Running a separate IdP creates unnecessary operational overhead. Infrastructure consistency outweighs the original stack-alignment rationale. Full ADR in `prd-addendum-keycloak-migration.md` §8.
 
 ---
 
@@ -2014,7 +2364,7 @@ Zitadel was chosen for its Go-native implementation, first-class multi-tenant su
 ### Workflow Completion
 
 **Architecture Decision Workflow:** COMPLETED ✅
-**Version:** 3.0 (SaaS-Ready Infrastructure)
+**Version:** 3.1 (Keycloak Migration)
 **Total Steps Completed:** 10
 **Date Completed:** 2026-01-22
 **Document Location:** `_bmad-output/planning-artifacts/architecture.md`
@@ -2025,7 +2375,7 @@ Zitadel was chosen for its Go-native implementation, first-class multi-tenant su
 | Area | v2.0 | v3.0 |
 |------|------|------|
 | **Database** | SQLite (pure Go) | YugabyteDB (PostgreSQL-compatible) |
-| **Identity** | Bcrypt + sessions | Zitadel (OIDC/JWT) |
+| **Identity** | Bcrypt + sessions | Keycloak (OIDC/JWT) |
 | **Multi-Tenant** | user_id only | tenant_id + RLS on all tables |
 | **Live Video** | Direct MJPEG (HTTP) | WebSocket proxy (WSS) |
 | **Device Auth** | Shared API key | Per-unit API keys |
@@ -2038,7 +2388,7 @@ Zitadel was chosen for its Go-native implementation, first-class multi-tenant su
 **Complete Architecture Document**
 - All architectural decisions documented with specific versions
 - Multi-tenant data model with Row-Level Security
-- Zitadel OIDC integration for authentication
+- Keycloak OIDC integration for authentication
 - Docker Compose for self-hosted deployment
 - Codex review remediations fully addressed
 
@@ -2117,8 +2467,8 @@ mkdir -p .github/workflows
 ---
 
 **Architecture Status:** READY FOR IMPLEMENTATION ✅
-**Version:** 3.0 (SaaS-Ready)
-**Last Updated:** 2026-01-22
+**Version:** 3.1 (Keycloak Migration)
+**Last Updated:** 2026-02-08
 
 **Alignment:**
 - ✅ Aligned with PRD v2.0
@@ -2128,7 +2478,7 @@ mkdir -p .github/workflows
 
 **Infrastructure:**
 - ✅ YugabyteDB (PostgreSQL-compatible, distributed)
-- ✅ Zitadel (multi-tenant identity)
+- ✅ Keycloak (multi-tenant identity, managed by Keycloak Operator in K3s)
 - ✅ VictoriaMetrics (observability)
 - ✅ Docker Compose (self-hosted deployment)
 
@@ -2136,5 +2486,11 @@ mkdir -p .github/workflows
 
 **Document Maintenance:** Update this architecture when major technical decisions are made during implementation.
 
-**Document Maintenance:** Update this architecture when major technical decisions are made during implementation.
+### Changelog
+
+| Version | Date | Change |
+|---------|------|--------|
+| 3.1 | 2026-02-08 | **Keycloak Migration** — Replaced all Zitadel references with Keycloak equivalents per ADR in `prd-addendum-keycloak-migration.md` §8. Auth sections updated: JWT claims (`realm_access.roles`, `org_id`), OIDC discovery URL (includes `/realms/{name}`), Docker Compose (Keycloak + dedicated PostgreSQL via CloudNativePG pattern), env vars (`KEYCLOAK_*`), SaaS mode (`AUTH_MODE=keycloak`), service accounts (`client_credentials` grant), dashboard OIDC library (`react-oidc-context`). Column `zitadel_user_id` renamed to `external_user_id`. Non-auth sections unchanged. |
+| 3.0 | 2026-01-22 | SaaS-Ready Infrastructure — YugabyteDB, Zitadel OIDC, multi-tenant RLS, Codex review remediations |
+| 2.0 | 2026-01-21 | Initial architecture with SQLite, session auth |
 

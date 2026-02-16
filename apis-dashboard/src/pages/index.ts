@@ -1,23 +1,20 @@
+/**
+ * Page exports - only eagerly loaded pages.
+ *
+ * CRITICAL: Do NOT add lazy-loaded pages here.
+ * If a page is dynamically imported in lazy.tsx, do not re-export it here,
+ * as that would defeat code splitting by including it in the main bundle.
+ *
+ * For lazy-loaded pages, import from './lazy' instead.
+ */
+
+// EAGER PAGES - Critical path (always in main bundle)
+// These are needed for initial app render and auth flow
 export { Dashboard } from './Dashboard';
-export { Units } from './Units';
-export { UnitDetail } from './UnitDetail';
-export { UnitRegister } from './UnitRegister';
-export { UnitEdit } from './UnitEdit';
-export { Sites } from './Sites';
-export { SiteDetail } from './SiteDetail';
-export { SiteCreate } from './SiteCreate';
-export { SiteEdit } from './SiteEdit';
-export { Hives } from './Hives';
-export { HiveCreate } from './HiveCreate';
-export { HiveEdit } from './HiveEdit';
-export { HiveDetail } from './HiveDetail';
-export { InspectionCreate } from './InspectionCreate';
-export { InspectionEdit } from './InspectionEdit';
-export { Clips } from './Clips';
-export { Statistics } from './Statistics';
-export { Settings } from './Settings';
-export { Export } from './Export';
 export { Login } from './Login';
+export { Setup } from './Setup';
 export { Callback } from './Callback';
-export { Maintenance } from './Maintenance';
-export { SeasonRecap } from './SeasonRecap';
+
+// LAZY PAGES - Import from './lazy' instead
+// All other pages are lazy-loaded for code splitting
+// See lazy.tsx for the full list of lazy-loaded page exports

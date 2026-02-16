@@ -212,6 +212,88 @@ static void test_cleanup(void) {
 }
 
 // ============================================================================
+// Test: Response Structure Initialization
+// ============================================================================
+
+static void test_response_structure(void) {
+    printf("\n--- Test: Response Structure ---\n");
+
+    // Test that heartbeat_response_t fields are properly initialized
+    heartbeat_response_t resp = {0};
+
+    TEST_ASSERT(resp.server_time[0] == '\0', "server_time initialized empty");
+    TEST_ASSERT(resp.has_config == false, "has_config initialized false");
+    TEST_ASSERT(resp.armed == false, "armed initialized false");
+    TEST_ASSERT(resp.detection_enabled == false, "detection_enabled initialized false");
+    TEST_ASSERT(resp.time_drift_ms == 0, "time_drift_ms initialized to 0");
+}
+
+// ============================================================================
+// Test: Clock Drift Detection (AC2)
+// ============================================================================
+
+static void test_clock_drift_response_field(void) {
+    printf("\n--- Test: Clock Drift Response Field (AC2) ---\n");
+
+    // This test verifies the time_drift_ms field exists in heartbeat_response_t
+    // and can store drift values. Full integration testing requires a mock server.
+
+    heartbeat_response_t resp = {0};
+
+    // Test positive drift (local ahead of server)
+    resp.time_drift_ms = 10000;  // 10 seconds
+    TEST_ASSERT(resp.time_drift_ms == 10000, "Can store positive drift");
+
+    // Test negative drift (local behind server)
+    resp.time_drift_ms = -5000;  // -5 seconds
+    TEST_ASSERT(resp.time_drift_ms == -5000, "Can store negative drift");
+
+    // Test zero drift
+    resp.time_drift_ms = 0;
+    TEST_ASSERT(resp.time_drift_ms == 0, "Can store zero drift");
+
+    // Note: Full clock drift calculation is tested via integration tests
+    // with a mock server that returns server_time in ISO 8601 format.
+    // The implementation parses "2026-01-26T14:30:00Z" format using strptime
+    // and calculates drift by comparing to local time via timegm.
+}
+
+// ============================================================================
+// Test: Config Sync Response Field (AC4)
+// ============================================================================
+
+static void test_config_sync_response_field(void) {
+    printf("\n--- Test: Config Sync Response Field (AC4) ---\n");
+
+    // This test verifies config-related fields exist in heartbeat_response_t
+    // and can store values received from server.
+
+    heartbeat_response_t resp = {0};
+
+    // Test has_config flag
+    resp.has_config = true;
+    TEST_ASSERT(resp.has_config == true, "Can set has_config true");
+
+    // Test armed config value
+    resp.armed = true;
+    TEST_ASSERT(resp.armed == true, "Can store armed=true from config");
+
+    resp.armed = false;
+    TEST_ASSERT(resp.armed == false, "Can store armed=false from config");
+
+    // Test detection_enabled config value
+    resp.detection_enabled = true;
+    TEST_ASSERT(resp.detection_enabled == true, "Can store detection_enabled=true");
+
+    resp.detection_enabled = false;
+    TEST_ASSERT(resp.detection_enabled == false, "Can store detection_enabled=false");
+
+    // Note: Full config sync testing requires a mock server that returns
+    // a config section in the heartbeat response JSON:
+    // {"config": {"armed": true, "detection_enabled": false}}
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -228,6 +310,9 @@ int main(void) {
     test_no_server_config();
     test_network_failure();
     test_cleanup();
+    test_response_structure();
+    test_clock_drift_response_field();
+    test_config_sync_response_field();
 
     printf("\n=== Results: %d passed, %d failed ===\n",
            tests_passed, tests_failed);

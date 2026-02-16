@@ -33,7 +33,55 @@ For hardware stories, include:
 1. **Design for ESP32** — Pi 5 is dev board only. Never add features that won't work on ESP32.
 2. **Offline-first** — Edge device works with zero connectivity. Server is optional.
 3. **AI-manageable** — All CLI commands support `--json` flag for structured output.
-4. **SaaS-ready** — Architecture supports future multi-tenant expansion.
+4. **Dual-mode deployment** — Supports both standalone (self-hosted) and SaaS (multi-tenant) deployments.
+
+## Deployment Modes
+
+> **AI/LLM Context**: APIS supports two deployment modes with different infrastructure requirements.
+> When modifying configuration, secrets, or auth code, ensure changes work in BOTH modes.
+> See `docs/DEPLOYMENT-MODES.md` for comprehensive documentation.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Mode       │ Use Case               │ Auth      │ Secrets    │ Multi-tenant│
+├─────────────────────────────────────────────────────────────────────────────┤
+│ standalone │ Self-hosted, Pi, NAS   │ local     │ file/env   │ false       │
+│ saas       │ Club hosting, SaaS     │ keycloak  │ openbao    │ true        │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Starting Each Mode
+
+```bash
+# Standalone mode (minimal dependencies)
+cp .env.standalone.example .env
+docker compose --profile standalone up -d
+
+# SaaS mode (full stack with Keycloak, OpenBao, BunkerWeb)
+cp .env.saas.example .env
+docker compose --profile saas up -d
+```
+
+### Key Environment Variables
+
+| Variable | Standalone | SaaS |
+|----------|------------|------|
+| `DEPLOYMENT_MODE` | `standalone` | `saas` |
+| `AUTH_MODE` | `local` | `keycloak` |
+| `SECRETS_BACKEND` | `file` or `env` | `openbao` |
+| `MULTI_TENANT` | `false` | `true` |
+
+### Code Pattern for Mode-Aware Features
+
+```go
+// AI/LLM Context: Always check deployment mode before assuming infrastructure exists
+if config.DeploymentMode() == "saas" {
+    // Full security: OpenBao, audit logging, tenant isolation
+    return doWithFullSecurity()
+}
+// Standalone: Simpler but still secure (file-based secrets, single tenant)
+return doWithStandaloneSecurityModel()
+```
 
 ## Technology Stack
 
@@ -44,7 +92,8 @@ For hardware stories, include:
 | Database | YugabyteDB | PostgreSQL-compatible distributed DB |
 | Edge (Pi + ESP32) | C / ESP-IDF | Single codebase with HAL abstraction |
 | Container | Podman | Rootless, Alpine base |
-| Secrets | OpenBao | Vault-compatible, swappable |
+| Secrets | OpenBao / file / env | Three backends, see Secrets Management |
+| Auth | Local JWT / Keycloak OIDC | Depends on AUTH_MODE |
 | Encryption | SOPS + age | Local dev secrets |
 
 ## Frontend Development
@@ -56,33 +105,132 @@ For hardware stories, include:
 
 Epics 10-12 are edge device firmware (C/ESP-IDF) and hardware documentation — no frontend skill needed.
 
+### Layered Hooks Architecture
+
+**CRITICAL:** All data fetching in the dashboard follows a strict layered architecture:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Pages (thin composition layer)                          │
+│   - Use hooks for ALL data fetching                     │
+│   - Pass data to components via props                   │
+│   - Handle navigation and layout                        │
+│   - POST/PUT for create/edit forms allowed inline       │
+├─────────────────────────────────────────────────────────┤
+│ Components (dumb, props-only)                           │
+│   - Receive data via props                              │
+│   - NO direct API calls for fetching                    │
+│   - POST/DELETE mutations allowed for user actions      │
+├─────────────────────────────────────────────────────────┤
+│ Hooks (data fetching layer)                             │
+│   - All GET requests go through hooks                   │
+│   - Consistent pattern: loading, error, data, refetch   │
+│   - Located in src/hooks/                               │
+├─────────────────────────────────────────────────────────┤
+│ API Client (transport layer)                            │
+│   - Axios instance with interceptors                    │
+│   - Located in src/providers/apiClient.ts               │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Hook Pattern (required for all new hooks):**
+```typescript
+export function useXxx(id: string): UseXxxResult {
+  const [data, setData] = useState<Xxx | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const isMountedRef = useRef(true);
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await apiClient.get(`/xxx/${id}`);
+      if (isMountedRef.current) setData(response.data.data);
+    } catch (err) {
+      if (isMountedRef.current) setError(err as Error);
+    } finally {
+      if (isMountedRef.current) setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    fetch();
+    return () => { isMountedRef.current = false; };
+  }, [fetch]);
+
+  return { data, loading, error, refetch: fetch };
+}
+```
+
+**Rules:**
+- ❌ NO `apiClient.get()` in pages (except inline POST/PUT for forms)
+- ❌ NO `apiClient.get()` in components
+- ✅ All data fetching through hooks in `src/hooks/`
+- ✅ Components receive data via props
+- ✅ Mutations (POST/DELETE) allowed inline for user-triggered actions
+
 ## Secrets Management
 
-**Architecture:** OpenBao (Vault-compatible) for secrets, SOPS for encrypted local files.
+> **AI/LLM Context**: The secrets package supports THREE backends to accommodate different deployment modes.
+> Code reading secrets MUST handle all backends gracefully. Never assume OpenBao is available.
 
-**Go Server reads secrets from OpenBao:**
+### Three Secrets Backends
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Backend  │ Use Case              │ Security     │ Configuration             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ env      │ Standalone (simplest) │ Basic        │ SECRETS_BACKEND=env       │
+│ file     │ Standalone (better)   │ Better       │ SECRETS_BACKEND=file      │
+│ openbao  │ SaaS (production)     │ Best         │ SECRETS_BACKEND=openbao   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Fallback chain: openbao → file → env (ensures app starts even if preferred backend unavailable)
+```
+
+### Reading Secrets in Go
+
 ```go
 import "github.com/jermoo/apis/apis-server/internal/secrets"
 
-client := secrets.NewClient()
+client := secrets.NewClient()  // Auto-configures from SECRETS_BACKEND env var
 dbConfig, _ := client.GetDatabaseConfig()
 connStr := dbConfig.ConnectionString()
+
+// Available methods:
+// - GetDatabaseConfig() - DB host, port, user, password
+// - GetJWTConfig() - JWT secret for local auth mode
+// - GetKeycloakConfig() - Keycloak settings for SaaS mode
 ```
 
-**To connect to external OpenBao (e.g., existing stack):**
+### Standalone Mode (file/env backends)
+
 ```bash
-# Just change these environment variables:
+# Option A: Environment variables (simplest)
+SECRETS_BACKEND=env
+JWT_SECRET=<your-64-char-secret>
+YSQL_PASSWORD=<your-db-password>
+
+# Option B: File-based secrets (more secure)
+SECRETS_BACKEND=file
+SECRETS_DIR=./secrets
+# Create files: ./secrets/jwt_secret, ./secrets/db_password (chmod 600)
+```
+
+### SaaS Mode (OpenBao backend)
+
+```bash
+SECRETS_BACKEND=openbao
 OPENBAO_ADDR=https://your-openbao.example.com:8200
 OPENBAO_TOKEN=hvs.your-actual-token
 OPENBAO_SECRET_PATH=secret/data/apis
 ```
 
-**Local dev:** OpenBao runs in docker-compose with dev token. No setup needed.
-
 **Secret paths in OpenBao:**
 - `secret/data/apis/database` - DB credentials
-- `secret/data/apis/zitadel` - Zitadel config
-- `secret/data/apis/api` - API configuration
+- `secret/data/apis/jwt` - JWT signing keys
+- `secret/data/apis/keycloak` - Keycloak config
 
 **Shared infrastructure:** APIS is designed to run alongside other apps on shared infrastructure (YugabyteDB, OpenBao, VyOS). See `docs/INFRASTRUCTURE-INTEGRATION.md` for details on connecting to an existing stack.
 
@@ -104,7 +252,7 @@ SHARED STACK (Nuremberg DC)
 ├── VyOS Firewall (10.0.1.1/2) - VRRP HA, Suricata IDS
 ├── OpenBao (10.0.1.20 or data nodes) - Secrets at secret/data/apis/*
 ├── YugabyteDB (shared cluster) - APIS uses dedicated 'apis' database
-├── Zitadel (shared) - APIS can use same instance, separate project
+├── Keycloak (shared) - APIS can use same instance, separate realm
 ├── BunkerWeb (WAF) - Routes traffic to APIS
 ├── VictoriaMetrics - APIS exports /metrics for scraping
 └── Wazuh - Security monitoring
@@ -112,20 +260,24 @@ SHARED STACK (Nuremberg DC)
 APIS INTEGRATION POINTS
 ├── Secrets: OPENBAO_ADDR=http://10.0.1.20:8200, path=secret/data/apis/*
 ├── Database: postgres://apis:xxx@yugabytedb:5433/apis
-├── Auth: Shared Zitadel or dedicated
+├── Auth: Shared Keycloak or dedicated
 └── Monitoring: Prometheus metrics at :3000/metrics
 ```
 
-### Isolated vs Integrated Mode
+### Local vs Shared Infrastructure
+
+> **AI/LLM Context**: This is about WHERE services run, not deployment mode.
+> Both standalone and SaaS modes can run locally or connect to shared infrastructure.
 
 ```bash
-# ISOLATED (default for local dev) - runs everything locally
-docker compose up
+# LOCAL (default for development) - runs all services in docker-compose
+docker compose --profile standalone up -d   # or --profile saas
 
-# INTEGRATED (connects to shared stack) - set env vars first
+# SHARED INFRASTRUCTURE - connects to existing OpenBao/YugabyteDB
 OPENBAO_ADDR=http://10.0.1.20:8200 \
 OPENBAO_TOKEN=hvs.xxx \
-docker compose up apis-server apis-dashboard
+YSQL_HOST=10.0.1.30 \
+docker compose --profile saas up apis-server apis-dashboard
 ```
 
 ## Repository Structure
@@ -213,9 +365,31 @@ func respondError(w http.ResponseWriter, msg string, code int) {
 
 ## Authentication
 
-- **Dashboard:** Bcrypt password + secure sessions
-- **Device → Server:** API key in `X-API-Key` header over HTTPS
-- **Secrets:** OpenBao for production, SOPS-encrypted files for dev, never hardcoded
+> **AI/LLM Context**: Auth behavior depends on `AUTH_MODE` environment variable.
+> Always check auth mode before assuming Keycloak/OIDC is available.
+
+### Auth Modes
+
+| Mode | `AUTH_MODE` | Dashboard Auth | Token Storage |
+|------|-------------|----------------|---------------|
+| Standalone | `local` | Bcrypt passwords + JWT | In-memory (no localStorage) |
+| SaaS | `keycloak` | Keycloak OIDC | Keycloak handles sessions |
+
+- **Device → Server:** API key in `X-API-Key` header over HTTPS (both modes)
+- **Secrets:** See Secrets Management section above
+
+### Token Storage
+
+- **Local mode:** JWTs stored in `apis_session` HttpOnly cookie only — never in `localStorage`. On page refresh the cookie is sent automatically; on cookie expiry the user must re-login.
+- **SaaS mode:** Keycloak manages sessions. SSO session max lifespan is 72 hours (`ssoSessionMaxLifespan: 259200` in realm config). Token refresh is handled by the OIDC library.
+
+### Role Selection
+
+Keycloak tokens may contain multiple roles in `realm_access.roles`. The server uses **deterministic priority selection** (`admin > user > viewer`) to set `Claims.Role`. This is **not cosmetic** — `Claims.Role` is used for authorization checks in handlers (e.g., `settings_beebrain.go`, `users.go`).
+
+### Auth Config Cache
+
+The auth config endpoint (`/api/auth/config`) uses a non-cryptographic hash for ETag caching. This is an accepted risk — the endpoint only returns public configuration (auth mode, issuer URL, client ID) with no sensitive data.
 
 ## Device Communication
 

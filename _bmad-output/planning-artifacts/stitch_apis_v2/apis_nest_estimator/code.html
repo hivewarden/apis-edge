@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Nest Estimator</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@100..900&amp;family=Noto+Sans:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "primary": "#f7a42d", // Sea Buckthorn
+                    "background-light": "#fbf9e7", // Coconut Cream
+                    "background-dark": "#221b10",
+                    "salomie": "#fcd483",
+                    "brown-bramble": "#662604",
+                    "pure-white": "#ffffff",
+                },
+                fontFamily: {
+                    "display": ["Epilogue", "sans-serif"],
+                    "body": ["Noto Sans", "sans-serif"],
+                },
+                borderRadius: {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "2xl": "16px", // Specifically for cards
+                    "full": "9999px"
+                },
+                boxShadow: {
+                    "soft": "0 8px 30px rgba(0, 0, 0, 0.04)",
+                }
+            },
+        },
+    }
+</script>
+<style>
+    .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    }
+    .material-symbols-outlined.fill {
+        font-variation-settings: 'FILL' 1, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#181511]">
+<div class="flex h-screen w-full overflow-hidden">
+<div class="flex h-full w-[240px] flex-col justify-between bg-pure-white dark:bg-[#1a150d] border-r border-[#e6e1d6] dark:border-[#3a3022]">
+<div class="flex flex-col">
+<div class="px-6 py-8">
+<div class="flex flex-col">
+<h1 class="text-[#181511] dark:text-white text-xl font-bold leading-normal tracking-tight">APIS</h1>
+<p class="text-[#8c795f] dark:text-[#a69785] text-xs font-normal leading-normal uppercase tracking-wider mt-1">Beekeeping Platform</p>
+</div>
+</div>
+<div class="flex flex-col gap-1 px-3">
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-[#f5f3f0] dark:hover:bg-[#2c2419] group" href="#">
+<span class="material-symbols-outlined text-[#8c795f] dark:text-[#a69785] group-hover:text-primary transition-colors">dashboard</span>
+<p class="text-[#181511] dark:text-[#dcd6ce] text-sm font-medium leading-normal">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-[#f5f3f0] dark:hover:bg-[#2c2419] group" href="#">
+<span class="material-symbols-outlined text-[#8c795f] dark:text-[#a69785] group-hover:text-primary transition-colors">grid_view</span>
+<p class="text-[#181511] dark:text-[#dcd6ce] text-sm font-medium leading-normal">Hives</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg bg-salomie" href="#">
+<span class="material-symbols-outlined text-brown-bramble fill">videocam</span>
+<p class="text-brown-bramble text-sm font-bold leading-normal">Clips</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-[#f5f3f0] dark:hover:bg-[#2c2419] group" href="#">
+<span class="material-symbols-outlined text-[#8c795f] dark:text-[#a69785] group-hover:text-primary transition-colors">description</span>
+<p class="text-[#181511] dark:text-[#dcd6ce] text-sm font-medium leading-normal">Reports</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-[#f5f3f0] dark:hover:bg-[#2c2419] group" href="#">
+<span class="material-symbols-outlined text-[#8c795f] dark:text-[#a69785] group-hover:text-primary transition-colors">settings</span>
+<p class="text-[#181511] dark:text-[#dcd6ce] text-sm font-medium leading-normal">Settings</p>
+</a>
+</div>
+</div>
+<div class="p-4">
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#f8f7f5] dark:bg-[#221b10] border border-[#e6e1d6] dark:border-[#3a3022]">
+<div class="h-8 w-8 rounded-full bg-[#dccabd] dark:bg-[#4a3e2f] flex items-center justify-center text-xs font-bold text-[#5c4d3c] dark:text-[#dccabd]">JM</div>
+<div class="flex flex-col">
+<p class="text-[#181511] dark:text-white text-xs font-bold">Jane Miller</p>
+<p class="text-[#8c795f] dark:text-[#a69785] text-[10px]">Head Apiarist</p>
+</div>
+</div>
+</div>
+</div>
+<div class="flex flex-1 flex-col h-full overflow-y-auto">
+<div class="w-full bg-white dark:bg-[#1a150d] border-b border-[#e6e1d6] dark:border-[#3a3022] px-8 py-6">
+<div class="max-w-[1200px] mx-auto w-full">
+<div class="flex flex-wrap gap-2 items-center mb-4 text-sm">
+<a class="text-[#8c795f] hover:text-primary font-medium" href="#">Home</a>
+<span class="text-[#8c795f] font-medium">/</span>
+<a class="text-[#8c795f] hover:text-primary font-medium" href="#">Clips</a>
+<span class="text-[#8c795f] font-medium">/</span>
+<a class="text-[#8c795f] hover:text-primary font-medium" href="#">Hive #402</a>
+<span class="text-[#8c795f] font-medium">/</span>
+<span class="text-[#181511] dark:text-white font-medium">Estimator</span>
+</div>
+<div class="flex justify-between items-end">
+<h1 class="text-brown-bramble dark:text-white tracking-tight text-3xl font-semibold leading-tight">Nest Location Estimate</h1>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#2c2419] border border-[#e6e1d6] dark:border-[#3a3022] rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-[#3a3022] text-[#181511] dark:text-white transition-colors">
+<span class="material-symbols-outlined text-[20px]">history</span>
+                        Review Archive
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary text-white border border-primary rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[20px]">share</span>
+                        Share Report
+                    </button>
+</div>
+</div>
+</div>
+</div>
+<div class="flex-1 p-8 bg-background-light dark:bg-background-dark">
+<div class="max-w-[1200px] mx-auto w-full h-full flex flex-col gap-6">
+<div class="relative w-full h-[600px] rounded-2xl overflow-hidden shadow-soft border border-[#e6e1d6] dark:border-[#3a3022] bg-[#eef0f0] group">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Top down aerial view of a green landscape with fields and roads resembling a map" data-location="Rural Countryside" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAKOyGpkx4bXZPfAq0ZmMdGI3zVJoedg33boX7bT6wz1amlzDbULtL7TfAilfzPbouILshCvFEVwG8WhU0Crp2Ys_FkRB17P7hGGzt4g0RJyligmHF1-Sqizwwq-I46bYEAg1RvnzXXKYm-DhMo3S9ZPxbjEIviV9FZ7dsKaq4dyM_IL3ThL0vFD3JaU9fG46QgGCFG4q8Mr1QY-aVfk9hbV1gAHg00tDAw-e6LUyJbFQ0X8TtM5dJZaWToIlLRXWiMfWuctQ7ofQ4");'>
+</div>
+<div class="absolute inset-0 pointer-events-none">
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1 z-20">
+<div class="bg-white p-2 rounded-full shadow-md border-2 border-[#181511]">
+<span class="material-symbols-outlined text-[#181511] fill">hive</span>
+</div>
+<span class="bg-[#181511] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">Hive #402</span>
+</div>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] rounded-full bg-primary/40 border-2 border-primary border-dashed z-10 flex items-center justify-center animate-pulse">
+<div class="absolute top-4 right-1/2 translate-x-1/2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-primary border border-primary/20">
+                            350m Radius
+                        </div>
+</div>
+</div>
+<div class="absolute top-4 right-4 bg-white dark:bg-[#1a150d]/95 backdrop-blur-md p-5 rounded-2xl shadow-soft border border-transparent dark:border-[#3a3022] max-w-[320px] z-30">
+<div class="flex items-center gap-2 mb-3">
+<span class="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">High Confidence</span>
+<span class="text-[#8c795f] dark:text-[#a69785] text-xs">Updated 2m ago</span>
+</div>
+<h3 class="text-[#181511] dark:text-white text-lg font-bold leading-tight mb-1">
+                        Likely Nest Area
+                    </h3>
+<p class="text-[#5c4d3c] dark:text-[#dccabd] text-sm leading-relaxed mb-4">
+                        Based on 42 recent flight vector observations, the nest is approximately <span class="font-bold text-[#181511] dark:text-white">350m North-East</span> from the current hive location.
+                    </p>
+<div class="flex items-center justify-between text-xs text-[#8c795f] dark:text-[#a69785] border-t border-[#e6e1d6] dark:border-[#3a3022] pt-3">
+<div class="flex flex-col">
+<span class="font-bold text-[#181511] dark:text-white text-sm">42</span>
+<span>Observations</span>
+</div>
+<div class="flex flex-col text-right">
+<span class="font-bold text-[#181511] dark:text-white text-sm">94%</span>
+<span>Accuracy</span>
+</div>
+</div>
+</div>
+<div class="absolute bottom-6 right-6 flex flex-col gap-2 z-30">
+<div class="flex flex-col bg-white dark:bg-[#1a150d] rounded-lg shadow-md border border-[#e6e1d6] dark:border-[#3a3022] overflow-hidden">
+<button class="p-2 hover:bg-gray-50 dark:hover:bg-[#2c2419] border-b border-[#e6e1d6] dark:border-[#3a3022] flex items-center justify-center text-[#181511] dark:text-white">
+<span class="material-symbols-outlined">add</span>
+</button>
+<button class="p-2 hover:bg-gray-50 dark:hover:bg-[#2c2419] flex items-center justify-center text-[#181511] dark:text-white">
+<span class="material-symbols-outlined">remove</span>
+</button>
+</div>
+<button class="p-2 bg-white dark:bg-[#1a150d] rounded-lg shadow-md border border-[#e6e1d6] dark:border-[#3a3022] hover:bg-gray-50 dark:hover:bg-[#2c2419] flex items-center justify-center text-[#181511] dark:text-white">
+<span class="material-symbols-outlined">my_location</span>
+</button>
+</div>
+<div class="absolute top-4 left-4 z-30 w-[280px]">
+<div class="flex items-center bg-white dark:bg-[#1a150d] rounded-lg shadow-md border border-[#e6e1d6] dark:border-[#3a3022] px-3 h-10">
+<span class="material-symbols-outlined text-[#8c795f] dark:text-[#a69785] text-[20px]">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-full text-[#181511] dark:text-white placeholder:text-[#8c795f]/60" placeholder="Search coordinates..." type="text"/>
+</div>
+</div>
+<div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
+<button class="flex items-center gap-3 px-6 py-3 bg-primary text-white rounded-full font-bold shadow-[0_4px_14px_rgba(247,164,45,0.4)] hover:shadow-[0_6px_20px_rgba(247,164,45,0.5)] hover:-translate-y-0.5 transition-all">
+<span class="material-symbols-outlined fill">flag</span>
+                        Report Nest Location
+                    </button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-white dark:bg-[#1a150d] p-5 rounded-2xl border border-transparent dark:border-[#3a3022] shadow-soft flex flex-col gap-2">
+<div class="flex items-center gap-3 mb-2">
+<div class="h-10 w-10 flex items-center justify-center rounded-full bg-[#fff4e0]">
+<span class="material-symbols-outlined text-primary text-[20px]">wb_sunny</span>
+</div>
+<span class="text-xs font-medium uppercase tracking-wider text-[#8c795f] dark:text-[#a69785]">Weather Context</span>
+</div>
+<div class="pl-1">
+<p class="text-[#181511] dark:text-white text-xl font-bold">Clear, 24°C</p>
+<p class="text-sm text-[#5c4d3c] dark:text-[#dccabd]">Wind 12km/h NE, optimal for flight tracking.</p>
+</div>
+</div>
+<div class="bg-white dark:bg-[#1a150d] p-5 rounded-2xl border border-transparent dark:border-[#3a3022] shadow-soft flex flex-col gap-2">
+<div class="flex items-center gap-3 mb-2">
+<div class="h-10 w-10 flex items-center justify-center rounded-full bg-[#fff4e0]">
+<span class="material-symbols-outlined text-primary text-[20px]">filter_center_focus</span>
+</div>
+<span class="text-xs font-medium uppercase tracking-wider text-[#8c795f] dark:text-[#a69785]">Vector Convergence</span>
+</div>
+<div class="pl-1">
+<p class="text-[#181511] dark:text-white text-xl font-bold">38° Northeast</p>
+<p class="text-sm text-[#5c4d3c] dark:text-[#dccabd]">Consistent bearing across last 3 days.</p>
+</div>
+</div>
+<div class="bg-white dark:bg-[#1a150d] p-5 rounded-2xl border border-transparent dark:border-[#3a3022] shadow-soft flex flex-col gap-2">
+<div class="flex items-center gap-3 mb-2">
+<div class="h-10 w-10 flex items-center justify-center rounded-full bg-[#fff4e0]">
+<span class="material-symbols-outlined text-primary text-[20px]">straighten</span>
+</div>
+<span class="text-xs font-medium uppercase tracking-wider text-[#8c795f] dark:text-[#a69785]">Estimated Distance</span>
+</div>
+<div class="pl-1">
+<p class="text-[#181511] dark:text-white text-xl font-bold">320m - 380m</p>
+<p class="text-sm text-[#5c4d3c] dark:text-[#dccabd]">Based on return flight duration analysis.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+</body></html>

@@ -14,7 +14,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 #include <pthread.h>
+#elif defined(APIS_PLATFORM_ESP32)
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#endif
 
 #ifdef APIS_PLATFORM_PI
 #include <sys/stat.h>
@@ -30,8 +36,21 @@
 #include "esp_timer.h"
 #endif
 
-// Module state - protected by g_mutex for thread safety
+// S8-H2 fix: HAL-style mutex wrappers instead of direct pthread usage
+#if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
+#define CLIP_LOCK()   pthread_mutex_lock(&g_mutex)
+#define CLIP_UNLOCK() pthread_mutex_unlock(&g_mutex)
+#elif defined(APIS_PLATFORM_ESP32)
+static SemaphoreHandle_t g_clip_sem = NULL;
+#define CLIP_LOCK()   do { if (g_clip_sem) xSemaphoreTake(g_clip_sem, portMAX_DELAY); } while(0)
+#define CLIP_UNLOCK() do { if (g_clip_sem) xSemaphoreGive(g_clip_sem); } while(0)
+#else
+#define CLIP_LOCK()   ((void)0)
+#define CLIP_UNLOCK() ((void)0)
+#endif
+
+// Module state - protected by mutex for thread safety
 static clip_recorder_config_t g_config;
 static record_state_t g_state = RECORD_STATE_IDLE;
 static char g_current_clip[CLIP_PATH_MAX];
@@ -51,6 +70,44 @@ static AVFrame *g_frame = NULL;
 static int g_frame_count = 0;
 #endif
 
+/**
+ * Check if an event ID is already linked to the current clip.
+ * Must be called while holding g_mutex.
+ *
+ * @param event_id Event ID to check
+ * @return true if already linked
+ */
+static bool is_event_linked(int64_t event_id) {
+    for (int i = 0; i < g_linked_count; i++) {
+        if (g_linked_events[i] == event_id) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Add an event ID to the linked events list if not already present.
+ * Must be called while holding g_mutex.
+ *
+ * @param event_id Event ID to link
+ * @return true if event was added, false if already linked or list full
+ */
+static bool link_event_if_new(int64_t event_id) {
+    if (g_linked_count >= MAX_LINKED_EVENTS) {
+        LOG_WARN("Cannot link event %lld: max linked events reached (%d)",
+                 (long long)event_id, MAX_LINKED_EVENTS);
+        return false;
+    }
+    if (is_event_linked(event_id)) {
+        return false;
+    }
+    g_linked_events[g_linked_count++] = event_id;
+    LOG_DEBUG("Linked event %lld to clip (total: %d)",
+              (long long)event_id, g_linked_count);
+    return true;
+}
+
 clip_recorder_config_t clip_recorder_config_defaults(void) {
     clip_recorder_config_t config;
     memset(&config, 0, sizeof(config));
@@ -63,10 +120,12 @@ clip_recorder_config_t clip_recorder_config_defaults(void) {
 
 /**
  * Generate timestamp-based filename.
+ * Uses localtime_r() for thread safety (localtime() uses a shared static buffer).
  */
 static void generate_filename(char *buf, size_t size) {
     time_t now = time(NULL);
-    struct tm *tm = localtime(&now);
+    struct tm tm_buf;
+    struct tm *tm = localtime_r(&now, &tm_buf);
     if (tm) {
         snprintf(buf, size, "%s/det_%04d%02d%02d_%02d%02d%02d.mp4",
                  g_config.output_dir,
@@ -361,11 +420,11 @@ static void close_encoder(void) {
 #endif // APIS_PLATFORM_PI
 
 clip_recorder_status_t clip_recorder_init(const clip_recorder_config_t *config) {
-    pthread_mutex_lock(&g_mutex);
+    CLIP_LOCK();
 
     if (g_initialized) {
         LOG_WARN("Clip recorder already initialized");
-        pthread_mutex_unlock(&g_mutex);
+        CLIP_UNLOCK();
         return CLIP_RECORDER_OK;
     }
 
@@ -378,7 +437,7 @@ clip_recorder_status_t clip_recorder_init(const clip_recorder_config_t *config) 
 #ifdef APIS_PLATFORM_PI
     // Ensure output directory exists
     if (ensure_output_dir() < 0) {
-        pthread_mutex_unlock(&g_mutex);
+        CLIP_UNLOCK();
         return CLIP_RECORDER_ERROR_FILE_WRITE;
     }
 #endif
@@ -388,7 +447,7 @@ clip_recorder_status_t clip_recorder_init(const clip_recorder_config_t *config) 
     g_current_clip[0] = '\0';
     g_initialized = true;
 
-    pthread_mutex_unlock(&g_mutex);
+    CLIP_UNLOCK();
 
     LOG_INFO("Clip recorder initialized (output: %s, pre: %ds, post: %ds)",
              g_config.output_dir, g_config.pre_roll_seconds, g_config.post_roll_seconds);
@@ -397,18 +456,33 @@ clip_recorder_status_t clip_recorder_init(const clip_recorder_config_t *config) 
 }
 
 bool clip_recorder_is_initialized(void) {
-    pthread_mutex_lock(&g_mutex);
+    CLIP_LOCK();
     bool init = g_initialized;
-    pthread_mutex_unlock(&g_mutex);
+    CLIP_UNLOCK();
     return init;
 }
 
+/**
+ * Start recording a new clip, or extend the current one.
+ *
+ * IMPORTANT - CALLER BUFFER SAFETY: The returned pointer references the
+ * internal static buffer g_current_clip. The caller MUST copy the returned
+ * path to their own buffer immediately before the next call to
+ * clip_recorder_start() (when IDLE), as a new clip start will overwrite
+ * the buffer. See clip_recorder.h POINTER LIFETIME documentation.
+ *
+ * S8-M3 TOCTOU NOTE: The static buffer g_current_clip is protected by
+ * CLIP_LOCK() during writes. The returned pointer is safe to dereference
+ * only while the caller holds no expectation of exclusivity - i.e., they
+ * must copy the string immediately. The mutex ensures the buffer is not
+ * written concurrently during the function call itself.
+ */
 const char *clip_recorder_start(int64_t event_id) {
-    pthread_mutex_lock(&g_mutex);
+    CLIP_LOCK();
 
     if (!g_initialized) {
         LOG_WARN("clip_recorder_start called before initialization");
-        pthread_mutex_unlock(&g_mutex);
+        CLIP_UNLOCK();
         return NULL;
     }
 
@@ -421,24 +495,12 @@ const char *clip_recorder_start(int64_t event_id) {
             LOG_DEBUG("Extended clip until %u ms", g_extend_until_ms);
         }
 
-        // Add event ID if not already linked
-        if (g_linked_count < MAX_LINKED_EVENTS) {
-            bool found = false;
-            for (int i = 0; i < g_linked_count; i++) {
-                if (g_linked_events[i] == event_id) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                g_linked_events[g_linked_count++] = event_id;
-                LOG_DEBUG("Linked event %lld to clip (total: %d)",
-                          (long long)event_id, g_linked_count);
-            }
-        }
+        // Add event ID if not already linked (uses helper to avoid code duplication)
+        link_event_if_new(event_id);
 
-        pthread_mutex_unlock(&g_mutex);
-        // Return path to static buffer - see documentation on thread safety
+        CLIP_UNLOCK();
+        // Return path to static buffer - see clip_recorder.h POINTER LIFETIME notes.
+        // Callers must copy the path if they need it to survive across clip boundaries.
         return g_current_clip;
     }
 
@@ -453,7 +515,7 @@ const char *clip_recorder_start(int64_t event_id) {
     // Initialize encoder
     if (init_encoder(g_current_clip) < 0) {
         g_state = RECORD_STATE_ERROR;
-        pthread_mutex_unlock(&g_mutex);
+        CLIP_UNLOCK();
         return NULL;
     }
 
@@ -478,14 +540,18 @@ const char *clip_recorder_start(int64_t event_id) {
 
     LOG_INFO("Started clip: %s with %d pre-roll frames", g_current_clip, pre_roll_count);
 #else
-    LOG_INFO("Started clip (ESP32 mode): %s", g_current_clip);
+    // ESP32: MVP uses JPEG sequence approach (frames saved individually)
+    // TODO(ESP32): Implement encoder_esp32.c with hardware JPEG encoding
+    // when porting to production ESP32 firmware. For now, log only - frames
+    // are still tracked in rolling buffer but not persisted to flash.
+    LOG_INFO("Started clip (ESP32 mode): %s (stub - frames not persisted)", g_current_clip);
 #endif
 
     g_state = RECORD_STATE_RECORDING;
     g_record_start_ms = get_time_ms();
     g_extend_until_ms = g_record_start_ms + (g_config.post_roll_seconds * 1000);
 
-    pthread_mutex_unlock(&g_mutex);
+    CLIP_UNLOCK();
 
     return g_current_clip;
 }
@@ -495,10 +561,10 @@ bool clip_recorder_feed_frame(const frame_t *frame) {
         return false;
     }
 
-    pthread_mutex_lock(&g_mutex);
+    CLIP_LOCK();
 
     if (!g_initialized || g_state == RECORD_STATE_IDLE) {
-        pthread_mutex_unlock(&g_mutex);
+        CLIP_UNLOCK();
         return false;
     }
 
@@ -510,8 +576,11 @@ bool clip_recorder_feed_frame(const frame_t *frame) {
 #endif
 
         // Check if recording should end
+        // S8-L-03: The uint32_t timer wraps after ~49.7 days. Use unsigned
+        // subtraction to handle wraparound correctly: (now - start) >= duration
+        // works even across the wrap boundary for durations < ~24 days.
         uint32_t now = get_time_ms();
-        if (now >= g_extend_until_ms) {
+        if ((now - g_record_start_ms) >= (g_extend_until_ms - g_record_start_ms)) {
             g_state = RECORD_STATE_FINALIZING;
 
 #ifdef APIS_PLATFORM_PI
@@ -527,12 +596,12 @@ bool clip_recorder_feed_frame(const frame_t *frame) {
         }
     }
 
-    pthread_mutex_unlock(&g_mutex);
+    CLIP_UNLOCK();
     return finalized;
 }
 
 void clip_recorder_extend(int64_t event_id) {
-    pthread_mutex_lock(&g_mutex);
+    CLIP_LOCK();
 
     if (g_state == RECORD_STATE_RECORDING || g_state == RECORD_STATE_EXTENDING) {
         uint32_t new_end = get_time_ms() + (g_config.post_roll_seconds * 1000);
@@ -542,53 +611,40 @@ void clip_recorder_extend(int64_t event_id) {
             LOG_DEBUG("Extended clip until %u ms", g_extend_until_ms);
         }
 
-        // Add event ID if not already linked
-        if (g_linked_count < MAX_LINKED_EVENTS) {
-            bool found = false;
-            for (int i = 0; i < g_linked_count; i++) {
-                if (g_linked_events[i] == event_id) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                g_linked_events[g_linked_count++] = event_id;
-                LOG_DEBUG("Linked event %lld to clip (total: %d)",
-                          (long long)event_id, g_linked_count);
-            }
-        }
+        // Add event ID if not already linked (uses helper to avoid code duplication)
+        link_event_if_new(event_id);
     }
 
-    pthread_mutex_unlock(&g_mutex);
+    CLIP_UNLOCK();
 }
 
 bool clip_recorder_is_recording(void) {
-    pthread_mutex_lock(&g_mutex);
+    CLIP_LOCK();
     bool recording = (g_state == RECORD_STATE_RECORDING ||
                       g_state == RECORD_STATE_EXTENDING);
-    pthread_mutex_unlock(&g_mutex);
+    CLIP_UNLOCK();
     return recording;
 }
 
 record_state_t clip_recorder_get_state(void) {
-    pthread_mutex_lock(&g_mutex);
+    CLIP_LOCK();
     record_state_t state = g_state;
-    pthread_mutex_unlock(&g_mutex);
+    CLIP_UNLOCK();
     return state;
 }
 
 const char *clip_recorder_get_current_path(void) {
-    pthread_mutex_lock(&g_mutex);
+    CLIP_LOCK();
     const char *path = (g_state != RECORD_STATE_IDLE) ? g_current_clip : NULL;
-    pthread_mutex_unlock(&g_mutex);
+    CLIP_UNLOCK();
     return path;
 }
 
 int clip_recorder_stop(clip_result_t *result) {
-    pthread_mutex_lock(&g_mutex);
+    CLIP_LOCK();
 
     if (g_state == RECORD_STATE_IDLE) {
-        pthread_mutex_unlock(&g_mutex);
+        CLIP_UNLOCK();
         return -1;
     }
 
@@ -617,7 +673,7 @@ int clip_recorder_stop(clip_result_t *result) {
 
     g_state = RECORD_STATE_IDLE;
 
-    pthread_mutex_unlock(&g_mutex);
+    CLIP_UNLOCK();
 
     LOG_INFO("Clip stopped: %s", g_current_clip);
 
@@ -629,20 +685,20 @@ int clip_recorder_get_linked_events(int64_t *event_ids, int max_count) {
         return 0;
     }
 
-    pthread_mutex_lock(&g_mutex);
+    CLIP_LOCK();
 
     int count = (g_linked_count < max_count) ? g_linked_count : max_count;
     if (count > 0) {
         memcpy(event_ids, g_linked_events, count * sizeof(int64_t));
     }
 
-    pthread_mutex_unlock(&g_mutex);
+    CLIP_UNLOCK();
 
     return count;
 }
 
 void clip_recorder_cleanup(void) {
-    pthread_mutex_lock(&g_mutex);
+    CLIP_LOCK();
 
 #ifdef APIS_PLATFORM_PI
     if (g_state != RECORD_STATE_IDLE) {
@@ -653,7 +709,7 @@ void clip_recorder_cleanup(void) {
     g_state = RECORD_STATE_IDLE;
     g_initialized = false;
 
-    pthread_mutex_unlock(&g_mutex);
+    CLIP_UNLOCK();
 
     LOG_INFO("Clip recorder cleanup complete");
 }

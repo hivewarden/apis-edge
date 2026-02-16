@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Local Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a22b",
+                        "background-light": "#fbf9e7","background-dark": "#221b10",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark min-h-screen flex items-center justify-center p-4">
+<div class="bg-white dark:bg-[#2a2216] w-full max-w-[400px] rounded-[2rem] shadow-xl p-8 sm:p-10 flex flex-col items-center gap-6 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary/40 to-primary"></div>
+<div class="flex flex-col items-center gap-4">
+<div class="flex flex-col items-center justify-center gap-2">
+<div class="size-16 bg-[#f7a42d] rounded-2xl flex items-center justify-center shadow-sm">
+<svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M12 2L14.6 3.5V6.5L12 8L9.4 6.5V3.5L12 2Z"></path>
+<path d="M6.5 5.5L9.1 7V10L6.5 11.5L3.9 10V7L6.5 5.5Z"></path>
+<path d="M17.5 5.5L20.1 7V10L17.5 11.5L14.9 10V7L17.5 5.5Z"></path>
+<path d="M12 9L14.6 10.5V13.5L12 15L9.4 13.5V10.5L12 9Z"></path>
+<path d="M6.5 12.5L9.1 14V17L6.5 18.5L3.9 17V14L6.5 12.5Z"></path>
+<path d="M17.5 12.5L20.1 14V17L17.5 18.5L14.9 17V14L17.5 12.5Z"></path>
+<path d="M12 16L14.6 17.5V20.5L12 22L9.4 20.5V17.5L12 16Z"></path>
+</svg>
+</div>
+<span class="text-[#662604] dark:text-[#ccb085] text-xl font-bold tracking-wider">APIS</span>
+</div>
+<div class="text-center mt-2">
+<h2 class="text-[#1c160d] dark:text-gray-100 text-[28px] font-bold leading-tight tracking-tight">Welcome back</h2>
+<p class="text-[#9d7a48] dark:text-[#ccb085] text-sm font-normal mt-1">Log in to manage your apiary locally.</p>
+</div>
+</div>
+<form class="w-full flex flex-col gap-5 mt-2">
+<label class="flex flex-col w-full">
+<span class="text-[#1c160d] dark:text-gray-200 text-sm font-medium leading-normal pb-2 ml-1">Email Address</span>
+<input class="form-input w-full rounded-full border border-[#e9dece] dark:border-[#4a3e30] bg-[#fcfaf8] dark:bg-[#1e1912] text-[#1c160d] dark:text-gray-100 placeholder:text-[#9d7a48] dark:placeholder:text-[#7a6442] focus:ring-2 focus:ring-primary/50 focus:border-primary h-14 px-6 text-base shadow-sm transition-all" placeholder="beekeeper@apis.com" type="email"/>
+</label>
+<label class="flex flex-col w-full">
+<span class="text-[#1c160d] dark:text-gray-200 text-sm font-medium leading-normal pb-2 ml-1">Password</span>
+<div class="relative w-full">
+<input class="form-input w-full rounded-full border border-[#e9dece] dark:border-[#4a3e30] bg-[#fcfaf8] dark:bg-[#1e1912] text-[#1c160d] dark:text-gray-100 placeholder:text-[#9d7a48] dark:placeholder:text-[#7a6442] focus:ring-2 focus:ring-primary/50 focus:border-primary h-14 pl-6 pr-12 text-base shadow-sm transition-all" placeholder="••••••••" type="password"/>
+<button class="absolute right-4 top-1/2 -translate-y-1/2 text-[#9d7a48] hover:text-primary transition-colors focus:outline-none p-1" type="button">
+<span class="material-symbols-outlined text-[24px]">visibility</span>
+</button>
+</div>
+</label>
+<div class="flex items-center justify-between px-1">
+<label class="flex items-center gap-2 cursor-pointer group">
+<div class="relative flex items-center">
+<input class="peer h-5 w-5 rounded border-[#e9dece] dark:border-[#5a4b3a] bg-transparent text-primary checked:bg-primary focus:ring-offset-0 focus:ring-2 focus:ring-primary/30 transition-all cursor-pointer" type="checkbox"/>
+</div>
+<span class="text-[#1c160d] dark:text-gray-300 text-sm font-normal select-none group-hover:text-primary transition-colors">Remember me</span>
+</label>
+<a class="text-sm font-medium text-primary hover:text-[#d98a1e] transition-colors underline-offset-2 hover:underline" href="#">
+                    Forgot password?
+                </a>
+</div>
+<button class="w-full h-14 bg-primary hover:bg-[#d98a1e] active:bg-[#bf7a1a] text-white text-base font-bold rounded-full shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 mt-2 flex items-center justify-center gap-2">
+<span>Sign In</span>
+<span class="material-symbols-outlined text-[20px]">login</span>
+</button>
+</form>
+<div class="mt-2 text-center">
+<p class="text-xs text-[#9d7a48] dark:text-[#8a7250]">
+                Protected by ReCaptcha. <a class="underline hover:text-primary" href="#">Privacy</a> &amp; <a class="underline hover:text-primary" href="#">Terms</a>
+</p>
+</div>
+</div>
+</body></html>

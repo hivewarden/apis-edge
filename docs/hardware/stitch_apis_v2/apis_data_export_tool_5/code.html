@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Invite User Modal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:ital,wght@0,100..900;1,100..900&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a42d", // Sea Buckthorn
+                        "coconut-cream": "#fbf9e7",
+                        "brown-bramble": "#662604",
+                        "background-light": "#fbf9e7", // Updated to Coconut Cream
+                        "background-dark": "#221b10",
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"],
+                        "mono": ["Roboto Mono", "monospace"],
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                    boxShadow: {
+                        'soft': '0 10px 40px -10px rgba(0,0,0,0.08)',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Epilogue', sans-serif;
+            color: #662604;}
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(102, 38, 4, 0.1);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream dark:bg-background-dark text-brown-bramble dark:text-slate-100 h-screen flex overflow-hidden font-display transition-colors duration-300 relative">
+<aside class="w-[240px] bg-white/80 dark:bg-[#2a2216] flex flex-col border-r border-stone-200 dark:border-stone-800 flex-shrink-0 z-10 backdrop-blur-sm">
+<div class="h-20 flex items-center px-8 border-b border-stone-100 dark:border-stone-800">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white">
+<span class="material-icons-round text-lg">hexagon</span>
+</div>
+<span class="font-bold text-xl tracking-tight dark:text-white">APIS</span>
+</div>
+</div>
+<nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+<a class="flex items-center gap-3 px-4 py-3 text-brown-bramble/70 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5 rounded-xl transition-colors group" href="#">
+<span class="material-icons-round text-xl group-hover:text-primary transition-colors">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-brown-bramble/70 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5 rounded-xl transition-colors group" href="#">
+<span class="material-icons-round text-xl group-hover:text-primary transition-colors">grid_view</span>
+<span class="font-medium">Hives</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-brown-bramble/70 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5 rounded-xl transition-colors group" href="#">
+<span class="material-icons-round text-xl group-hover:text-primary transition-colors">yard</span>
+<span class="font-medium">Apiary Map</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-primary/10 text-primary rounded-xl transition-colors relative" href="#">
+<span class="material-icons-round text-xl">groups</span>
+<span class="font-bold">Team Members</span>
+<div class="absolute right-2 w-1.5 h-1.5 rounded-full bg-primary"></div>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-brown-bramble/70 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5 rounded-xl transition-colors group" href="#">
+<span class="material-icons-round text-xl group-hover:text-primary transition-colors">settings</span>
+<span class="font-medium">Settings</span>
+</a>
+</nav>
+<div class="p-4 border-t border-stone-100 dark:border-stone-800">
+<div class="flex items-center gap-3 px-2 py-2">
+<img alt="Profile Picture" class="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0NomVkg3S77X2H1Ppk74j972H5U-9fRqqVqiOoMvcA9UwtEE77AXPJHVtLkW8iXqltMkHb-bps9DBFVULBgrhpe-T06Y-jwgwmGgJmgRX7h3teYrqcKzn_Ngoa-To9jX6soqc-G7jLUSWaE3H0bx4ruhrKVw3vudznkjUSlvjxSQGj9CtKQqHTA9MqUCwbaOw33Njc7NpfvHdrOCaOAkoauifbagZ-m5Glg1CQjikT94ltZMXcExypg5hN-lVMBv6oBGvDuVnBFg"/>
+<div class="flex flex-col">
+<span class="text-sm font-bold dark:text-white">Elena R.</span>
+<span class="text-xs text-stone-400">Master Beekeeper</span>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full overflow-hidden relative z-0">
+<div class="absolute top-0 right-0 w-1/3 h-1/3 opacity-30 pointer-events-none">
+<div class="absolute top-[-50px] right-[-50px] w-96 h-96 bg-primary/20 rounded-full blur-3xl"></div>
+</div>
+<header class="px-8 py-6 z-10 flex justify-between items-end">
+<div>
+<div class="flex items-center gap-2 text-sm text-brown-bramble/60 dark:text-stone-400 mb-2">
+<span>Organization</span>
+<span class="material-icons-round text-xs">chevron_right</span>
+<span class="text-primary font-medium">Team</span>
+</div>
+<h1 class="text-3xl font-bold text-brown-bramble dark:text-white tracking-tight">Team Members</h1>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-full font-bold shadow-lg shadow-primary/30 flex items-center gap-2">
+<span class="material-icons-round">add</span>
+            Invite Member
+        </button>
+</header>
+<div class="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<div class="bg-white/60 dark:bg-[#2a2216] p-6 rounded-2xl border border-stone-100 dark:border-stone-800 flex items-center gap-4 shadow-sm backdrop-blur-sm">
+<img alt="User" class="w-14 h-14 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0NomVkg3S77X2H1Ppk74j972H5U-9fRqqVqiOoMvcA9UwtEE77AXPJHVtLkW8iXqltMkHb-bps9DBFVULBgrhpe-T06Y-jwgwmGgJmgRX7h3teYrqcKzn_Ngoa-To9jX6soqc-G7jLUSWaE3H0bx4ruhrKVw3vudznkjUSlvjxSQGj9CtKQqHTA9MqUCwbaOw33Njc7NpfvHdrOCaOAkoauifbagZ-m5Glg1CQjikT94ltZMXcExypg5hN-lVMBv6oBGvDuVnBFg"/>
+<div>
+<h3 class="font-bold text-lg dark:text-white">Elena R.</h3>
+<span class="text-primary text-sm font-medium">Admin</span>
+<p class="text-xs text-brown-bramble/60 dark:text-stone-400 mt-1">Active 2 mins ago</p>
+</div>
+</div>
+<div class="bg-white/60 dark:bg-[#2a2216] p-6 rounded-2xl border border-stone-100 dark:border-stone-800 flex items-center gap-4 shadow-sm backdrop-blur-sm">
+<div class="w-14 h-14 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-xl font-bold text-stone-500">JD</div>
+<div>
+<h3 class="font-bold text-lg dark:text-white">John Doe</h3>
+<span class="text-brown-bramble/60 dark:text-stone-400 text-sm font-medium">Beekeeper</span>
+<p class="text-xs text-brown-bramble/60 dark:text-stone-400 mt-1">Active yesterday</p>
+</div>
+</div>
+<div class="bg-white/60 dark:bg-[#2a2216] p-6 rounded-2xl border border-stone-100 dark:border-stone-800 flex items-center gap-4 shadow-sm opacity-60 backdrop-blur-sm">
+<div class="w-14 h-14 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-xl font-bold text-stone-400">MK</div>
+<div>
+<h3 class="font-bold text-lg dark:text-white">Marcus K.</h3>
+<span class="text-brown-bramble/60 dark:text-stone-400 text-sm font-medium">Analyst</span>
+<p class="text-xs text-brown-bramble/60 dark:text-stone-400 mt-1">Pending Invite</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+<div class="absolute inset-0 bg-stone-900/10 dark:bg-black/40 backdrop-blur-[2px] transition-opacity"></div>
+<div class="relative w-full max-w-lg bg-white dark:bg-[#221b10] rounded-[16px] shadow-soft dark:shadow-black/50 overflow-hidden flex flex-col max-h-[90vh]">
+<div class="px-8 py-6 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
+<h2 class="text-xl font-bold text-brown-bramble dark:text-white">Invite Team Member</h2>
+<button class="text-brown-bramble/40 hover:text-brown-bramble dark:hover:text-stone-200 transition-colors">
+<span class="material-icons-round">close</span>
+</button>
+</div>
+<div class="flex border-b border-stone-100 dark:border-stone-800 px-8 gap-6 overflow-x-auto">
+<button class="py-4 text-sm font-bold text-brown-bramble dark:text-white border-b-2 border-primary whitespace-nowrap">
+                Temporary Password
+            </button>
+<button class="py-4 text-sm font-medium text-brown-bramble/60 dark:text-stone-400 hover:text-brown-bramble dark:hover:text-stone-200 transition-colors whitespace-nowrap">
+                Email Invite
+            </button>
+<button class="py-4 text-sm font-medium text-brown-bramble/60 dark:text-stone-400 hover:text-brown-bramble dark:hover:text-stone-200 transition-colors whitespace-nowrap">
+                Shareable Link
+            </button>
+</div>
+<div class="p-8 overflow-y-auto custom-scrollbar">
+<form class="space-y-6" onsubmit="event.preventDefault();">
+<div>
+<label class="block text-xs font-bold text-brown-bramble/60 dark:text-stone-400 uppercase tracking-wider mb-2">Email Address</label>
+<div class="relative">
+<span class="material-icons-round absolute left-4 top-3.5 text-brown-bramble/40">mail</span>
+<input class="w-full bg-stone-50 dark:bg-stone-800/50 border border-stone-200 dark:border-stone-700 rounded-xl py-3 pl-12 pr-4 text-brown-bramble dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary focus:outline-none transition-all placeholder-brown-bramble/30" placeholder="colleague@apis.com" type="email"/>
+</div>
+</div>
+<div>
+<label class="block text-xs font-bold text-brown-bramble/60 dark:text-stone-400 uppercase tracking-wider mb-3">Assign Role</label>
+<div class="grid grid-cols-2 gap-4">
+<label class="relative cursor-pointer group">
+<input class="peer sr-only" name="role" type="radio"/>
+<div class="p-4 rounded-[12px] border border-stone-200 dark:border-stone-700 hover:border-primary/50 peer-checked:border-primary peer-checked:bg-primary/5 dark:peer-checked:bg-primary/10 transition-all h-full">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-icons-round text-brown-bramble/40 peer-checked:text-primary transition-colors">admin_panel_settings</span>
+<span class="font-bold text-brown-bramble dark:text-stone-200 peer-checked:text-primary">Admin</span>
+</div>
+<p class="text-xs text-brown-bramble/60 dark:text-stone-400 leading-snug">Full access to settings, billing, and all hive data.</p>
+</div>
+<div class="absolute top-4 right-4 w-4 h-4 rounded-full border border-stone-300 dark:border-stone-600 peer-checked:border-primary peer-checked:bg-primary transition-all"></div>
+</label>
+<label class="relative cursor-pointer group">
+<input checked="" class="peer sr-only" name="role" type="radio"/>
+<div class="p-4 rounded-[12px] border border-stone-200 dark:border-stone-700 hover:border-primary/50 peer-checked:border-primary peer-checked:bg-primary/5 dark:peer-checked:bg-primary/10 transition-all h-full">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-icons-round text-brown-bramble/40 peer-checked:text-primary transition-colors">badge</span>
+<span class="font-bold text-brown-bramble dark:text-stone-200 peer-checked:text-primary">Member</span>
+</div>
+<p class="text-xs text-brown-bramble/60 dark:text-stone-400 leading-snug">Can view and edit hive data. No access to billing.</p>
+</div>
+<div class="absolute top-4 right-4 w-4 h-4 rounded-full border border-stone-300 dark:border-stone-600 peer-checked:border-primary peer-checked:bg-primary transition-all flex items-center justify-center">
+<span class="material-icons-round text-[10px] text-white opacity-0 peer-checked:opacity-100">check</span>
+</div>
+</label>
+</div>
+</div>
+<div>
+<label class="block text-xs font-bold text-brown-bramble/60 dark:text-stone-400 uppercase tracking-wider mb-2">Temporary Password</label>
+<div class="flex shadow-sm rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700">
+<div class="relative flex-grow">
+<input class="w-full bg-stone-50 dark:bg-stone-900 border-none py-3 pl-4 pr-4 font-mono text-sm text-brown-bramble dark:text-stone-300 focus:outline-none rounded-l-xl" readonly="" type="text" value="apis-bee-8832-temp"/>
+</div>
+<button class="bg-white dark:bg-stone-800 border-l border-stone-200 dark:border-stone-700 text-brown-bramble/60 dark:text-stone-400 hover:text-primary hover:bg-stone-50 dark:hover:border-primary px-4 flex items-center justify-center transition-all" type="button">
+<span class="material-icons-round text-lg">content_copy</span>
+<span class="ml-2 text-sm font-medium">Copy</span>
+</button>
+</div>
+<p class="mt-2 text-xs text-brown-bramble/50 flex items-center gap-1">
+<span class="material-icons-round text-xs">info</span>
+                        Invite expires in 7 days
+                    </p>
+</div>
+</form>
+</div>
+<div class="p-8 pt-0 flex items-center justify-end gap-3">
+<button class="px-6 py-3 rounded-full text-brown-bramble/60 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800 font-bold text-sm transition-colors">
+                Cancel
+            </button>
+<button class="px-6 py-3 rounded-full bg-primary hover:bg-primary/90 text-white font-bold text-sm shadow-lg shadow-primary/30 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+<span class="material-icons-round text-sm">send</span>
+                Send Invite
+            </button>
+</div>
+</div>
+</div>
+
+</body></html>

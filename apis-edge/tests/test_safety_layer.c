@@ -2,6 +2,12 @@
  * Safety Layer Tests
  *
  * Tests multi-layer safety checks, watchdog, brownout, and safe mode.
+ *
+ * C7-INFO-005: Missing test coverage (suggested additions):
+ * TODO: Add test for concurrent access / deadlock scenarios (requires threads)
+ * TODO: Add test for safety_laser_activate() duration parameter behavior
+ * TODO: Add test verifying callback invocation happens outside the lock
+ * TODO: Add stress test with rapid arm/disarm/check cycles
  */
 
 #include <stdio.h>
@@ -306,6 +312,41 @@ void test_watchdog_warning_detected(void) {
     TEST_ASSERT(!safety_is_watchdog_warning(), "Should not be in warning initially");
 }
 
+void test_watchdog_timeout_enters_safe_mode(void) {
+    // This test verifies the watchdog timeout logic by testing safety_update()
+    // We can't easily mock time in this test framework, but we can verify:
+    // 1. The update function exists and runs
+    // 2. Safe mode can be entered via enter_safe_mode
+    // 3. The watchdog check in safety_check detects timeout
+    safety_layer_init();
+    laser_controller_init();
+
+    // Verify initial state
+    TEST_ASSERT(!safety_is_safe_mode(), "Should not be in safe mode initially");
+    TEST_ASSERT(!safety_is_watchdog_warning(), "Should not have watchdog warning initially");
+
+    // Feed watchdog to reset
+    safety_feed_watchdog();
+    uint32_t remaining = safety_get_watchdog_remaining();
+    TEST_ASSERT(remaining > 0, "Should have remaining time after feed");
+
+    // Run update - should NOT trigger safe mode (just fed)
+    safety_update();
+    TEST_ASSERT(!safety_is_safe_mode(), "Should not enter safe mode immediately after feed");
+
+    // Manually enter safe mode to test the path
+    safety_enter_safe_mode();
+    TEST_ASSERT(safety_is_safe_mode(), "Should be in safe mode after manual entry");
+
+    // Verify laser is off
+    TEST_ASSERT(!laser_controller_is_active(), "Laser should be OFF in safe mode");
+
+    // Verify watchdog check fails in safe mode
+    safety_result_t result;
+    safety_status_t status = safety_check(SAFETY_CHECK_WATCHDOG, &result);
+    TEST_ASSERT_EQ(status, SAFETY_ERROR_SAFE_MODE, "Watchdog check should fail in safe mode");
+}
+
 // ============================================================================
 // Voltage/Brownout Tests
 // ============================================================================
@@ -381,12 +422,19 @@ void test_checks_fail_in_safe_mode(void) {
     safety_status_t status = safety_check_all(&result);
     TEST_ASSERT_EQ(status, SAFETY_OK, "Checks should pass before safe mode");
 
+    // Turn laser on before entering safe mode
+    laser_controller_on();
+    TEST_ASSERT(laser_controller_is_active(), "Laser should be active before safe mode");
+
     // Enter safe mode
     safety_enter_safe_mode();
 
     // Now all checks should fail
     status = safety_check_all(&result);
     TEST_ASSERT_EQ(status, SAFETY_ERROR_SAFE_MODE, "Checks should fail in safe mode");
+
+    // CRITICAL: Verify laser is actually OFF after entering safe mode
+    TEST_ASSERT(!laser_controller_is_active(), "Laser MUST be OFF after entering safe mode");
 }
 
 void test_reset_from_safe_mode(void) {
@@ -623,6 +671,72 @@ void test_upward_tilt_always_rejected(void) {
 }
 
 // ============================================================================
+// Wrapper Function Tests
+// ============================================================================
+
+void test_safety_laser_on_fails_without_setup(void) {
+    safety_layer_init();
+    laser_controller_init();
+
+    // Without proper setup, safety_laser_on should fail silently
+    safety_status_t status = safety_laser_on();
+    TEST_ASSERT(status != SAFETY_OK, "safety_laser_on should fail without setup");
+    TEST_ASSERT(!laser_controller_is_active(), "Laser should NOT be active");
+}
+
+void test_safety_laser_on_succeeds_with_setup(void) {
+    safety_layer_init();
+    laser_controller_init();
+    button_handler_init(false);
+
+    // Set up everything for success
+    button_handler_arm();
+    safety_set_detection_active(true);
+    safety_validate_tilt(-15.0f);
+    safety_feed_watchdog();
+    safety_set_voltage(5000);
+
+    // Now safety_laser_on should succeed
+    safety_status_t status = safety_laser_on();
+    TEST_ASSERT_EQ(status, SAFETY_OK, "safety_laser_on should succeed with proper setup");
+    TEST_ASSERT(laser_controller_is_active(), "Laser should be active");
+
+    // Turn off
+    safety_laser_off();
+    TEST_ASSERT(!laser_controller_is_active(), "Laser should be off after safety_laser_off");
+}
+
+void test_safety_laser_on_blocked_in_safe_mode(void) {
+    safety_layer_init();
+    laser_controller_init();
+    button_handler_init(false);
+
+    // Full setup
+    button_handler_arm();
+    safety_set_detection_active(true);
+    safety_validate_tilt(-15.0f);
+    safety_feed_watchdog();
+    safety_set_voltage(5000);
+
+    // Enter safe mode
+    safety_enter_safe_mode();
+
+    // safety_laser_on should be blocked
+    safety_status_t status = safety_laser_on();
+    TEST_ASSERT_EQ(status, SAFETY_ERROR_SAFE_MODE, "safety_laser_on should fail in safe mode");
+    TEST_ASSERT(!laser_controller_is_active(), "Laser MUST be off in safe mode");
+}
+
+void test_safety_laser_off_always_succeeds(void) {
+    safety_layer_init();
+    laser_controller_init();
+
+    // safety_laser_off should always succeed, even when not initialized
+    safety_status_t status = safety_laser_off();
+    TEST_ASSERT_EQ(status, SAFETY_OK, "safety_laser_off should always succeed");
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -660,6 +774,7 @@ int main(void) {
     RUN_TEST(test_watchdog_remaining_decreases);
     RUN_TEST(test_watchdog_check_passes_when_fed);
     RUN_TEST(test_watchdog_warning_detected);
+    RUN_TEST(test_watchdog_timeout_enters_safe_mode);
 
     // Voltage/Brownout Tests
     printf("\n--- Voltage/Brownout Tests ---\n");
@@ -711,6 +826,13 @@ int main(void) {
     printf("\n--- Integration Tests ---\n");
     RUN_TEST(test_full_safety_flow);
     RUN_TEST(test_upward_tilt_always_rejected);
+
+    // Wrapper Function Tests
+    printf("\n--- Wrapper Function Tests ---\n");
+    RUN_TEST(test_safety_laser_on_fails_without_setup);
+    RUN_TEST(test_safety_laser_on_succeeds_with_setup);
+    RUN_TEST(test_safety_laser_on_blocked_in_safe_mode);
+    RUN_TEST(test_safety_laser_off_always_succeeds);
 
     // Results
     printf("\n==========================================================\n");

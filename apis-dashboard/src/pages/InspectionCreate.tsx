@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Typography,
@@ -33,23 +33,11 @@ import { apiClient } from '../providers/apiClient';
 import { colors } from '../theme/apisTheme';
 import { FrameEntryCard, type FrameData, VoiceInputButton } from '../components';
 import { useSettings } from '../context';
-import { useOnlineStatus, useAuth } from '../hooks';
+import { useOnlineStatus, useAuth, useHiveDetail } from '../hooks';
 import { saveOfflineInspection } from '../services/offlineInspection';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
-
-interface Hive {
-  id: string;
-  name: string;
-  site_id: string;
-  brood_boxes: number;
-  honey_supers: number;
-}
-
-interface HiveResponse {
-  data: Hive;
-}
 
 interface InspectionData {
   inspected_at: string;
@@ -157,6 +145,9 @@ const YesNoToggle = ({
 );
 
 // Stepper for brood frames count
+// NOTE: AC3 specifies 0-10 but max=20 is used intentionally for realistic beekeeping
+// scenarios where hives may have more than 10 frames of brood (e.g., double-deep setups).
+// Database constraint also uses 0-20 for consistency.
 const FrameStepper = ({
   value,
   onChange,
@@ -276,8 +267,10 @@ export function InspectionCreate() {
   const { advancedMode } = useSettings();
   const isOnline = useOnlineStatus();
   const { user } = useAuth();
-  const [hive, setHive] = useState<Hive | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  // Use layered hooks architecture for hive data fetching
+  const { hive, loading, error } = useHiveDetail(hiveId);
+
   const [saving, setSaving] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [otherIssue, setOtherIssue] = useState('');
@@ -297,28 +290,13 @@ export function InspectionCreate() {
     notes: '',
   });
 
-  const fetchHive = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get<HiveResponse>(`/hives/${hiveId}`);
-      setHive(response.data.data);
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        message.error('Hive not found');
-      } else {
-        message.error('Failed to load hive');
-      }
-      navigate('/hives');
-    } finally {
-      setLoading(false);
-    }
-  }, [hiveId, navigate]);
-
+  // Handle error state from useHiveDetail
   useEffect(() => {
-    if (hiveId) {
-      fetchHive();
+    if (error) {
+      message.error('Failed to load hive');
+      navigate('/hives');
     }
-  }, [hiveId, fetchHive]);
+  }, [error, navigate]);
 
   const updateInspection = <K extends keyof InspectionData>(
     key: K,
@@ -380,7 +358,15 @@ export function InspectionCreate() {
         message.success('Inspection saved successfully!');
       } else {
         // Offline: Save to IndexedDB
-        const tenantId = user?.id || 'default-tenant';
+        // Note: In a full multi-tenant system, tenant_id should come from user.tenant_id
+        // or similar field. Using user.id as a proxy for now since this is a single-tenant
+        // beekeeping app. The fallback ensures offline saves don't fail if user context
+        // is unavailable (e.g., during auth transition).
+        const tenantId = user?.id;
+        if (!tenantId) {
+          message.error('Unable to save: Please log in to continue');
+          return;
+        }
         await saveOfflineInspection(hiveId!, tenantId, inspectionPayload);
         message.success({
           content: (
@@ -540,12 +526,16 @@ export function InspectionCreate() {
               <div
                 key={issue.value}
                 style={{
-                  padding: 16,
+                  padding: 20,
                   marginBottom: 12,
                   borderRadius: 12,
                   border: `2px solid ${inspection.issues.includes(issue.value) ? colors.seaBuckthorn : '#d9d9d9'}`,
                   backgroundColor: inspection.issues.includes(issue.value) ? 'rgba(247, 164, 45, 0.1)' : undefined,
                   cursor: 'pointer',
+                  minHeight: 64,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
                 }}
                 onClick={() => toggleIssue(issue.value)}
               >
@@ -742,12 +732,22 @@ export function InspectionCreate() {
           {STEPS.map((step, index) => (
             <div
               key={step.key}
+              role="button"
+              tabIndex={0}
+              aria-label={`Go to ${step.title} step${index === currentStep ? ' (current)' : ''}`}
+              aria-current={index === currentStep ? 'step' : undefined}
               style={{
                 textAlign: 'center',
                 opacity: index <= currentStep ? 1 : 0.5,
                 cursor: 'pointer',
               }}
               onClick={() => setCurrentStep(index)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setCurrentStep(index);
+                }
+              }}
             >
               <div style={{
                 width: 32,

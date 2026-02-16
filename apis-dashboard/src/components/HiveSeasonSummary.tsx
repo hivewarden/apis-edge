@@ -6,13 +6,12 @@
  *
  * Part of Epic 9, Story 9.4: Season Recap Summary
  */
-import React from 'react';
-import { Card, Table, Tag, Typography, Collapse, List, Empty } from 'antd';
+import { Card, Table, Tag, Typography, List, Empty } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { colors } from '../theme/apisTheme';
 import { HiveSeasonStat, formatHarvestKg, getStatusColor, getStatusLabel } from '../hooks/useSeasonRecap';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 export interface HiveSeasonSummaryProps {
   stats: HiveSeasonStat[];

@@ -1,158 +1,103 @@
 /**
- * Refine AuthProvider for Zitadel OIDC
+ * Mode-Aware Refine AuthProvider
  *
- * Implements Refine's AuthProvider interface using Zitadel for authentication.
- * This bridges Zitadel's OIDC capabilities with Refine's auth system.
+ * Factory for creating the appropriate auth provider based on auth mode.
+ * Supports both local (email/password) and SaaS (Keycloak OIDC) authentication.
+ *
+ * DEV MODE: When VITE_DEV_MODE=true, authentication is bypassed entirely
+ * and mock user data is returned. This matches DISABLE_AUTH on the server.
  */
 import type { AuthProvider } from "@refinedev/core";
-import { zitadelAuth, userManager } from "./authProvider";
+import { localAuthProvider } from "./localAuthProvider";
+import { keycloakAuthProvider } from "./keycloakAuthProvider";
+import { DEV_MODE } from "../config";
+import type { AuthMode, UserIdentity } from "../types/auth";
 
 /**
- * Refine-compatible authentication provider.
- *
- * Methods:
- * - login: Triggers OIDC authorization flow
- * - logout: Signs out and clears session
- * - check: Verifies if user is authenticated
- * - getIdentity: Returns current user information
- * - onError: Handles API errors (401 triggers re-auth)
+ * DEV MODE: Mock user data matching the server's DevAuthMiddleware.
+ * Used when VITE_DEV_MODE=true to bypass all authentication.
  */
-export const authProvider: AuthProvider = {
-  /**
-   * Trigger OIDC login flow.
-   * Redirects to Zitadel authorization endpoint.
-   */
+const DEV_USER: UserIdentity = {
+  id: "dev-user-001",
+  name: "Dev User",
+  email: "dev@apis.local",
+  avatar: undefined,
+  tenant_id: "dev-tenant-001", // Story 14.16: Offline Task Support
+};
+
+/**
+ * DEV MODE auth provider that bypasses all authentication.
+ * Returns mock data for development without running auth services.
+ */
+const devAuthProvider: AuthProvider = {
   login: async () => {
-    try {
-      await zitadelAuth.authorize();
-      // Note: This won't actually return - user is redirected
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: {
-          name: "LoginError",
-          message: "Failed to initiate login",
-        },
-      };
-    }
+    console.warn("⚠️ DEV MODE: Authentication bypassed");
+    return { success: true };
   },
-
-  /**
-   * Logout and terminate session.
-   * Redirects to Zitadel logout endpoint.
-   */
   logout: async () => {
-    try {
-      await zitadelAuth.signout();
-      return { success: true, redirectTo: "/login" };
-    } catch (error) {
-      // Even on error, remove local user and redirect
-      await userManager.removeUser();
-      return { success: true, redirectTo: "/login" };
-    }
+    return { success: true, redirectTo: "/login" };
   },
-
-  /**
-   * Check if user is authenticated.
-   * Used by Refine to protect routes and determine auth state.
-   * Note: automaticSilentRenew is enabled in config, so we don't need manual refresh here.
-   */
   check: async () => {
-    try {
-      const user = await userManager.getUser();
-
-      if (user && !user.expired) {
-        return { authenticated: true };
-      }
-
-      // User not authenticated or token expired
-      // automaticSilentRenew will handle refresh, but if we get here the token is gone
-      return {
-        authenticated: false,
-        redirectTo: "/login",
-        logout: true,
-      };
-    } catch {
-      return {
-        authenticated: false,
-        redirectTo: "/login",
-        logout: true,
-      };
-    }
+    return { authenticated: true };
   },
-
-  /**
-   * Get current user identity.
-   * Returns user information for display in UI.
-   */
   getIdentity: async () => {
-    try {
-      const user = await userManager.getUser();
-
-      if (user && !user.expired) {
-        return {
-          id: user.profile.sub,
-          name: user.profile.name || user.profile.preferred_username || "User",
-          email: user.profile.email,
-          avatar: user.profile.picture,
-        };
-      }
-
-      return null;
-    } catch {
-      return null;
-    }
+    return DEV_USER;
   },
-
-  /**
-   * Handle API errors.
-   * 401 errors trigger logout and re-authentication.
-   */
-  onError: async (error) => {
-    // Handle 401 Unauthorized - token expired or invalid
-    if (error?.statusCode === 401 || error?.status === 401) {
-      return {
-        logout: true,
-        redirectTo: "/login",
-        error: {
-          name: "SessionExpired",
-          message: "Your session has expired. Please log in again.",
-        },
-      };
-    }
-
-    // Handle 403 Forbidden - authenticated but not authorized
-    if (error?.statusCode === 403 || error?.status === 403) {
-      return {
-        error: {
-          name: "Forbidden",
-          message: "You don't have permission to access this resource.",
-        },
-      };
-    }
-
-    // Other errors - don't affect auth state
+  onError: async () => {
     return {};
   },
-
-  /**
-   * Get user permissions/roles.
-   * Can be used for role-based access control.
-   */
   getPermissions: async () => {
-    try {
-      const user = await userManager.getUser();
-      if (user && !user.expired) {
-        // Extract roles from Zitadel claims
-        const roles = user.profile["urn:zitadel:iam:user:roles"] as string[] | undefined;
-        return roles || [];
-      }
-      return [];
-    } catch {
-      return [];
-    }
+    return ["admin"];
   },
 };
+
+/**
+ * Create an auth provider based on the authentication mode.
+ *
+ * @param mode - The authentication mode ('local' or 'keycloak')
+ * @returns AuthProvider - The appropriate auth provider for the mode
+ *
+ * @example
+ * ```typescript
+ * const config = await fetchAuthConfig();
+ * const authProvider = createAuthProvider(config.mode);
+ * ```
+ */
+export function createAuthProvider(mode: AuthMode): AuthProvider {
+  // DEV_MODE takes precedence over everything
+  if (DEV_MODE) {
+    console.warn("⚠️ DEV MODE: Using mock auth provider (VITE_DEV_MODE=true)");
+    return devAuthProvider;
+  }
+
+  return mode === 'local' ? localAuthProvider : keycloakAuthProvider;
+}
+
+/**
+ * Legacy authProvider export for backward compatibility.
+ *
+ * SECURITY (S4-L1): This always falls back to Keycloak provider regardless of
+ * configured auth mode, which causes auth failures in local mode. Use
+ * createAuthProvider(mode) instead, which correctly selects the provider
+ * based on the configured auth mode.
+ *
+ * @deprecated Use createAuthProvider(mode) for mode-aware auth
+ */
+export const authProvider: AuthProvider = DEV_MODE ? devAuthProvider : new Proxy(keycloakAuthProvider, {
+  get(target, prop, receiver) {
+    if (typeof prop === 'string' && typeof target[prop as keyof AuthProvider] === 'function') {
+      console.warn(
+        `[DEPRECATED] authProvider.${prop}() called. ` +
+        'Use createAuthProvider(mode) instead of the deprecated authProvider export. ' +
+        'This legacy export always uses Keycloak auth regardless of configured mode.'
+      );
+    }
+    return Reflect.get(target, prop, receiver);
+  },
+});
+
+// Re-export providers for direct access if needed
+export { localAuthProvider } from "./localAuthProvider";
+export { keycloakAuthProvider } from "./keycloakAuthProvider";
 
 export default authProvider;

@@ -202,6 +202,8 @@ func ListInspectionsPaginated(ctx context.Context, conn *pgxpool.Conn, hiveID st
 	}
 
 	// Determine sort order
+	// SECURITY: orderBy is safe - only hardcoded "inspected_at DESC" or "inspected_at ASC" values
+	// are used based on the boolean sortAsc parameter. No user input reaches this string.
 	orderBy := "inspected_at DESC"
 	if sortAsc {
 		orderBy = "inspected_at ASC"
@@ -447,4 +449,61 @@ func CountInspectionsByHive(ctx context.Context, conn *pgxpool.Conn, hiveID stri
 		return 0, fmt.Errorf("storage: failed to count inspections: %w", err)
 	}
 	return count, nil
+}
+
+// GetLastInspectionsForHives returns the most recent inspection for each of the given hive IDs.
+// Returns a map of hive_id -> Inspection. Hives without inspections won't be in the map.
+// This is optimized for batch fetching to avoid N+1 queries.
+func GetLastInspectionsForHives(ctx context.Context, conn *pgxpool.Conn, hiveIDs []string) (map[string]*Inspection, error) {
+	if len(hiveIDs) == 0 {
+		return make(map[string]*Inspection), nil
+	}
+
+	// Use a window function to get the latest inspection for each hive in a single query
+	rows, err := conn.Query(ctx,
+		`WITH ranked_inspections AS (
+			SELECT id, tenant_id, hive_id, inspected_at, queen_seen, eggs_seen, queen_cells,
+			       brood_frames, brood_pattern, honey_level, pollen_level, temperament, issues, notes,
+			       created_at, updated_at,
+			       ROW_NUMBER() OVER (PARTITION BY hive_id ORDER BY inspected_at DESC) as rn
+			FROM inspections
+			WHERE hive_id = ANY($1)
+		)
+		SELECT id, tenant_id, hive_id, inspected_at, queen_seen, eggs_seen, queen_cells,
+		       brood_frames, brood_pattern, honey_level, pollen_level, temperament, issues, notes,
+		       created_at, updated_at
+		FROM ranked_inspections
+		WHERE rn = 1`,
+		hiveIDs)
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to get last inspections for hives: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]*Inspection)
+	for rows.Next() {
+		var inspection Inspection
+		var issuesBytes []byte
+
+		err := rows.Scan(&inspection.ID, &inspection.TenantID, &inspection.HiveID, &inspection.InspectedAt,
+			&inspection.QueenSeen, &inspection.EggsSeen, &inspection.QueenCells,
+			&inspection.BroodFrames, &inspection.BroodPattern, &inspection.HoneyLevel, &inspection.PollenLevel,
+			&inspection.Temperament, &issuesBytes, &inspection.Notes, &inspection.CreatedAt, &inspection.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("storage: failed to scan inspection: %w", err)
+		}
+
+		// Parse issues JSON
+		if err := json.Unmarshal(issuesBytes, &inspection.Issues); err != nil {
+			inspection.Issues = []string{}
+		}
+
+		result[inspection.HiveID] = &inspection
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("storage: error iterating inspections: %w", err)
+	}
+
+	return result, nil
 }

@@ -72,6 +72,10 @@ function getServerSnapshot(): boolean {
  * This hook uses `navigator.onLine` which can have false positives
  * (returning true when actually offline). For critical operations,
  * consider also checking actual API connectivity.
+ *
+ * TODO (S6-L1): Consider adding a "server reachability" check (e.g., HEAD
+ * request to the health endpoint) before committing to full sync operations.
+ * A false positive could trigger sync attempts that fail and mark items as errors.
  */
 export function useOnlineStatus(): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);

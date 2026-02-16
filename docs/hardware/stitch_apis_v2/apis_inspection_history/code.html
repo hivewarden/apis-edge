@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS - Inspection History</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:ital,wght@0,100..900;1,100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "coconut-cream": "#fbf9e7",
+                        "brown-bramble": "#662604",
+                        "soft-sage": "#7c9082",
+                        "muted-rose": "#c4857a",
+                        "sea-buckthorn": "#f7a42d",
+                        "salomie": "#fcd483",
+                        "sidebar-white": "#ffffff",
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "card": "16px",
+                    },
+                    boxShadow: {
+                        "soft-diffused": "0 4px 20px -2px rgba(102, 38, 4, 0.08)",
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-coconut-cream text-brown-bramble font-display antialiased min-h-screen flex flex-row overflow-hidden">
+<aside class="w-64 h-screen bg-sidebar-white border-r border-[#e6e0db] flex-shrink-0 flex flex-col justify-between hidden md:flex sticky top-0 left-0">
+<div class="flex flex-col gap-4 p-4">
+<div class="flex gap-3 items-center mb-6">
+<div class="bg-center bg-no-repeat bg-cover rounded-full h-10 w-10 border border-[#e6e0db]" data-alt="Abstract bee or honeycomb logo pattern" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDgo_0CKbZouzJydCjytBaWQPGVxNc42cXn8suupui6FMw38VQhqy6pvTlLpwQpMNhTF8QwWpTgT60TAfzbXsJFzSS8GGRh0PPyIB52CIkWGqOucCDr-vL4a1CoPf9X1jekzSeeRiE8XWEG-88zh2sAo7FFzVi2QWeRvaRYvDXPs3_hGMZCFJBfqdqy_d17CowYOHGbX87sBRUGKU9OEz88JX31LNwlrCwVtMhu0EPV9y_Qw0pJexEeanUubpFBjyq-4AvYvEdtRTc");'></div>
+<div class="flex flex-col">
+<h1 class="text-brown-bramble text-base font-bold leading-normal">APIS Platform</h1>
+<p class="text-brown-bramble/70 text-xs font-normal leading-normal">Beekeeper Pro</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f5f3f0] transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/70 group-hover:text-brown-bramble transition-colors">dashboard</span>
+<p class="text-brown-bramble/80 group-hover:text-brown-bramble text-sm font-medium leading-normal">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f5f3f0] transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/70 group-hover:text-brown-bramble transition-colors">map</span>
+<p class="text-brown-bramble/80 group-hover:text-brown-bramble text-sm font-medium leading-normal">Apiaries</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-full bg-salomie" href="#">
+<span class="material-symbols-outlined text-brown-bramble" data-weight="fill">hexagon</span>
+<p class="text-brown-bramble text-sm font-bold leading-normal">Hives</p>
+</a>
+<div class="ml-9 flex flex-col gap-1 border-l-2 border-brown-bramble/20 pl-3 mb-2">
+<span class="text-xs font-medium text-brown-bramble cursor-pointer">Details</span>
+<span class="text-xs text-brown-bramble/70 hover:text-brown-bramble cursor-pointer">Brood Frames</span>
+<span class="text-xs text-brown-bramble/70 hover:text-brown-bramble cursor-pointer">Treatments</span>
+</div>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f5f3f0] transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/70 group-hover:text-brown-bramble transition-colors">inventory_2</span>
+<p class="text-brown-bramble/80 group-hover:text-brown-bramble text-sm font-medium leading-normal">Inventory</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f5f3f0] transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/70 group-hover:text-brown-bramble transition-colors">settings</span>
+<p class="text-brown-bramble/80 group-hover:text-brown-bramble text-sm font-medium leading-normal">Settings</p>
+</a>
+</nav>
+</div>
+<div class="p-4 border-t border-[#e6e0db]">
+<div class="flex items-center gap-3 px-3 py-2 cursor-pointer">
+<div class="h-8 w-8 rounded-full bg-sea-buckthorn flex items-center justify-center text-white font-bold text-xs">JD</div>
+<div class="flex flex-col">
+<p class="text-brown-bramble text-sm font-medium">Jane Doe</p>
+<p class="text-brown-bramble/70 text-xs">Head Beekeeper</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+<header class="w-full bg-coconut-cream border-b border-[#e6e0db] shrink-0">
+<div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+<div class="flex flex-wrap items-center gap-2 text-sm">
+<a class="text-brown-bramble/70 hover:text-brown-bramble font-medium transition-colors" href="#">Apiary A</a>
+<span class="text-brown-bramble/70 material-symbols-outlined text-sm">chevron_right</span>
+<a class="text-brown-bramble/70 hover:text-brown-bramble font-medium transition-colors" href="#">Hive #42</a>
+<span class="text-brown-bramble/70 material-symbols-outlined text-sm">chevron_right</span>
+<span class="text-brown-bramble font-bold bg-white px-3 py-1 rounded-full border border-[#e6e0db] shadow-sm">Inspection History</span>
+</div>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
+<div class="max-w-[1200px] mx-auto space-y-6 pb-12">
+<div class="flex flex-col md:flex-row md:items-start justify-between gap-6">
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-3">
+<h1 class="text-brown-bramble text-3xl md:text-4xl font-black tracking-tight">Inspection History</h1>
+<span class="px-3 py-1 bg-soft-sage/20 text-soft-sage text-xs font-bold rounded-full border border-soft-sage/30 uppercase tracking-wider">Active</span>
+</div>
+<div class="flex items-center gap-2 text-brown-bramble/70">
+<span class="material-symbols-outlined text-lg">calendar_today</span>
+<p class="text-base font-normal">Last inspected 4 days ago</p>
+<span class="w-1 h-1 rounded-full bg-brown-bramble/50"></span>
+<p class="text-base font-normal">Hive #42 (Langstroth)</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center justify-center gap-2 rounded-full h-10 px-4 bg-white border border-[#e6e0db] text-brown-bramble text-sm font-bold hover:bg-[#f5f3f0] transition-all shadow-sm">
+<span class="material-symbols-outlined text-lg">download</span>
+<span class="hidden sm:inline">Export CSV</span>
+</button>
+<button class="flex items-center justify-center gap-2 rounded-full h-10 px-6 bg-sea-buckthorn text-white text-sm font-bold hover:bg-[#e8951d] transition-all shadow-md shadow-orange-200/50">
+<span class="material-symbols-outlined text-lg">compare_arrows</span>
+<span>Compare</span>
+</button>
+</div>
+</div>
+<div class="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-2 rounded-[16px] border border-[#e6e0db] shadow-soft-diffused">
+<div class="flex gap-2 p-1 overflow-x-auto w-full sm:w-auto no-scrollbar">
+<button class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-full bg-brown-bramble px-4 transition-colors">
+<p class="text-white text-sm font-medium">All Logs</p>
+</button>
+<button class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-full bg-[#f5f3f0] px-4 hover:bg-[#e6e0db] transition-colors">
+<span class="w-2 h-2 rounded-full bg-soft-sage"></span>
+<p class="text-brown-bramble/80 text-sm font-medium">Healthy</p>
+</button>
+<button class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-full bg-[#f5f3f0] px-4 hover:bg-[#e6e0db] transition-colors">
+<span class="w-2 h-2 rounded-full bg-muted-rose"></span>
+<p class="text-brown-bramble/80 text-sm font-medium">Issues</p>
+</button>
+<button class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-full bg-[#f5f3f0] px-4 hover:bg-[#e6e0db] transition-colors">
+<span class="material-symbols-outlined text-base text-brown-bramble/70">medication</span>
+<p class="text-brown-bramble/80 text-sm font-medium">Treatments</p>
+</button>
+</div>
+<div class="flex items-center gap-2 w-full sm:w-auto px-2">
+<div class="relative w-full sm:w-64">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-brown-bramble/50 text-lg">search</span>
+<input class="w-full h-9 pl-9 pr-4 rounded-full bg-coconut-cream border-none text-sm text-brown-bramble focus:ring-2 focus:ring-sea-buckthorn/50 placeholder-brown-bramble/50" placeholder="Search findings..." type="text"/>
+</div>
+<button class="p-2 rounded-full hover:bg-[#f5f3f0] text-brown-bramble/70">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+</div>
+<div class="flex flex-col gap-4 relative">
+<div class="absolute left-[27px] top-4 bottom-4 w-[2px] bg-[#e6e0db] hidden sm:block z-0"></div>
+<div class="group relative flex flex-col sm:flex-row gap-4 sm:gap-6 items-start z-10">
+<div class="flex sm:flex-col items-center sm:w-14 shrink-0 pt-1 gap-3 sm:gap-1">
+<div class="w-14 h-14 rounded-full bg-white border-2 border-sea-buckthorn flex flex-col items-center justify-center shadow-sm z-10 shrink-0">
+<span class="text-[10px] uppercase font-bold text-brown-bramble/70 leading-none">Jan</span>
+<span class="text-lg font-bold text-brown-bramble leading-none">15</span>
+</div>
+<span class="text-xs text-brown-bramble/70 font-medium hidden sm:block">2026</span>
+</div>
+<div class="flex-1 bg-white rounded-card border border-[#e6e0db] p-6 shadow-soft-diffused hover:shadow-lg hover:border-sea-buckthorn/40 transition-all cursor-pointer w-full">
+<div class="flex flex-col md:flex-row justify-between md:items-start gap-4 mb-4">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<h3 class="text-lg font-bold text-brown-bramble">Routine Check</h3>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-soft-sage/10 text-soft-sage text-xs font-bold border border-soft-sage/30">
+<span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+                                            Healthy
+                                        </span>
+</div>
+<p class="text-brown-bramble/80 text-sm leading-relaxed max-w-2xl">
+                                        Observed strong brood pattern with solid capping. Queen spotted on frame 4. Added one honey super due to high nectar flow. No signs of swarming.
+                                    </p>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<div class="w-8 h-8 rounded-full bg-gray-200 bg-cover bg-center border border-white shadow-sm" data-alt="Portrait of inspector Jane Doe" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDpQIgMHgdXIHuJc7FndbDCRhPk42KuRwmX0Ozi_0b1rOwdO6GBMvll1q4UmElpexWx6XDZQ53VlqFmSd6-kelA64sW3UgPhPm0zDlQiSymRtEmOS7RYIv_twUarM75BXFWEFHM2TJfmnYj3on4HkCUatd6NT6NI9Grvsm8G8tkr_lLRfjMQ4iLRkPwgUpxOZ2RGmjVvXwER5teZM71fn3kLm2K6Rgn6xYWqvDafwUuoAv2It3Ru24uRDWgUW0nircD9l85yhrBi90");'></div>
+<div class="flex flex-col">
+<span class="text-xs text-brown-bramble/60">Inspector</span>
+<span class="text-xs font-medium text-brown-bramble">Jane Doe</span>
+</div>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 items-center border-t border-[#f5f3f0] pt-4 mt-2">
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-coconut-cream text-brown-bramble/80 text-xs font-medium border border-transparent">
+<span class="material-symbols-outlined text-base">grid_on</span>
+                                    8 Frames of Bees
+                                </div>
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-coconut-cream text-brown-bramble/80 text-xs font-medium border border-transparent">
+<span class="material-symbols-outlined text-base">egg</span>
+                                    Eggs Present
+                                </div>
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-coconut-cream text-brown-bramble/80 text-xs font-medium border border-transparent">
+<span class="material-symbols-outlined text-base">emoji_nature</span>
+                                    Queen Seen
+                                </div>
+<div class="flex-1"></div>
+<button class="text-sea-buckthorn text-sm font-bold flex items-center gap-1 hover:underline">
+                                    View Details <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<div class="group relative flex flex-col sm:flex-row gap-4 sm:gap-6 items-start z-10">
+<div class="flex sm:flex-col items-center sm:w-14 shrink-0 pt-1 gap-3 sm:gap-1">
+<div class="w-14 h-14 rounded-full bg-white border border-[#e6e0db] flex flex-col items-center justify-center shadow-sm z-10 shrink-0">
+<span class="text-[10px] uppercase font-bold text-brown-bramble/70 leading-none">Jan</span>
+<span class="text-lg font-bold text-brown-bramble leading-none">02</span>
+</div>
+<span class="text-xs text-brown-bramble/70 font-medium hidden sm:block">2026</span>
+</div>
+<div class="flex-1 bg-white rounded-card border border-[#e6e0db] p-6 shadow-soft-diffused hover:shadow-lg hover:border-sea-buckthorn/40 transition-all cursor-pointer w-full">
+<div class="flex flex-col md:flex-row justify-between md:items-start gap-4 mb-4">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<h3 class="text-lg font-bold text-brown-bramble">Post-Winter Check</h3>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted-rose/10 text-muted-rose text-xs font-bold border border-muted-rose/30">
+<span class="material-symbols-outlined text-sm">warning</span>
+                                            Attention Needed
+                                        </span>
+</div>
+<p class="text-brown-bramble/80 text-sm leading-relaxed max-w-2xl">
+                                        Colony survived winter but stores are critically low. Supplemented with fondant. Mild moisture detected on inner cover.
+                                    </p>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<div class="w-8 h-8 rounded-full bg-gray-200 bg-cover bg-center border border-white shadow-sm" data-alt="Portrait of inspector Mark Smith" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuALl7fOCEc2bi8uDV32p7nMRB9hyj_p4KildVhRDc0G4EjNJCanxF3ktregy_HmVRJ885ogrBeB8W_XPEja9j8P56D7r-HtgTk-PeSg7BaO43uX-FLb3IltcmODY7oSwkX8BstQhGjQYZtmxHQqAflmHCaB9wj3BCAZmMo8wxokvAIOidZsGdJoH2s_O893kL6XO41c4okazMBCCAgwkSkXXeLSnnbs6BWrSoCqgIw6DRx3qZPQBMqVpbwb2g-AUWrQ5JCO4m5kP7s");'></div>
+<div class="flex flex-col">
+<span class="text-xs text-brown-bramble/60">Inspector</span>
+<span class="text-xs font-medium text-brown-bramble">Mark Smith</span>
+</div>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 items-center border-t border-[#f5f3f0] pt-4 mt-2">
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#fff1f2] text-muted-rose text-xs font-medium border border-muted-rose/20">
+<span class="material-symbols-outlined text-base">water_drop</span>
+                                    Moisture Detected
+                                </div>
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#fff1f2] text-muted-rose text-xs font-medium border border-muted-rose/20">
+<span class="material-symbols-outlined text-base">inventory</span>
+                                    Low Food Stores
+                                </div>
+<div class="flex-1"></div>
+<button class="text-sea-buckthorn text-sm font-bold flex items-center gap-1 hover:underline">
+                                    View Details <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<div class="group relative flex flex-col sm:flex-row gap-4 sm:gap-6 items-start z-10">
+<div class="flex sm:flex-col items-center sm:w-14 shrink-0 pt-1 gap-3 sm:gap-1">
+<div class="w-14 h-14 rounded-full bg-white border border-[#e6e0db] flex flex-col items-center justify-center shadow-sm z-10 shrink-0">
+<span class="text-[10px] uppercase font-bold text-brown-bramble/70 leading-none">Dec</span>
+<span class="text-lg font-bold text-brown-bramble leading-none">12</span>
+</div>
+<span class="text-xs text-brown-bramble/70 font-medium hidden sm:block">2025</span>
+</div>
+<div class="flex-1 bg-white rounded-card border border-[#e6e0db] p-6 shadow-soft-diffused hover:shadow-lg hover:border-sea-buckthorn/40 transition-all cursor-pointer w-full opacity-90 hover:opacity-100">
+<div class="flex flex-col md:flex-row justify-between md:items-start gap-4 mb-4">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<h3 class="text-lg font-bold text-brown-bramble">Winter Prep</h3>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-soft-sage/10 text-soft-sage text-xs font-bold border border-soft-sage/30">
+<span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+                                            Healthy
+                                        </span>
+</div>
+<p class="text-brown-bramble/80 text-sm leading-relaxed max-w-2xl">
+                                        Installed mouse guards. Wrapped hive with insulation. Weight feels heavy, sufficient stores estimated for winter.
+                                    </p>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<div class="w-8 h-8 rounded-full bg-gray-200 bg-cover bg-center border border-white shadow-sm" data-alt="Portrait of inspector Jane Doe" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBVQ91r_NnX7Vzhlc9UV7SRurPLfnmE8Y1IeUjs9fkuaVyObw9w0o4zEeN0kKEP5F-bqv5CXyXD3wNwdapruLzQKI7IAdNRRTBBxbqU9MwZDeg7N7zp-rgTQqX3t4zvTlAnCa0qY8AJ-WbtSEUraQvKu_JU5IBH-Z0YaPm6BwOFzR2Q6tRxxC6j5-VN_2sM8XzsQL3WvSNTJMR-sSY8YcGf993QNU5C1tm3wnOsgrBteUSamWBtyPHOG6efzFVkRcZrw18XIkPIZF8");'></div>
+<div class="flex flex-col">
+<span class="text-xs text-brown-bramble/60">Inspector</span>
+<span class="text-xs font-medium text-brown-bramble">Jane Doe</span>
+</div>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 items-center border-t border-[#f5f3f0] pt-4 mt-2">
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-coconut-cream text-brown-bramble/80 text-xs font-medium border border-transparent">
+<span class="material-symbols-outlined text-base">layers</span>
+                                    Insulation Added
+                                </div>
+<div class="flex-1"></div>
+<button class="text-sea-buckthorn text-sm font-bold flex items-center gap-1 hover:underline">
+                                    View Details <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<div class="flex justify-center pt-6 pl-0 sm:pl-14">
+<button class="px-6 py-2 rounded-full border border-[#e6e0db] text-brown-bramble/70 hover:text-brown-bramble hover:border-sea-buckthorn bg-white transition-all text-sm font-medium shadow-sm">
+                            Load older inspections
+                        </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<div class="fixed inset-0 bg-black/50 z-40 hidden" id="sidebar-overlay"></div>
+
+</body></html>

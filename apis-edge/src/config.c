@@ -6,6 +6,7 @@
  */
 
 #include "config.h"
+#include "frame.h"
 #include "log.h"
 #include "platform.h"
 
@@ -66,16 +67,17 @@ const config_t *config_defaults(void) {
 bool config_validate(config_t *config) {
     bool valid = true;
 
-    // Validate camera settings
-    if (config->camera.width < 320 || config->camera.width > 1920) {
-        LOG_WARN("Invalid camera width %d, using 640", config->camera.width);
-        config->camera.width = 640;
+    // The processing pipeline uses fixed-size frame buffers (FRAME_SIZE).
+    // Any resolution drift can cause out-of-bounds frame writes.
+    if (config->camera.width != FRAME_WIDTH) {
+        LOG_WARN("Unsupported camera width %d, using %d", config->camera.width, FRAME_WIDTH);
+        config->camera.width = FRAME_WIDTH;
         valid = false;
     }
 
-    if (config->camera.height < 240 || config->camera.height > 1080) {
-        LOG_WARN("Invalid camera height %d, using 480", config->camera.height);
-        config->camera.height = 480;
+    if (config->camera.height != FRAME_HEIGHT) {
+        LOG_WARN("Unsupported camera height %d, using %d", config->camera.height, FRAME_HEIGHT);
+        config->camera.height = FRAME_HEIGHT;
         valid = false;
     }
 

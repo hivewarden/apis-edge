@@ -3,9 +3,9 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -14,11 +14,16 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// HealthResponse represents the health check response structure.
-type HealthResponse struct {
+// HealthData represents the health check data.
+type HealthData struct {
 	Status  string            `json:"status"`  // "ok" or "degraded"
 	Version string            `json:"version"` // Application version
 	Checks  map[string]string `json:"checks"`  // Per-dependency status
+}
+
+// HealthResponse represents the health check response structure per CLAUDE.md format.
+type HealthResponse struct {
+	Data HealthData `json:"data"`
 }
 
 // Pinger is an interface for testing database health checks.
@@ -29,18 +34,32 @@ type Pinger interface {
 
 // HealthHandler handles health check requests.
 type HealthHandler struct {
-	pool          Pinger
-	zitadelIssuer string
-	httpClient    *http.Client
+	pool           Pinger
+	oidcIssuer     string
+	hostHeader     string
+	httpClient     *http.Client
 }
 
 // NewHealthHandler creates a new health handler with the given dependencies.
 // pool can be nil (will report database error), useful for testing.
-// zitadelIssuer is the Zitadel instance URL for OIDC health check.
-func NewHealthHandler(pool Pinger, zitadelIssuer string) *HealthHandler {
+// oidcIssuer is the OIDC provider (Keycloak) URL for health check.
+func NewHealthHandler(pool Pinger, oidcIssuer string) *HealthHandler {
+	hostHeader := ""
+	if issuerEnv := os.Getenv("KEYCLOAK_ISSUER"); issuerEnv != "" {
+		if u, err := url.Parse(issuerEnv); err == nil {
+			hostHeader = u.Host
+		}
+	}
+	if hostHeader == "" {
+		if u, err := url.Parse(oidcIssuer); err == nil {
+			hostHeader = u.Host
+		}
+	}
+
 	return &HealthHandler{
-		pool:          pool,
-		zitadelIssuer: zitadelIssuer,
+		pool:       pool,
+		oidcIssuer: oidcIssuer,
+		hostHeader: hostHeader,
 		httpClient: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -65,50 +84,49 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		mu.Unlock()
 	}()
 
-	// Zitadel health check
+	// OIDC provider health check
 	go func() {
 		defer wg.Done()
-		status := h.checkZitadel(r.Context())
+		status := h.checkOIDCProvider(r.Context())
 		mu.Lock()
-		checks["zitadel"] = status
+		checks["oidc"] = status
 		mu.Unlock()
 	}()
 
 	wg.Wait()
 
 	// Determine overall health
-	allHealthy := checks["database"] == "ok" && checks["zitadel"] == "ok"
+	allHealthy := checks["database"] == "ok" && checks["oidc"] == "ok"
 
-	// Build response
-	resp := HealthResponse{
-		Status:  "ok",
-		Version: config.Version,
-		Checks:  checks,
-	}
-
+	// Build response per CLAUDE.md format: {"data": {...}}
+	status := "ok"
 	if !allHealthy {
-		resp.Status = "degraded"
+		status = "degraded"
 	}
 
-	// Set response headers and status code
-	w.Header().Set("Content-Type", "application/json")
-	if allHealthy {
-		w.WriteHeader(http.StatusOK)
-	} else {
-		w.WriteHeader(http.StatusServiceUnavailable)
+	resp := HealthResponse{
+		Data: HealthData{
+			Status:  status,
+			Version: config.Version,
+			Checks:  checks,
+		},
 	}
 
-	// Encode response
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Error().Err(err).Msg("handler: failed to encode health response")
+	// Send response with appropriate status code
+	statusCode := http.StatusOK
+	if !allHealthy {
+		statusCode = http.StatusServiceUnavailable
 	}
+	respondJSON(w, resp, statusCode)
 }
 
 // checkDatabase verifies database connectivity using a simple ping.
-// Returns "ok" on success or "error: <message>" on failure.
+// SECURITY FIX (S3A-H2): Returns generic status strings only. Error details
+// are logged server-side but not exposed in the API response.
 func (h *HealthHandler) checkDatabase(ctx context.Context) string {
 	if h.pool == nil {
-		return "error: database pool not initialized"
+		log.Warn().Msg("health: database pool not initialized")
+		return "unhealthy"
 	}
 
 	// Use short timeout to prevent blocking
@@ -117,18 +135,21 @@ func (h *HealthHandler) checkDatabase(ctx context.Context) string {
 
 	if err := h.pool.Ping(ctx); err != nil {
 		log.Warn().Err(err).Msg("health: database ping failed")
-		return "error: " + err.Error()
+		return "unhealthy"
 	}
 
 	return "ok"
 }
 
-// checkZitadel verifies Zitadel connectivity by fetching the OIDC discovery endpoint.
-// Uses the same endpoint as auth middleware to ensure consistency.
-// Returns "ok" on success or "error: <message>" on failure.
-func (h *HealthHandler) checkZitadel(ctx context.Context) string {
-	if h.zitadelIssuer == "" {
-		return "error: zitadel issuer not configured"
+// checkOIDCProvider verifies OIDC provider (Keycloak) connectivity by fetching
+// the OIDC discovery endpoint. Uses the same endpoint as auth middleware to
+// ensure consistency.
+// SECURITY FIX (S3A-H2): Returns generic status strings only. Error details
+// are logged server-side but not exposed in the API response.
+func (h *HealthHandler) checkOIDCProvider(ctx context.Context) string {
+	if h.oidcIssuer == "" {
+		log.Warn().Msg("health: OIDC issuer not configured")
+		return "unhealthy"
 	}
 
 	// Use short timeout to prevent blocking
@@ -137,26 +158,29 @@ func (h *HealthHandler) checkZitadel(ctx context.Context) string {
 
 	// Use openid-configuration (same as auth middleware) for consistency
 	// Trim trailing slash to prevent double-slash URLs
-	discoveryURL := strings.TrimSuffix(h.zitadelIssuer, "/") + "/.well-known/openid-configuration"
+	discoveryURL := strings.TrimSuffix(h.oidcIssuer, "/") + "/.well-known/openid-configuration"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, discoveryURL, nil)
 	if err != nil {
-		return "error: " + err.Error()
+		log.Warn().Err(err).Str("url", discoveryURL).Msg("health: failed to create OIDC request")
+		return "unhealthy"
+	}
+	if h.hostHeader != "" {
+		req.Host = h.hostHeader
 	}
 
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
-		log.Warn().Err(err).Str("url", discoveryURL).Msg("health: zitadel check failed")
-		return "error: " + err.Error()
+		log.Warn().Err(err).Str("url", discoveryURL).Msg("health: OIDC provider check failed")
+		return "unhealthy"
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		msg := fmt.Sprintf("error: HTTP %d", resp.StatusCode)
 		log.Warn().
 			Int("status", resp.StatusCode).
 			Str("url", discoveryURL).
-			Msg("health: zitadel returned non-200")
-		return msg
+			Msg("health: OIDC provider returned non-200")
+		return "unhealthy"
 	}
 
 	return "ok"

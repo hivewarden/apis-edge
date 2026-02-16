@@ -109,6 +109,60 @@ describe('useHiveLoss', () => {
 
       expect(mockApiPost).toHaveBeenCalledWith('/hives/hive-456/loss', input);
     });
+
+    it('updates local hiveLoss state after creating loss for same hive', async () => {
+      // Start with no loss record
+      mockApiGet.mockResolvedValue({ data: { data: null } });
+      mockApiPost.mockResolvedValue({ data: { data: mockLoss } });
+
+      const { result } = renderHook(() => useHiveLoss('hive-456'));
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      // Verify initially no hiveLoss
+      expect(result.current.hiveLoss).toBeNull();
+
+      const input: CreateHiveLossInput = {
+        discovered_at: '2026-01-20',
+        cause: 'varroa',
+        symptoms: ['deformed_wings'],
+        data_choice: 'archive',
+      };
+
+      // Create loss for the same hive
+      await result.current.createHiveLoss('hive-456', input);
+
+      // After creating, local state should be updated with the new loss
+      await waitFor(() => {
+        expect(result.current.hiveLoss).toEqual(mockLoss);
+      });
+    });
+
+    it('does not update local state when creating loss for different hive', async () => {
+      mockApiGet.mockResolvedValue({ data: { data: null } });
+      mockApiPost.mockResolvedValue({ data: { data: mockLoss } });
+
+      const { result } = renderHook(() => useHiveLoss('hive-789'));
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      const input: CreateHiveLossInput = {
+        discovered_at: '2026-01-20',
+        cause: 'varroa',
+        symptoms: ['deformed_wings'],
+        data_choice: 'archive',
+      };
+
+      // Create loss for a DIFFERENT hive (hive-456, not hive-789)
+      await result.current.createHiveLoss('hive-456', input);
+
+      // Local state should NOT be updated since it's a different hive
+      expect(result.current.hiveLoss).toBeNull();
+    });
   });
 
   describe('useHiveLosses (all losses)', () => {

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS - Treatment Log Refined</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:ital,wght@0,100..900;1,100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "coconut-cream": "#fbf9e7",
+                        "brown-bramble": "#662604",
+                        "sea-buckthorn": "#f7a42d",
+                        "salomie": "#fcd483",
+                        "pure-white": "#ffffff",
+                    },
+                    fontFamily: {
+                        "sans": ["Epilogue", "sans-serif"],
+                        "display": ["Epilogue", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "card": "16px",
+                        "field": "12px",
+                    },
+                    boxShadow: {
+                        "soft": "0 10px 40px -10px rgba(102, 38, 4, 0.08)",
+                        "inner-soft": "inset 0 2px 4px 0 rgba(102, 38, 4, 0.03)",
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Epilogue', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24;
+            vertical-align: middle;
+        }::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e6dfd5;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d1c7ba;
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream text-brown-bramble flex h-screen overflow-hidden">
+<aside class="w-[240px] bg-pure-white flex flex-col border-r border-brown-bramble/10 shrink-0 h-full overflow-y-auto z-20 shadow-sm">
+<div class="p-6 flex items-center gap-3">
+<div class="bg-sea-buckthorn p-2.5 rounded-xl shadow-sm">
+<span class="material-symbols-outlined text-white text-2xl">hive</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-brown-bramble text-xl font-bold leading-tight tracking-tight">APIS</h1>
+<p class="text-brown-bramble/60 text-xs font-normal">Beekeeping Platform</p>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-2 px-4 py-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-brown-bramble/70 hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/50 group-hover:text-sea-buckthorn transition-colors">grid_view</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-brown-bramble/70 hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/50 group-hover:text-sea-buckthorn transition-colors">map</span>
+<span class="text-sm font-medium">Apiaries</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl bg-salomie text-brown-bramble shadow-sm" href="#">
+<span class="material-symbols-outlined fill-current">build</span>
+<span class="text-sm font-medium">Maintenance</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-brown-bramble/70 hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/50 group-hover:text-sea-buckthorn transition-colors">inventory_2</span>
+<span class="text-sm font-medium">Harvest</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-brown-bramble/70 hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/50 group-hover:text-sea-buckthorn transition-colors">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+</nav>
+<div class="p-4 mt-auto border-t border-brown-bramble/10">
+<div class="flex items-center gap-3">
+<div class="size-10 rounded-full bg-cover bg-center border border-brown-bramble/10" data-alt="Portrait of a female beekeeper smiling" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBquW3yS-f6WvD9rdV0C7TTTvrQVG9OHg9TJa6lS1cisAQvUFZ2Sj89AMA27Xh5Eh-pGspZP-e4dckFwei0MkM7SYE4kotwDrLdCGHtyMn8lompmRPKKyqzHEeQxvLI0gLiPGsVog6xW57hECXW6UNJkGuyS8HJKLaOdDTte85oqhjTLWJyxVlAtsleQLocgESuh6wtfD19a7P4FYDh5Nuw-pMEmY9Zk_D_TIr0FBmUBa_Eq7P7NiyJ8PLxm-1odnjp58Skj9e-2Nw');"></div>
+<div class="flex flex-col">
+<p class="text-sm font-bold text-brown-bramble">Elena R.</p>
+<p class="text-xs text-brown-bramble/60">Head Beekeeper</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full overflow-hidden relative">
+<div class="flex-1 overflow-y-auto p-8 lg:p-12 pb-24">
+<div class="max-w-4xl mx-auto flex flex-col gap-8">
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-2 text-brown-bramble/60 text-sm font-medium">
+<a class="hover:text-sea-buckthorn transition-colors" href="#">Home</a>
+<span class="opacity-40">/</span>
+<a class="hover:text-sea-buckthorn transition-colors" href="#">Maintenance</a>
+<span class="opacity-40">/</span>
+<span class="text-brown-bramble font-semibold">Log Treatment</span>
+</div>
+<div class="flex justify-between items-end mt-2">
+<div>
+<h1 class="text-4xl font-extrabold text-brown-bramble tracking-tight leading-tight">Log Treatment</h1>
+<p class="text-brown-bramble/70 mt-2 text-lg">Record mite treatments and medication details for your colonies.</p>
+</div>
+</div>
+</div>
+<div class="bg-pure-white rounded-card p-8 lg:p-10 shadow-soft border border-brown-bramble/5 flex flex-col gap-8">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="flex flex-col gap-3">
+<label class="text-brown-bramble text-xs font-bold uppercase tracking-widest pl-1 opacity-80">Date</label>
+<div class="relative">
+<input class="w-full bg-coconut-cream border-0 rounded-field py-4 px-5 text-brown-bramble placeholder-brown-bramble/40 focus:ring-2 focus:ring-sea-buckthorn/50 text-base shadow-inner-soft h-[56px]" type="date" value="2023-10-24"/>
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<label class="text-brown-bramble text-xs font-bold uppercase tracking-widest pl-1 opacity-80">Select Hives</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-brown-bramble/50">search</span>
+<input class="w-full bg-coconut-cream border-0 rounded-field py-4 pl-12 pr-5 text-brown-bramble placeholder-brown-bramble/40 focus:ring-2 focus:ring-sea-buckthorn/50 text-base shadow-inner-soft h-[56px]" placeholder="Search or select hives..." type="text"/>
+</div>
+<div class="flex flex-wrap gap-2 mt-1">
+<div class="flex items-center gap-2 pl-4 pr-2 py-1.5 rounded-full bg-sea-buckthorn text-white text-sm font-medium shadow-sm transition-transform active:scale-95 cursor-pointer">
+<span>Hive #04</span>
+<button class="hover:bg-black/10 rounded-full p-0.5 transition-colors">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+</div>
+<div class="flex items-center gap-2 pl-4 pr-2 py-1.5 rounded-full bg-sea-buckthorn text-white text-sm font-medium shadow-sm transition-transform active:scale-95 cursor-pointer">
+<span>Hive #07</span>
+<button class="hover:bg-black/10 rounded-full p-0.5 transition-colors">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+</div>
+<div class="flex items-center gap-2 pl-4 pr-2 py-1.5 rounded-full bg-coconut-cream text-brown-bramble/70 text-sm font-medium border border-transparent hover:border-sea-buckthorn/30 hover:text-brown-bramble transition-colors cursor-pointer">
+<span>Hive #09</span>
+<span class="material-symbols-outlined text-[16px]">add</span>
+</div>
+</div>
+</div>
+</div>
+<hr class="border-brown-bramble/10"/>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="flex flex-col gap-3">
+<label class="text-brown-bramble text-xs font-bold uppercase tracking-widest pl-1 opacity-80">Treatment Type</label>
+<div class="relative">
+<select class="w-full bg-coconut-cream border-0 rounded-field py-4 px-5 text-brown-bramble focus:ring-2 focus:ring-sea-buckthorn/50 text-base appearance-none shadow-inner-soft cursor-pointer h-[56px]">
+<option>Oxalic Acid</option>
+<option>Formic Pro</option>
+<option>Apivar</option>
+<option>Thymol</option>
+</select>
+<span class="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-brown-bramble/50 pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<label class="text-brown-bramble text-xs font-bold uppercase tracking-widest pl-1 opacity-80">Application Method</label>
+<div class="relative">
+<select class="w-full bg-coconut-cream border-0 rounded-field py-4 px-5 text-brown-bramble focus:ring-2 focus:ring-sea-buckthorn/50 text-base appearance-none shadow-inner-soft cursor-pointer h-[56px]">
+<option>Vaporization</option>
+<option>Dribble</option>
+<option>Strip/Pad</option>
+<option>Fogging</option>
+</select>
+<span class="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-brown-bramble/50 pointer-events-none">expand_more</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="flex flex-col gap-3">
+<label class="text-brown-bramble text-xs font-bold uppercase tracking-widest pl-1 opacity-80">Dose / Amount</label>
+<div class="flex gap-3">
+<input class="w-full bg-coconut-cream border-0 rounded-field py-4 px-5 text-brown-bramble placeholder-brown-bramble/40 focus:ring-2 focus:ring-sea-buckthorn/50 text-base shadow-inner-soft h-[56px]" placeholder="2.0" type="number"/>
+<select class="w-32 shrink-0 bg-coconut-cream border-0 rounded-field py-4 px-4 text-brown-bramble focus:ring-2 focus:ring-sea-buckthorn/50 text-sm shadow-inner-soft cursor-pointer h-[56px]">
+<option>grams</option>
+<option>ml</option>
+<option>strips</option>
+</select>
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<label class="text-brown-bramble text-xs font-bold uppercase tracking-widest pl-1 opacity-80">Mite Count <span class="normal-case font-medium opacity-60 ml-1">(Pre-treatment)</span></label>
+<input class="w-full bg-coconut-cream border-0 rounded-field py-4 px-5 text-brown-bramble placeholder-brown-bramble/40 focus:ring-2 focus:ring-sea-buckthorn/50 text-base shadow-inner-soft h-[56px]" placeholder="e.g. 12" type="number"/>
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<label class="text-brown-bramble text-xs font-bold uppercase tracking-widest pl-1 opacity-80">Observation Notes</label>
+<textarea class="w-full bg-coconut-cream border-0 rounded-field py-4 px-6 text-brown-bramble placeholder-brown-bramble/40 focus:ring-2 focus:ring-sea-buckthorn/50 text-base shadow-inner-soft resize-none" placeholder="Record weather conditions, bee temperament, or specific observations..." rows="4"></textarea>
+</div>
+<div class="flex items-center justify-end gap-6 pt-4 mt-2">
+<a class="px-2 py-3 text-brown-bramble/70 font-semibold hover:text-brown-bramble transition-colors" href="#">Cancel</a>
+<button class="bg-sea-buckthorn hover:bg-orange-500 text-white font-bold py-4 px-10 rounded-full shadow-lg shadow-orange-500/20 transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2">
+<span class="material-symbols-outlined">save</span>
+                            Save Treatment
+                        </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+
+</body></html>

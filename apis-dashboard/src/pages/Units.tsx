@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Typography,
@@ -8,7 +7,6 @@ import {
   Col,
   Empty,
   Spin,
-  message,
   Space,
   Tag,
   Badge,
@@ -19,58 +17,20 @@ import {
   ClockCircleOutlined,
   EnvironmentOutlined,
 } from '@ant-design/icons';
-import { apiClient } from '../providers/apiClient';
+import { ErrorBoundary } from '../components';
+import { useUnits } from '../hooks';
+import { colors } from '../theme/apisTheme';
 
 const { Title, Text } = Typography;
 
-interface Unit {
-  id: string;
-  serial: string;
-  name: string | null;
-  site_id: string | null;
-  site_name: string | null;
-  firmware_version: string | null;
-  status: string;
-  last_seen: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface UnitsResponse {
-  data: Unit[];
-  meta: {
-    total: number;
-  };
-}
-
 /**
- * Units Page
- *
- * Displays a grid of all registered APIS units for the authenticated user.
- * Shows status indicators, site assignments, and last seen timestamps.
- *
- * Part of Epic 2, Story 2.2: Register APIS Units
+ * UnitsContent component - internal implementation
  */
-export function Units() {
+function UnitsContent() {
   const navigate = useNavigate();
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchUnits();
-  }, []);
-
-  const fetchUnits = async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get<UnitsResponse>('/units');
-      setUnits(response.data.data || []);
-    } catch {
-      message.error('Failed to load units');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Use hook for units
+  const { units, loading } = useUnits();
 
   const handleUnitClick = (id: string) => {
     navigate(`/units/${id}`);
@@ -142,25 +102,53 @@ export function Units() {
           {units.map((unit) => (
             <Col xs={24} sm={12} lg={8} xl={6} key={unit.id}>
               <Card
-                hoverable
                 onClick={() => handleUnitClick(unit.id)}
-                style={{ height: '100%' }}
+                style={{
+                  height: '100%',
+                  borderLeft: `4px solid ${colors.seaBuckthorn}`,
+                  boxShadow: '0 1px 3px rgba(102, 38, 4, 0.08)',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(247, 162, 43, 0.15)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(102, 38, 4, 0.08)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
               >
                 <Space direction="vertical" size="small" style={{ width: '100%' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <Title level={4} style={{ margin: 0 }}>
-                      {unit.name || unit.serial}
-                    </Title>
+                    <Space size={8}>
+                      <div style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 8,
+                        backgroundColor: 'rgba(247, 164, 45, 0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: colors.seaBuckthorn,
+                        fontSize: 20,
+                      }}>
+                        <ApiOutlined />
+                      </div>
+                      <Title level={4} style={{ margin: 0 }}>
+                        {unit.name || unit.serial}
+                      </Title>
+                    </Space>
                     {getStatusBadge(unit.status)}
                   </div>
 
-                  <Text type="secondary">
+                  <Text type="secondary" style={{ fontSize: 12 }}>
                     <ApiOutlined style={{ marginRight: 4 }} />
                     {unit.serial}
                   </Text>
 
                   {unit.site_name && (
-                    <Text type="secondary">
+                    <Text type="secondary" style={{ fontSize: 12 }}>
                       <EnvironmentOutlined style={{ marginRight: 4 }} />
                       {unit.site_name}
                     </Text>
@@ -172,7 +160,15 @@ export function Units() {
                       {formatLastSeen(unit.last_seen)}
                     </Text>
                     {unit.firmware_version && (
-                      <Tag color="default" style={{ margin: 0 }}>
+                      <Tag color="default" style={{
+                        margin: 0,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: '#8c7e72',
+                        backgroundColor: '#f8f7f5',
+                        borderColor: 'transparent',
+                        borderRadius: 9999,
+                      }}>
                         v{unit.firmware_version}
                       </Tag>
                     )}
@@ -184,6 +180,23 @@ export function Units() {
         </Row>
       )}
     </div>
+  );
+}
+
+/**
+ * Units Page
+ *
+ * Displays a grid of all registered APIS units for the authenticated user.
+ * Shows status indicators, site assignments, and last seen timestamps.
+ * Wrapped in ErrorBoundary for graceful error handling.
+ *
+ * Part of Epic 2, Story 2.2: Register APIS Units
+ */
+export function Units() {
+  return (
+    <ErrorBoundary>
+      <UnitsContent />
+    </ErrorBoundary>
   );
 }
 

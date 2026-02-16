@@ -1,6 +1,10 @@
 // Package middleware provides HTTP middleware for the APIS server.
 package middleware
 
+// NOTE: Rate limiting is in-memory and not shared across instances.
+// In multi-instance deployments, each server maintains independent counters.
+// For distributed rate limiting, consider Redis or a shared store.
+
 import (
 	"encoding/json"
 	"net/http"
@@ -15,14 +19,66 @@ type RateLimiter struct {
 	requests     map[string][]time.Time // tenant_id -> request timestamps
 	maxRequests  int
 	windowPeriod time.Duration
+	stopCh       chan struct{} // SECURITY FIX (S1-M4): channel to signal cleanup goroutine to stop
+	cleanupDone  chan struct{} // signals cleanup goroutine has exited
 }
 
 // NewRateLimiter creates a new rate limiter with the specified limits.
+// SECURITY FIX (S1-M4): Added background cleanup goroutine with Stop() method
+// to prevent unbounded memory growth from stale tenant entries and to match
+// the lifecycle pattern used by MemoryLimiter and LoginRateLimiter.
 func NewRateLimiter(maxRequests int, windowPeriod time.Duration) *RateLimiter {
-	return &RateLimiter{
+	rl := &RateLimiter{
 		requests:     make(map[string][]time.Time),
 		maxRequests:  maxRequests,
 		windowPeriod: windowPeriod,
+		stopCh:       make(chan struct{}),
+		cleanupDone:  make(chan struct{}),
+	}
+
+	go func() {
+		defer close(rl.cleanupDone)
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				rl.cleanupStale()
+			case <-rl.stopCh:
+				return
+			}
+		}
+	}()
+
+	return rl
+}
+
+// Stop signals the background cleanup goroutine to exit and waits for it.
+func (rl *RateLimiter) Stop() {
+	close(rl.stopCh)
+	<-rl.cleanupDone
+}
+
+// cleanupStale removes entries with no recent requests from the rate limiter.
+func (rl *RateLimiter) cleanupStale() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	windowStart := now.Add(-rl.windowPeriod)
+
+	for tenantID, timestamps := range rl.requests {
+		var valid []time.Time
+		for _, ts := range timestamps {
+			if ts.After(windowStart) {
+				valid = append(valid, ts)
+			}
+		}
+		if len(valid) == 0 {
+			delete(rl.requests, tenantID)
+		} else {
+			rl.requests[tenantID] = valid
+		}
 	}
 }
 
@@ -55,13 +111,15 @@ func (rl *RateLimiter) Allow(tenantID string) (bool, int) {
 		if retryAfter < 1 {
 			retryAfter = 1
 		}
-		// Note: We still update the map to persist the cleaned timestamps,
-		// avoiding stale entries from accumulating on subsequent allowed requests
+		// Persist cleaned timestamps to prevent stale entries from accumulating.
+		// Both allowed and denied requests update the map - allowed requests add
+		// a new timestamp below, denied requests just persist the cleaned list.
 		rl.requests[tenantID] = valid
 		return false, retryAfter
 	}
 
-	// Add new request timestamp
+	// Add new request timestamp and persist to map.
+	// This write happens on all allowed requests, similar to denied requests above.
 	valid = append(valid, now)
 	rl.requests[tenantID] = valid
 

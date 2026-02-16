@@ -277,14 +277,16 @@ export function InspectionEdit() {
   }
 
   // Check edit window
+  // Use 23.5 hours as buffer to prevent edge case timing issues between client/server clocks
   const createdAt = dayjs(inspection.created_at);
-  const hoursRemaining = Math.max(0, 24 - dayjs().diff(createdAt, 'hour'));
+  const hoursSinceCreation = dayjs().diff(createdAt, 'hour', true);
+  const hoursRemaining = Math.max(0, Math.floor(24 - hoursSinceCreation));
 
   // Offline inspections are always editable
-  // Server inspections are editable within 24 hours AND when online
+  // Server inspections are editable within ~24 hours (23.5h buffer) AND when online
   const isEditable = isOfflineInspection
     ? true
-    : (dayjs().diff(createdAt, 'hour') < 24 && isOnline);
+    : (hoursSinceCreation < 23.5 && isOnline);
 
   // Synced inspections cannot be edited while offline
   const isOfflineBlocked = !isOfflineInspection && !isOnline;

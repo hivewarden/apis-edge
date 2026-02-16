@@ -1030,6 +1030,13 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 - [2026-01-25] Implementation: Completed all tasks for Story 7-5 Voice Input for Notes
 - [2026-01-25] All frontend tests passing (70 tests)
 - [2026-01-25] Remediation: Fixed 6 code review issues (H2, H3, M1, L1, L2, L3)
+- [2026-01-26] Remediation: Fixed 6 issues from code review (I1-I6)
+  - I1: Added async/await with waitFor to fix test timeouts
+  - I2: Added Whisper mode integration tests (4 tests)
+  - I3: Documented language capture behavior
+  - I4: Added explicit wav file cleanup on ffmpeg error
+  - I5: Added empty transcript guard in VoiceInputButton
+  - I6: Verified VoiceInputMethod type export (already correct)
 
 ### File List
 

@@ -128,3 +128,4 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 |------|--------|---------|
 | 2026-01-23 | Claude | Story created |
 | 2026-01-23 | Claude | Implementation complete |
+| 2026-01-26 | Claude | Remediation: Fixed 6 issues from code review (power calc example, GPIO 18 rationale, wrong-pin consequences, pin diagram, glossary terms) |

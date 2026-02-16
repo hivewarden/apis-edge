@@ -28,7 +28,6 @@ import {
 import dayjs from 'dayjs';
 import { colors } from '../theme/apisTheme';
 import {
-  FEED_TYPES,
   FEED_UNITS,
   CONCENTRATION_OPTIONS,
   feedTypeHasConcentration,
@@ -36,6 +35,11 @@ import {
   type UpdateFeedingInput,
   type Feeding,
 } from '../hooks/useFeedings';
+import {
+  useCustomLabels,
+  BUILT_IN_FEED_TYPES,
+  mergeTypesWithCustomLabels,
+} from '../hooks/useCustomLabels';
 
 const { Text } = Typography;
 
@@ -100,6 +104,15 @@ export function FeedingFormModal({
   const [showCustomConcentration, setShowCustomConcentration] = useState(false);
 
   const isEditMode = !!editFeeding;
+
+  // Fetch custom feed labels
+  const { labels: customFeedLabels } = useCustomLabels('feed');
+
+  // Merge built-in types with custom labels
+  const feedTypeOptions = mergeTypesWithCustomLabels(
+    BUILT_IN_FEED_TYPES,
+    customFeedLabels
+  );
 
   // Reset form and selection when modal opens
   useEffect(() => {
@@ -310,7 +323,7 @@ export function FeedingFormModal({
         >
           <Select
             placeholder="Select type"
-            options={FEED_TYPES.map(t => ({ value: t.value, label: t.label }))}
+            options={feedTypeOptions}
             onChange={handleFeedTypeChange}
             suffixIcon={<CoffeeOutlined />}
           />

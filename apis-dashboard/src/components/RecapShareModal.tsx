@@ -6,14 +6,13 @@
  *
  * Part of Epic 9, Story 9.4: Season Recap Summary
  */
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import {
   Modal,
   Tabs,
   Button,
   Typography,
   message,
-  Space,
   Spin,
   Alert,
 } from 'antd';

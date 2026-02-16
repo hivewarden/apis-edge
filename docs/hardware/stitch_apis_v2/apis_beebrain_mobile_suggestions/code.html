@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS BeeBrain Suggestions Master Style</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Noto+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              "coconut-cream": "#fbf9e7",
+              "brown-bramble": "#662604",
+              "sea-buckthorn": "#f7a42d",
+              "salomie": "#ffe69c",
+              "beebrain-tint": "#ecf4fa", // Soft blue tint
+              "primary": "#f7a42d", 
+            },
+            fontFamily: {
+              "display": ["Plus Jakarta Sans", "sans-serif"],
+              "body": ["Noto Sans", "sans-serif"],
+            },
+            borderRadius: {
+              "card": "16px", // Request: 16px border radius
+            },
+            boxShadow: {
+              'soft': '0 15px 40px -12px rgba(102, 38, 4, 0.08)', // Soft diffused shadow
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-thin {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-filled {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream text-brown-bramble font-display overflow-hidden transition-colors duration-200">
+<div class="flex h-screen w-full">
+<aside class="w-20 lg:w-64 flex-shrink-0 flex flex-col border-r border-amber-100 bg-white transition-all duration-300">
+<div class="flex h-full flex-col justify-between p-4">
+<div class="flex flex-col gap-8">
+<div class="flex flex-col px-2">
+<h1 class="text-brown-bramble text-xl font-bold tracking-tight hidden lg:block">APIS</h1>
+<p class="text-brown-bramble/60 text-xs font-normal hidden lg:block">BeeBrain Platform</p>
+<div class="lg:hidden flex justify-center text-brown-bramble font-bold text-2xl">A</div>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-coconut-cream group transition-colors" href="#">
+<span class="material-symbols-outlined text-brown-bramble/70 group-hover:text-brown-bramble transition-colors">dashboard</span>
+<span class="text-brown-bramble/70 group-hover:text-brown-bramble text-sm font-medium hidden lg:block">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl bg-salomie group transition-colors shadow-sm" href="#">
+<span class="material-symbols-outlined icon-filled text-brown-bramble">task_alt</span>
+<span class="text-brown-bramble text-sm font-bold hidden lg:block">Tasks</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-coconut-cream group transition-colors" href="#">
+<span class="material-symbols-outlined text-brown-bramble/70 group-hover:text-brown-bramble transition-colors">grid_view</span>
+<span class="text-brown-bramble/70 group-hover:text-brown-bramble text-sm font-medium hidden lg:block">Apiary</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-coconut-cream group transition-colors" href="#">
+<span class="material-symbols-outlined text-brown-bramble/70 group-hover:text-brown-bramble transition-colors">settings</span>
+<span class="text-brown-bramble/70 group-hover:text-brown-bramble text-sm font-medium hidden lg:block">Settings</span>
+</a>
+</nav>
+</div>
+<div class="px-2 hidden lg:block">
+<div class="p-4 rounded-xl bg-coconut-cream border border-amber-100">
+<p class="text-xs text-brown-bramble/60 font-medium mb-1">Hive Status</p>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-green-600 text-sm">circle</span>
+<span class="text-sm font-bold text-brown-bramble">Healthy</span>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<div class="flex flex-1 flex-col min-w-0 overflow-hidden relative">
+<header class="flex items-center justify-between px-6 py-4 bg-coconut-cream/50 backdrop-blur-sm z-10 border-b border-amber-100/50">
+<div class="flex items-center gap-4">
+<h2 class="text-brown-bramble text-2xl font-bold leading-tight tracking-tight">Tasks View</h2>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex h-12 w-64 items-center rounded-xl bg-white border border-amber-100 px-4 shadow-sm focus-within:ring-2 focus-within:ring-sea-buckthorn/20 transition-all">
+<span class="material-symbols-outlined text-brown-bramble/40">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm text-brown-bramble w-full ml-2 placeholder-brown-bramble/40" placeholder="Search tasks..." type="text"/>
+</div>
+<button class="relative p-2 text-brown-bramble/80 hover:bg-white rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-coconut-cream"></span>
+</button>
+<div class="h-10 w-10 rounded-full bg-cover bg-center border-2 border-white shadow-sm cursor-pointer" data-alt="Profile picture of the beekeeper user" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDdMo2Y4DmgqCudYfZezpecD5OuhdiJpPfmb3Kd5xLeni_aJmdw7GKLA6TuVnSY5tGQHeVtnx_DdYRBOkwpTVF2z-9abWbReudPX7HkF-zXcbZnCXUuE3hHgEzwr1Z8OjyIc-0ScpbgDRzKrOsAc9N4zCGQ4cw1dcpbst0GePbQx72AMnK-Z4koXn4v2B59c_IzGfJPRPpOn4DSeaGGkP1YUJ81ABs072sgNSni_bg_jzqtp_zyusfXqe-LJjBuN2Cemj89LEcAQLw');"></div>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto p-6 md:p-10">
+<div class="max-w-[1000px] mx-auto flex flex-col gap-8">
+<section class="w-full md:w-[480px] flex flex-col gap-4 rounded-3xl bg-beebrain-tint p-6 shadow-soft transition-colors">
+<div class="flex items-center gap-3 px-2">
+<div class="flex items-center justify-center h-10 w-10 rounded-full bg-white shadow-sm text-sea-buckthorn ring-1 ring-blue-50/50">
+<span class="material-symbols-outlined icon-thin text-2xl">smart_toy</span>
+</div>
+<div>
+<h3 class="text-brown-bramble text-lg font-bold tracking-tight">Suggested by BeeBrain</h3>
+<p class="text-xs text-brown-bramble/60 font-medium">AI Mentor Insights</p>
+</div>
+</div>
+<div class="bg-white rounded-[16px] p-6 shadow-sm border border-white/60 flex flex-col gap-6">
+<div class="flex flex-col gap-3">
+<div class="flex items-start justify-between">
+<h2 class="text-2xl font-extrabold text-brown-bramble tracking-tight">Requeen Hive 04</h2>
+<span class="bg-red-50 text-red-600 border border-red-100 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider mt-1">High Priority</span>
+</div>
+<p class="text-brown-bramble/80 text-base font-medium leading-relaxed">
+<span class="font-bold text-brown-bramble">Reason:</span> Queen age is 3 years. Productivity logic indicates replacement recommended for optimal hive health.
+                                    </p>
+</div>
+<div class="w-full h-32 rounded-xl bg-gray-100 bg-cover bg-center relative overflow-hidden group shadow-inner" data-alt="Close up of a bee hive frame with honeycombs" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA44kafgTkRXu8JYs4L1i8cl9Mw_h7VLO1zvxq14NawooCJhhLRSInvUBJGzjtjG0loqm1ra0RQGv3a_G8eH36TIjNN67jHQHoUJNR2vgEJgAz05KgCDMwPjfvBC9r97nT8FhZ6yI0c3XrWUZVOokJ36KxeAhARFECimXl6xba4agwUGhsSsPZF6U2S6gnFogpmI8fa3oAHZ58ERqGDElrGN5VX8IXJ_0TDcUdDP04EDb86xOeZ5UH0ThL4swa7vk4Qz0IDK-cEWdc');">
+<div class="absolute inset-0 bg-brown-bramble/10 group-hover:bg-brown-bramble/20 transition-colors"></div>
+<div class="absolute bottom-3 left-3 bg-white/95 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs text-sea-buckthorn">location_on</span>
+<span class="text-xs font-bold text-brown-bramble">North Apiary</span>
+</div>
+</div>
+<div class="flex flex-col gap-3 pt-2">
+<button class="w-full h-14 rounded-full bg-sea-buckthorn hover:bg-orange-400 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 group text-white">
+<span class="material-symbols-outlined text-xl font-bold group-hover:scale-110 transition-transform">check_circle</span>
+<span class="text-base font-bold tracking-wide">Accept Suggestion</span>
+</button>
+<button class="w-full py-2 rounded-full hover:bg-gray-50 active:scale-[0.98] transition-all flex items-center justify-center text-brown-bramble/60 hover:text-brown-bramble">
+<span class="text-sm font-semibold">Dismiss</span>
+</button>
+</div>
+</div>
+</section>
+<div class="flex flex-col gap-4 opacity-50 grayscale-[0.3]">
+<h4 class="text-lg font-bold text-brown-bramble px-2">Upcoming Tasks</h4>
+<div class="bg-white p-4 rounded-xl flex items-center gap-4 border border-amber-100 shadow-sm">
+<div class="h-12 w-12 rounded-full bg-coconut-cream flex items-center justify-center text-brown-bramble">
+<span class="material-symbols-outlined">inventory_2</span>
+</div>
+<div class="flex-1">
+<h5 class="text-base font-bold text-brown-bramble">Check Honey Stores</h5>
+<p class="text-sm text-brown-bramble/60">Hive 02 • Due Tomorrow</p>
+</div>
+<span class="material-symbols-outlined text-brown-bramble/30">chevron_right</span>
+</div>
+<div class="bg-white p-4 rounded-xl flex items-center gap-4 border border-amber-100 shadow-sm">
+<div class="h-12 w-12 rounded-full bg-coconut-cream flex items-center justify-center text-brown-bramble">
+<span class="material-symbols-outlined">pest_control</span>
+</div>
+<div class="flex-1">
+<h5 class="text-base font-bold text-brown-bramble">Mite Treatment</h5>
+<p class="text-sm text-brown-bramble/60">Hive 05 • Due in 3 days</p>
+</div>
+<span class="material-symbols-outlined text-brown-bramble/30">chevron_right</span>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+</body></html>

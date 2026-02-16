@@ -24,14 +24,14 @@
 rules:
   - id: queen_aging
     name: Queen Aging Alert
-    description: Detects queens over 2 years old with productivity decline
+    description: Detects queens over 2 years old (MVP - age-based check only, productivity tracking planned for future)
     condition:
       type: queen_age_productivity
       params:
         min_queen_age_years: 2
         productivity_drop_percent: 20
     severity: warning
-    message_template: "Queen in {{hive_name}} is {{queen_age}} old and productivity has dropped {{drop_percent}}% compared to last season."
+    message_template: "Queen in {{hive_name}} is {{queen_age}} old. Consider monitoring productivity and planning for potential requeening."
     suggested_action: "Consider requeening in spring or monitoring closely for supersedure signs."
 
   - id: treatment_due

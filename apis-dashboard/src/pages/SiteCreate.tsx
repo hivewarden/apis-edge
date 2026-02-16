@@ -11,11 +11,31 @@ import {
   Space,
   message,
 } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
 import { apiClient } from '../providers/apiClient';
+import { TIMEZONES } from '../constants';
+import { colors, touchTargets } from '../theme/apisTheme';
 
 const { Title } = Typography;
 const { Option } = Select;
+
+// Consistent input styling per DESIGN-KEY
+const inputStyle = {
+  height: touchTargets.inputHeight, // 52px
+  borderRadius: 12,
+};
+
+// Card styling per DESIGN-KEY
+const cardStyle = {
+  borderRadius: 16, // rounded-2xl
+  boxShadow: '0 4px 20px -2px rgba(102, 38, 4, 0.05)', // shadow-soft
+};
+
+// Label styling per DESIGN-KEY
+const labelStyle = {
+  fontSize: 14,
+  fontWeight: 500,
+  color: colors.brownBramble,
+};
 
 interface CreateSiteForm {
   name: string;
@@ -23,40 +43,6 @@ interface CreateSiteForm {
   longitude?: number;
   timezone: string;
 }
-
-// Common IANA timezones for European and global users
-const TIMEZONES = [
-  { value: 'UTC', label: 'UTC' },
-  { value: 'Europe/Brussels', label: 'Europe/Brussels' },
-  { value: 'Europe/Paris', label: 'Europe/Paris' },
-  { value: 'Europe/Berlin', label: 'Europe/Berlin' },
-  { value: 'Europe/London', label: 'Europe/London' },
-  { value: 'Europe/Amsterdam', label: 'Europe/Amsterdam' },
-  { value: 'Europe/Madrid', label: 'Europe/Madrid' },
-  { value: 'Europe/Rome', label: 'Europe/Rome' },
-  { value: 'Europe/Vienna', label: 'Europe/Vienna' },
-  { value: 'Europe/Zurich', label: 'Europe/Zurich' },
-  { value: 'Europe/Warsaw', label: 'Europe/Warsaw' },
-  { value: 'Europe/Prague', label: 'Europe/Prague' },
-  { value: 'Europe/Stockholm', label: 'Europe/Stockholm' },
-  { value: 'Europe/Oslo', label: 'Europe/Oslo' },
-  { value: 'Europe/Helsinki', label: 'Europe/Helsinki' },
-  { value: 'Europe/Athens', label: 'Europe/Athens' },
-  { value: 'Europe/Lisbon', label: 'Europe/Lisbon' },
-  { value: 'Europe/Dublin', label: 'Europe/Dublin' },
-  { value: 'America/New_York', label: 'America/New York' },
-  { value: 'America/Chicago', label: 'America/Chicago' },
-  { value: 'America/Denver', label: 'America/Denver' },
-  { value: 'America/Los_Angeles', label: 'America/Los Angeles' },
-  { value: 'America/Toronto', label: 'America/Toronto' },
-  { value: 'America/Vancouver', label: 'America/Vancouver' },
-  { value: 'Asia/Tokyo', label: 'Asia/Tokyo' },
-  { value: 'Asia/Shanghai', label: 'Asia/Shanghai' },
-  { value: 'Asia/Singapore', label: 'Asia/Singapore' },
-  { value: 'Australia/Sydney', label: 'Australia/Sydney' },
-  { value: 'Australia/Melbourne', label: 'Australia/Melbourne' },
-  { value: 'Pacific/Auckland', label: 'Pacific/Auckland' },
-];
 
 /**
  * Site Create Page
@@ -95,16 +81,24 @@ export function SiteCreate() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
-        <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
-            Back
-          </Button>
-          <Title level={2} style={{ margin: 0 }}>Add Site</Title>
-        </Space>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24, gap: 16 }}>
+        <Button
+          onClick={handleBack}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            borderRadius: 9999,
+            border: '1px solid #d6d3d1', // border-stone-300
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
+          Back
+        </Button>
+        <Title level={2} style={{ margin: 0 }}>Add Site</Title>
       </div>
 
-      <Card>
+      <Card style={cardStyle}>
         <Form
           form={form}
           layout="vertical"
@@ -114,13 +108,21 @@ export function SiteCreate() {
         >
           <Form.Item
             name="name"
-            label="Site Name"
+            label={<span style={labelStyle}>Site Name</span>}
             rules={[{ required: true, message: 'Please enter a site name' }]}
+            style={{ marginBottom: 24 }}
           >
-            <Input placeholder="e.g., Home Apiary" />
+            <Input
+              placeholder="e.g., Home Apiary"
+              style={inputStyle}
+              prefix={<span className="material-symbols-outlined" style={{ fontSize: 20, color: colors.brownBramble, opacity: 0.4 }}>location_on</span>}
+            />
           </Form.Item>
 
-          <Form.Item label="GPS Coordinates" style={{ marginBottom: 8 }}>
+          <Form.Item
+            label={<span style={labelStyle}>GPS Coordinates</span>}
+            style={{ marginBottom: 8 }}
+          >
             <Space.Compact style={{ width: '100%' }}>
               <Form.Item
                 name="latitude"
@@ -136,7 +138,7 @@ export function SiteCreate() {
               >
                 <InputNumber
                   placeholder="Latitude (e.g., 50.8503)"
-                  style={{ width: '50%' }}
+                  style={{ width: '50%', height: touchTargets.inputHeight, borderRadius: '12px 0 0 12px' }}
                   step={0.0001}
                   precision={7}
                 />
@@ -155,28 +157,30 @@ export function SiteCreate() {
               >
                 <InputNumber
                   placeholder="Longitude (e.g., 4.3517)"
-                  style={{ width: '50%' }}
+                  style={{ width: '50%', height: touchTargets.inputHeight, borderRadius: '0 12px 12px 0' }}
                   step={0.0001}
                   precision={7}
                 />
               </Form.Item>
             </Space.Compact>
           </Form.Item>
-          <Form.Item style={{ marginBottom: 16 }}>
-            <span style={{ color: '#666', fontSize: 12 }}>
+          <Form.Item style={{ marginBottom: 24 }}>
+            <span style={{ color: colors.brownBramble, opacity: 0.6, fontSize: 12 }}>
               Optional. Used for weather data and location display.
             </span>
           </Form.Item>
 
           <Form.Item
             name="timezone"
-            label="Timezone"
+            label={<span style={labelStyle}>Timezone</span>}
             rules={[{ required: true, message: 'Please select a timezone' }]}
+            style={{ marginBottom: 24 }}
           >
             <Select
               showSearch
               placeholder="Select timezone"
               optionFilterProp="children"
+              style={{ height: touchTargets.inputHeight }}
             >
               {TIMEZONES.map((tz) => (
                 <Option key={tz.value} value={tz.value}>
@@ -186,17 +190,41 @@ export function SiteCreate() {
             </Select>
           </Form.Item>
 
-          <Form.Item>
-            <Space>
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Space size={16}>
               <Button
                 type="primary"
                 htmlType="submit"
-                icon={<SaveOutlined />}
                 loading={submitting}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  minHeight: 48,
+                  borderRadius: 9999,
+                  paddingLeft: 24,
+                  paddingRight: 24,
+                }}
               >
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>save</span>
                 Save
               </Button>
-              <Button onClick={handleBack}>Cancel</Button>
+              <Button
+                onClick={handleBack}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  minHeight: 48,
+                  borderRadius: 9999,
+                  border: '1px solid #d6d3d1', // border-stone-300
+                  paddingLeft: 24,
+                  paddingRight: 24,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
+                Cancel
+              </Button>
             </Space>
           </Form.Item>
         </Form>

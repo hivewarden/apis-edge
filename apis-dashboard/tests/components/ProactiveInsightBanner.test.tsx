@@ -257,8 +257,15 @@ describe('ProactiveInsightBanner', () => {
   });
 
   describe('Dismiss Animation', () => {
-    it('should handle dismiss with animation delay', async () => {
+    beforeEach(() => {
       vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should handle dismiss with animation delay', async () => {
       const dismissInsight = vi.fn().mockResolvedValue(undefined);
       vi.spyOn(useProactiveInsightsModule, 'useProactiveInsights').mockReturnValue({
         ...defaultHookReturn,
@@ -279,8 +286,6 @@ describe('ProactiveInsightBanner', () => {
 
       // Now it should have been called
       expect(dismissInsight).toHaveBeenCalledWith('insight-1');
-
-      vi.useRealTimers();
     });
   });
 

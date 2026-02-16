@@ -101,7 +101,10 @@ export async function saveOfflineInspection(
     date: data.inspected_at,
     queen_seen: data.queen_seen,
     eggs_seen: data.eggs_seen,
-    queen_cells: data.queen_cells ? 1 : 0, // Convert boolean to number for schema compatibility
+    // queen_cells: CachedInspection stores as number (0/1) per db.ts schema line 62
+    // Input is boolean | null; null -> 0 (treated as "not checked"), true -> 1, false -> 0
+    // Reverse conversion in InspectionHistory.tsx:117 uses queen_cells > 0
+    queen_cells: data.queen_cells === true ? 1 : 0,
     brood_frames: data.brood_frames,
     brood_pattern: data.brood_pattern,
     honey_stores: data.honey_level,
@@ -116,14 +119,15 @@ export async function saveOfflineInspection(
     version: 1,
     created_at: nowISO,
     updated_at: nowISO,
+    // TODO (S6-L3): synced_at is misleading for offline-created inspections --
+    // it's set to creation time but the record hasn't actually been synced.
+    // Consider using new Date(0) as a sentinel, or always check pending_sync
+    // flag in pruning queries (see offlineCache.ts pruneOldData).
     synced_at: now,
     accessed_at: now,
     pending_sync: true,
     sync_error: null,
   };
-
-  // Store the inspection in IndexedDB
-  await db.inspections.put(inspection);
 
   // Add to sync queue
   const syncEntry: SyncQueueItem = {
@@ -137,7 +141,12 @@ export async function saveOfflineInspection(
     created_at: now,
     status: 'pending',
   };
-  await db.sync_queue.add(syncEntry);
+
+  // Use transaction to ensure atomicity - both operations succeed or both fail
+  await db.transaction('rw', [db.inspections, db.sync_queue], async () => {
+    await db.inspections.put(inspection);
+    await db.sync_queue.add(syncEntry);
+  });
 
   return inspection;
 }
@@ -185,7 +194,8 @@ export async function updateOfflineInspection(
     if (data.inspected_at !== undefined) updates.date = data.inspected_at;
     if (data.queen_seen !== undefined) updates.queen_seen = data.queen_seen;
     if (data.eggs_seen !== undefined) updates.eggs_seen = data.eggs_seen;
-    if (data.queen_cells !== undefined) updates.queen_cells = data.queen_cells ? 1 : 0;
+    // Same conversion as saveOfflineInspection - null/false -> 0, true -> 1
+    if (data.queen_cells !== undefined) updates.queen_cells = data.queen_cells === true ? 1 : 0;
     if (data.brood_frames !== undefined) updates.brood_frames = data.brood_frames;
     if (data.brood_pattern !== undefined) updates.brood_pattern = data.brood_pattern;
     if (data.honey_level !== undefined) updates.honey_stores = data.honey_level;
@@ -201,16 +211,26 @@ export async function updateOfflineInspection(
       .where('table')
       .equals('inspections')
       .filter(entry => {
-        const payload = JSON.parse(entry.payload);
-        return payload.local_id === localId;
+        try {
+          const payload = JSON.parse(entry.payload);
+          return payload.local_id === localId;
+        } catch {
+          // Skip entries with corrupted JSON (XSS-001-4)
+          return false;
+        }
       })
       .toArray();
 
     if (syncEntries.length > 0) {
       const entry = syncEntries[0];
-      const payload = JSON.parse(entry.payload);
-      payload.data = { ...payload.data, ...data };
-      await db.sync_queue.update(entry.id!, { payload: JSON.stringify(payload) });
+      try {
+        const payload = JSON.parse(entry.payload);
+        payload.data = { ...payload.data, ...data };
+        await db.sync_queue.update(entry.id!, { payload: JSON.stringify(payload) });
+      } catch {
+        // Skip update if payload is corrupted (XSS-001-4)
+        console.warn('[offlineInspection] Skipping sync queue update due to corrupted payload');
+      }
     }
 
     return { ...existing, ...updates, pending_sync: true, local_id: localId } as PendingInspection;
@@ -276,31 +296,40 @@ export async function markAsSynced(localId: string, serverId: string): Promise<v
 
   const now = new Date();
 
-  // Update the inspection: change ID to server ID, clear pending flags
-  await db.inspections.delete(existing.id); // Remove the local_id keyed record
-  await db.inspections.put({
-    ...existing,
-    id: serverId,
-    pending_sync: false,
-    local_id: null,
-    sync_error: null,
-    synced_at: now,
-    accessed_at: now,
+  // SECURITY (S6-C2): Use transaction for atomic delete-then-put to prevent
+  // data loss if the operation is interrupted between delete and put.
+  await db.transaction('rw', [db.inspections, db.sync_queue], async () => {
+    // Update the inspection: change ID to server ID, clear pending flags
+    await db.inspections.delete(existing.id); // Remove the local_id keyed record
+    await db.inspections.put({
+      ...existing,
+      id: serverId,
+      pending_sync: false,
+      local_id: null,
+      sync_error: null,
+      synced_at: now,
+      accessed_at: now,
+    });
+
+    // Remove from sync queue
+    const syncEntries = await db.sync_queue
+      .where('table')
+      .equals('inspections')
+      .filter(entry => {
+        try {
+          const payload = JSON.parse(entry.payload);
+          return payload.local_id === localId;
+        } catch {
+          // Skip entries with corrupted JSON (XSS-001-4)
+          return false;
+        }
+      })
+      .toArray();
+
+    for (const entry of syncEntries) {
+      await db.sync_queue.delete(entry.id!);
+    }
   });
-
-  // Remove from sync queue
-  const syncEntries = await db.sync_queue
-    .where('table')
-    .equals('inspections')
-    .filter(entry => {
-      const payload = JSON.parse(entry.payload);
-      return payload.local_id === localId;
-    })
-    .toArray();
-
-  for (const entry of syncEntries) {
-    await db.sync_queue.delete(entry.id!);
-  }
 }
 
 /**
@@ -327,8 +356,13 @@ export async function markSyncError(localId: string, error: string): Promise<voi
     .where('table')
     .equals('inspections')
     .filter(entry => {
-      const payload = JSON.parse(entry.payload);
-      return payload.local_id === localId;
+      try {
+        const payload = JSON.parse(entry.payload);
+        return payload.local_id === localId;
+      } catch {
+        // Skip entries with corrupted JSON (XSS-001-4)
+        return false;
+      }
     })
     .toArray();
 
@@ -375,8 +409,13 @@ export async function deleteOfflineInspection(localId: string): Promise<boolean>
     .where('table')
     .equals('inspections')
     .filter(entry => {
-      const payload = JSON.parse(entry.payload);
-      return payload.local_id === localId;
+      try {
+        const payload = JSON.parse(entry.payload);
+        return payload.local_id === localId;
+      } catch {
+        // Skip entries with corrupted JSON (XSS-001-4)
+        return false;
+      }
     })
     .toArray();
 

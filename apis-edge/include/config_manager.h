@@ -47,10 +47,14 @@ typedef struct {
 
 /**
  * Server communication configuration.
+ * COMM-001-5: Added fields for API key rotation support.
  */
 typedef struct {
     char url[CFG_MAX_URL_LEN];
     char api_key[CFG_MAX_API_KEY_LEN];
+    char api_key_next[CFG_MAX_API_KEY_LEN];   // Pending rotation key (COMM-001-5)
+    int64_t key_issued_at;                     // When current key was issued (COMM-001-5)
+    int64_t key_expires_at;                    // When key should be rotated (COMM-001-5)
     uint16_t heartbeat_interval_seconds;
 } cfg_server_t;
 
@@ -120,6 +124,16 @@ const runtime_config_t *config_manager_get(void);
  * @param out Output config structure
  */
 void config_manager_get_public(runtime_config_t *out);
+
+/**
+ * Get a thread-safe snapshot of the full configuration (including sensitive fields).
+ * S8-C3 fix: This is the safe replacement for config_manager_get() when callers
+ * need access to sensitive fields like api_key.
+ * Caller receives a local copy; the returned data is safe to use without locks.
+ *
+ * @param out Output config structure (caller-owned)
+ */
+void config_manager_get_snapshot(runtime_config_t *out);
 
 /**
  * Load configuration from file.
@@ -236,5 +250,42 @@ int config_manager_from_json(const char *json, runtime_config_t *config);
  * Cleanup configuration manager resources.
  */
 void config_manager_cleanup(void);
+
+/**
+ * Set a pending API key for rotation.
+ * The key will be activated when key_expires_at time is reached.
+ * COMM-001-5: Implements API key rotation support.
+ *
+ * @param new_key New API key to rotate to
+ * @param activate_at Unix timestamp when the new key should become active
+ * @return 0 on success
+ */
+int config_manager_set_pending_key(const char *new_key, int64_t activate_at);
+
+/**
+ * Activate the pending API key if rotation time has passed.
+ * Should be called before each server request.
+ * COMM-001-5: Implements API key rotation support.
+ *
+ * @return true if a key rotation occurred
+ */
+bool config_manager_check_key_rotation(void);
+
+/**
+ * Clear the API key (for security on persistent auth failures).
+ * COMM-001-6: Implements secure handling of authentication failures.
+ *
+ * @return 0 on success
+ */
+int config_manager_clear_api_key(void);
+
+/**
+ * Set needs_setup flag to require re-provisioning.
+ * COMM-001-6: Implements secure handling of authentication failures.
+ *
+ * @param needs_setup New needs_setup value
+ * @return 0 on success
+ */
+int config_manager_set_needs_setup(bool needs_setup);
 
 #endif // APIS_CONFIG_MANAGER_H

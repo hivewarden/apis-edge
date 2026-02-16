@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -317,13 +318,10 @@ func GetEquipmentHistoryByHive(ctx context.Context, conn *pgxpool.Conn, hiveID s
 	}
 
 	// Sort history by removed_at date descending (most recent first)
-	for i := 0; i < len(history)-1; i++ {
-		for j := i + 1; j < len(history); j++ {
-			if history[j].RemovedAt.After(history[i].RemovedAt) {
-				history[i], history[j] = history[j], history[i]
-			}
-		}
-	}
+	// FIX (DL-L01): Replaced O(n^2) bubble sort with O(n log n) sort.Slice.
+	sort.Slice(history, func(i, j int) bool {
+		return history[i].RemovedAt.After(history[j].RemovedAt)
+	})
 
 	return history, nil
 }

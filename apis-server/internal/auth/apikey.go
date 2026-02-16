@@ -14,8 +14,6 @@ const (
 	APIKeyPrefix = "apis_"
 	// APIKeyLength is the number of random hex characters in an API key (32 chars = 16 bytes).
 	APIKeyLength = 32
-	// bcryptCost is the cost factor for bcrypt hashing.
-	bcryptCost = 12
 )
 
 // GenerateAPIKey generates a new API key in the format: apis_<32 hex chars>
@@ -30,8 +28,10 @@ func GenerateAPIKey() (string, error) {
 
 // HashAPIKey creates a bcrypt hash of an API key for secure storage.
 // The hash can be stored in the database; the raw key should never be stored.
+// Uses the configurable bcrypt cost from BcryptCost().
 func HashAPIKey(apiKey string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(apiKey), bcryptCost)
+	// SECURITY FIX (CRYPTO-001-1): Use configurable bcrypt cost
+	hash, err := bcrypt.GenerateFromPassword([]byte(apiKey), BcryptCost())
 	if err != nil {
 		return "", fmt.Errorf("auth: failed to hash API key: %w", err)
 	}

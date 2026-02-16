@@ -13,7 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// HealthResponse matches the expected JSON structure from the health endpoint.
+// healthResponseWrapper matches the {"data": {...}} envelope from the health endpoint.
+type healthResponseWrapper struct {
+	Data HealthResponse `json:"data"`
+}
+
+// HealthResponse matches the health data inside the envelope.
 type HealthResponse struct {
 	Status  string            `json:"status"`
 	Version string            `json:"version"`
@@ -29,9 +34,18 @@ func (m *mockPool) Ping(ctx context.Context) error {
 	return m.pingErr
 }
 
+// decodeHealthResponse is a helper that decodes the {"data": {...}} envelope.
+func decodeHealthResponse(t *testing.T, rec *httptest.ResponseRecorder) HealthResponse {
+	t.Helper()
+	var wrapper healthResponseWrapper
+	err := json.NewDecoder(rec.Body).Decode(&wrapper)
+	require.NoError(t, err, "response should be valid JSON")
+	return wrapper.Data
+}
+
 func TestHealthHandler_AllHealthy(t *testing.T) {
-	// Setup mock HTTP server for Zitadel OIDC discovery
-	zitadelServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Setup mock HTTP server for OIDC discovery
+	oidcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -40,11 +54,11 @@ func TestHealthHandler_AllHealthy(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	defer zitadelServer.Close()
+	defer oidcServer.Close()
 
 	// Create handler with mock pool that returns no error (healthy)
 	pool := &mockPool{pingErr: nil}
-	handler := handlers.NewHealthHandler(pool, zitadelServer.URL)
+	handler := handlers.NewHealthHandler(pool, oidcServer.URL)
 
 	// Create test request
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
@@ -56,19 +70,17 @@ func TestHealthHandler_AllHealthy(t *testing.T) {
 	// Assert HTTP 200 when all healthy (AC1)
 	assert.Equal(t, http.StatusOK, rec.Code, "expected 200 when all services healthy")
 
-	var resp HealthResponse
-	err := json.NewDecoder(rec.Body).Decode(&resp)
-	require.NoError(t, err, "response should be valid JSON")
+	resp := decodeHealthResponse(t, rec)
 
 	assert.Equal(t, "ok", resp.Status)
 	assert.Equal(t, "0.1.0", resp.Version)
 	assert.Equal(t, "ok", resp.Checks["database"])
-	assert.Equal(t, "ok", resp.Checks["zitadel"])
+	assert.Equal(t, "ok", resp.Checks["oidc"])
 }
 
 func TestHealthHandler_DatabaseDown(t *testing.T) {
-	// Setup mock HTTP server for Zitadel OIDC discovery
-	zitadelServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Setup mock HTTP server for OIDC discovery
+	oidcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -77,11 +89,11 @@ func TestHealthHandler_DatabaseDown(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	defer zitadelServer.Close()
+	defer oidcServer.Close()
 
 	// Create handler with mock pool that returns error
 	pool := &mockPool{pingErr: fmt.Errorf("connection refused")}
-	handler := handlers.NewHealthHandler(pool, zitadelServer.URL)
+	handler := handlers.NewHealthHandler(pool, oidcServer.URL)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	rec := httptest.NewRecorder()
@@ -91,23 +103,22 @@ func TestHealthHandler_DatabaseDown(t *testing.T) {
 	// Assert HTTP 503 when database down (AC2)
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 
-	var resp HealthResponse
-	err := json.NewDecoder(rec.Body).Decode(&resp)
-	require.NoError(t, err)
+	resp := decodeHealthResponse(t, rec)
 
 	assert.Equal(t, "degraded", resp.Status)
-	assert.Contains(t, resp.Checks["database"], "error")
-	assert.Equal(t, "ok", resp.Checks["zitadel"])
+	// Security fix S3A-H2: handler returns "unhealthy" instead of error details
+	assert.Equal(t, "unhealthy", resp.Checks["database"])
+	assert.Equal(t, "ok", resp.Checks["oidc"])
 }
 
-func TestHealthHandler_ZitadelDown(t *testing.T) {
-	// Setup mock HTTP server that returns 500
-	zitadelServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestHealthHandler_OIDCProviderDown(t *testing.T) {
+	// Setup mock OIDC server that returns 500
+	oidcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
-	defer zitadelServer.Close()
+	defer oidcServer.Close()
 
-	handler := handlers.NewHealthHandler(nil, zitadelServer.URL)
+	handler := handlers.NewHealthHandler(nil, oidcServer.URL)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	rec := httptest.NewRecorder()
@@ -116,15 +127,14 @@ func TestHealthHandler_ZitadelDown(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 
-	var resp HealthResponse
-	err := json.NewDecoder(rec.Body).Decode(&resp)
-	require.NoError(t, err)
+	resp := decodeHealthResponse(t, rec)
 
 	assert.Equal(t, "degraded", resp.Status)
-	assert.Contains(t, resp.Checks["zitadel"], "error")
+	// Security fix S3A-H2: handler returns "unhealthy" instead of error details
+	assert.Equal(t, "unhealthy", resp.Checks["oidc"])
 }
 
-func TestHealthHandler_ZitadelUnreachable(t *testing.T) {
+func TestHealthHandler_OIDCProviderUnreachable(t *testing.T) {
 	// Use an invalid URL that won't connect
 	handler := handlers.NewHealthHandler(nil, "http://localhost:1")
 
@@ -135,16 +145,15 @@ func TestHealthHandler_ZitadelUnreachable(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 
-	var resp HealthResponse
-	err := json.NewDecoder(rec.Body).Decode(&resp)
-	require.NoError(t, err)
+	resp := decodeHealthResponse(t, rec)
 
 	assert.Equal(t, "degraded", resp.Status)
-	assert.Contains(t, resp.Checks["zitadel"], "error")
+	// Security fix S3A-H2: handler returns "unhealthy" instead of error details
+	assert.Equal(t, "unhealthy", resp.Checks["oidc"])
 }
 
-func TestHealthHandler_ZitadelIssuerEmpty(t *testing.T) {
-	// Test handling of empty zitadel issuer configuration
+func TestHealthHandler_OIDCIssuerEmpty(t *testing.T) {
+	// Test handling of empty OIDC issuer configuration
 	handler := handlers.NewHealthHandler(nil, "")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
@@ -154,18 +163,16 @@ func TestHealthHandler_ZitadelIssuerEmpty(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 
-	var resp HealthResponse
-	err := json.NewDecoder(rec.Body).Decode(&resp)
-	require.NoError(t, err)
+	resp := decodeHealthResponse(t, rec)
 
 	assert.Equal(t, "degraded", resp.Status)
-	assert.Contains(t, resp.Checks["zitadel"], "error")
-	assert.Contains(t, resp.Checks["zitadel"], "not configured")
+	// Security fix S3A-H2: handler returns "unhealthy" instead of error details
+	assert.Equal(t, "unhealthy", resp.Checks["oidc"])
 }
 
 func TestHealthHandler_ResponseFormat(t *testing.T) {
-	// Verify the response format matches AC1 requirements
-	zitadelServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Verify the response format matches CLAUDE.md {"data": {...}} envelope
+	oidcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -174,9 +181,9 @@ func TestHealthHandler_ResponseFormat(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	defer zitadelServer.Close()
+	defer oidcServer.Close()
 
-	handler := handlers.NewHealthHandler(nil, zitadelServer.URL)
+	handler := handlers.NewHealthHandler(nil, oidcServer.URL)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	rec := httptest.NewRecorder()
@@ -186,26 +193,32 @@ func TestHealthHandler_ResponseFormat(t *testing.T) {
 	// Check Content-Type header
 	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
 
-	// Verify JSON structure
+	// Verify JSON structure with {"data": {...}} envelope
 	var resp map[string]any
 	err := json.NewDecoder(rec.Body).Decode(&resp)
 	require.NoError(t, err)
 
-	// Required fields
-	assert.Contains(t, resp, "status")
-	assert.Contains(t, resp, "version")
-	assert.Contains(t, resp, "checks")
+	// Response must have "data" envelope per CLAUDE.md format
+	assert.Contains(t, resp, "data")
 
-	// Checks should be a map
-	checks, ok := resp["checks"].(map[string]any)
+	data, ok := resp["data"].(map[string]any)
+	require.True(t, ok, "data should be a map")
+
+	// Required fields inside data
+	assert.Contains(t, data, "status")
+	assert.Contains(t, data, "version")
+	assert.Contains(t, data, "checks")
+
+	// Checks should be a map with oidc and database keys
+	checks, ok := data["checks"].(map[string]any)
 	assert.True(t, ok, "checks should be a map")
 	assert.Contains(t, checks, "database")
-	assert.Contains(t, checks, "zitadel")
+	assert.Contains(t, checks, "oidc")
 }
 
 func TestHealthHandler_NoAuth(t *testing.T) {
 	// Verify endpoint works without authentication header
-	zitadelServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	oidcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -214,9 +227,9 @@ func TestHealthHandler_NoAuth(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	defer zitadelServer.Close()
+	defer oidcServer.Close()
 
-	handler := handlers.NewHealthHandler(nil, zitadelServer.URL)
+	handler := handlers.NewHealthHandler(nil, oidcServer.URL)
 
 	// Request with NO Authorization header
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
@@ -227,9 +240,7 @@ func TestHealthHandler_NoAuth(t *testing.T) {
 	// Should not return 401 - health endpoint must be public
 	assert.NotEqual(t, http.StatusUnauthorized, rec.Code)
 
-	var resp HealthResponse
-	err := json.NewDecoder(rec.Body).Decode(&resp)
-	require.NoError(t, err)
+	resp := decodeHealthResponse(t, rec)
 
 	// Should still return valid health response structure
 	assert.NotEmpty(t, resp.Status)

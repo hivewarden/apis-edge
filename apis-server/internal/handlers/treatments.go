@@ -127,6 +127,13 @@ func CreateTreatment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SECURITY FIX (S3A-M2): Limit batch array size to prevent resource exhaustion.
+	// Each hive ID triggers individual DB operations (ownership check + record creation).
+	if len(req.HiveIDs) > 100 {
+		respondError(w, "Too many hive IDs (maximum 100)", http.StatusBadRequest)
+		return
+	}
+
 	if req.TreatedAt == "" {
 		respondError(w, "treated_at is required", http.StatusBadRequest)
 		return
@@ -211,6 +218,11 @@ func CreateTreatment(w http.ResponseWriter, r *http.Request) {
 		Str("tenant_id", tenantID).
 		Str("treatment_type", req.TreatmentType).
 		Msg("Treatments created")
+
+	// Audit log: record treatment creation for each treatment
+	for _, t := range treatments {
+		AuditCreate(r.Context(), "treatments", t.ID, t)
+	}
 
 	// Convert to response
 	responses := make([]TreatmentResponse, 0, len(treatments))
@@ -405,6 +417,9 @@ func UpdateTreatment(w http.ResponseWriter, r *http.Request) {
 		Str("treatment_id", treatment.ID).
 		Msg("Treatment updated")
 
+	// Audit log: record treatment update with old and new values
+	AuditUpdate(r.Context(), "treatments", treatment.ID, existing, treatment)
+
 	respondJSON(w, TreatmentDataResponse{Data: treatmentToResponse(treatment)}, http.StatusOK)
 }
 
@@ -454,6 +469,9 @@ func DeleteTreatment(w http.ResponseWriter, r *http.Request) {
 	log.Info().
 		Str("treatment_id", treatmentID).
 		Msg("Treatment deleted")
+
+	// Audit log: record treatment deletion with old values
+	AuditDelete(r.Context(), "treatments", treatmentID, existing)
 
 	w.WriteHeader(http.StatusNoContent)
 }

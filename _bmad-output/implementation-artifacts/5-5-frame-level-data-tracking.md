@@ -21,30 +21,30 @@ So that I can track detailed hive development.
 ## Tasks / Subtasks
 
 ### Task 1: Backend - Create inspection_frames Table (AC: #1)
-- [ ] 1.1 Create migration 0010_inspection_frames.sql
-- [ ] 1.2 Add inspection_frames storage functions
-- [ ] 1.3 Include frame data when returning inspection
+- [x] 1.1 Create migration 0010_inspection_frames.sql
+- [x] 1.2 Add inspection_frames storage functions
+- [x] 1.3 Include frame data when returning inspection
 
 ### Task 2: Backend - Frame Data CRUD (AC: #1, #2)
-- [ ] 2.1 Add frame data to CreateInspection endpoint
-- [ ] 2.2 Add frame data to UpdateInspection endpoint
-- [ ] 2.3 Add frame data to GetInspection response
-- [ ] 2.4 Add validation for frame counts
+- [x] 2.1 Add frame data to CreateInspection endpoint
+- [x] 2.2 Add frame data to UpdateInspection endpoint
+- [x] 2.3 Add frame data to GetInspection response
+- [x] 2.4 Add validation for frame counts
 
 ### Task 3: Frontend - Advanced Mode Toggle (AC: #3)
-- [ ] 3.1 Add advancedMode flag to user settings context
-- [ ] 3.2 Add toggle in Settings page
-- [ ] 3.3 Store preference in localStorage
+- [x] 3.1 Add advancedMode flag to user settings context
+- [x] 3.2 Add toggle in Settings page
+- [x] 3.3 Store preference in localStorage
 
 ### Task 4: Frontend - Frame Entry Form (AC: #1, #2)
-- [ ] 4.1 Create FrameEntryCard component
-- [ ] 4.2 Per-box frame inputs with validation
-- [ ] 4.3 Auto-calculate empty/foundation count
-- [ ] 4.4 Show only when advancedMode enabled
+- [x] 4.1 Create FrameEntryCard component
+- [x] 4.2 Per-box frame inputs with validation
+- [x] 4.3 Auto-calculate empty/foundation count
+- [x] 4.4 Show only when advancedMode enabled
 
 ### Task 5: Frontend - Frame Data Display (AC: #4)
-- [ ] 5.1 Show frame data in InspectionDetailModal
-- [ ] 5.2 Include frame history in InspectionHistory table
+- [x] 5.1 Show frame data in InspectionDetailModal
+- [x] 5.2 Include frame history in InspectionHistory table
 
 ## Dev Notes
 
@@ -109,6 +109,17 @@ Claude Opus 4.5
 5. Frontend: InspectionDetailModal displays frame data when present
 6. Settings: Toggle in Settings page for advanced mode
 7. Validation: drawn >= brood + honey, all values non-negative
+
+### Change Log
+
+- [2026-01-25] Remediation: Fixed 8 issues from code review
+  - Marked all tasks as complete
+  - Created backend tests: `apis-server/tests/storage/inspection_frames_test.go`
+  - Created frontend tests: `apis-dashboard/tests/components/FrameEntryCard.test.tsx`
+  - Created context tests: `apis-dashboard/tests/context/SettingsContext.test.tsx`
+  - Added Frames column to InspectionHistory.tsx
+  - Fixed frontend/backend validation mismatch
+  - Added error handling in inspections.go
 
 ### File List
 

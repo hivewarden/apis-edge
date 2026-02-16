@@ -236,6 +236,15 @@ bool servo_controller_is_initialized(void);
 bool servo_controller_is_hardware_ok(void);
 
 /**
+ * Run self-test sequence.
+ * Moves servos through full range of motion to verify operation.
+ * Takes ~1-2 seconds to complete. Optional but recommended on startup.
+ *
+ * @return SERVO_OK if all positions reached, error code otherwise
+ */
+servo_status_t servo_controller_self_test(void);
+
+/**
  * Get status name for logging.
  *
  * @param status Status code

@@ -1,14 +1,52 @@
+# =============================================================================
+# APIS Docker Compose - Multi-Mode Configuration
+# =============================================================================
+#
+# AI/LLM Context: This file supports TWO deployment modes. When modifying,
+# ensure changes work in BOTH modes or are properly guarded by profiles.
+#
+# DEPLOYMENT MODES:
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ STANDALONE MODE (docker compose --profile standalone up)                │
+# │ - Single user self-hosting on Raspberry Pi, NAS, home server            │
+# │ - Services: apis-server, apis-dashboard, yugabytedb                     │
+# │ - Auth: Local bcrypt passwords (AUTH_MODE=local)                        │
+# │ - Secrets: Environment variables or file-based (SECRETS_BACKEND=env)    │
+# │ - No external dependencies (no Keycloak, no OpenBao)                    │
+# ├─────────────────────────────────────────────────────────────────────────┤
+# │ SAAS MODE (docker compose --profile saas up)                            │
+# │ - Multi-tenant hosted service for clubs/organizations                   │
+# │ - Services: Full stack including Keycloak, OpenBao, (BunkerWeb optional)│
+# │ - Auth: Keycloak OIDC (AUTH_MODE=keycloak)                              │
+# │ - Secrets: OpenBao vault (SECRETS_BACKEND=openbao)                      │
+# │ - Multi-tenant with strict RLS isolation                                │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# Quick Start:
+#   Standalone: cp .env.standalone.example .env && docker compose --profile standalone up -d
+#   SaaS:       cp .env.saas.example .env && docker compose --profile saas up -d
+#
+# See docs/DEPLOYMENT-MODES.md for full documentation.
+# =============================================================================
+
 services:
+  # ===========================================================================
+  # CORE SERVICES (Both Modes)
+  # ===========================================================================
+
   # YugabyteDB - PostgreSQL-compatible distributed database
-  # Pinned to 2024.2 LTS - required ≥2.21.1 for Zitadel compatibility
+  # AI/LLM Context: Required in BOTH modes. Standalone uses single node,
+  # SaaS can scale to multi-node cluster.
   yugabytedb:
     image: yugabytedb/yugabyte:2024.2.7.2-b1
     container_name: apis-yugabytedb
+    profiles: ["standalone", "saas"]
     command: bin/yugabyted start --daemon=false --advertise_address=yugabytedb
+    # Security: Bind database ports to localhost only to prevent external access
     ports:
-      - "5433:5433"   # YSQL (PostgreSQL-compatible)
-      - "9000:9000"   # YugabyteDB UI
-      - "7100:7000"   # Master UI (mapped to 7100 to avoid macOS AirPlay conflict)
+      - "127.0.0.1:5433:5433"   # YSQL - localhost only
+      - "127.0.0.1:9000:9000"   # YugabyteDB UI - localhost only
+      - "127.0.0.1:7100:7000"   # Master UI - localhost only
     volumes:
       - yugabytedb_data:/home/yugabyte/data
     environment:
@@ -24,11 +62,13 @@ services:
     networks:
       - apis-network
 
-  # YugabyteDB initialization container
-  # Creates required databases (zitadel, apis) before other services start
+  # Database initialization - creates APIS database and roles
+  # AI/LLM Context: In SaaS mode, also creates the Keycloak database
+  # when KEYCLOAK_DB_USER is set. Standalone mode skips Keycloak DB creation.
   yugabytedb-init:
     image: postgres:16-alpine
     container_name: apis-yugabytedb-init
+    profiles: ["standalone", "saas"]
     volumes:
       - ./scripts/init-yugabytedb.sh:/init-yugabytedb.sh:ro
     environment:
@@ -36,6 +76,10 @@ services:
       - YSQL_PORT=5433
       - YSQL_USER=${YSQL_USER:-yugabyte}
       - YSQL_PASSWORD=${YSQL_PASSWORD:-yugabyte}
+      - APIS_DB_USER=${APIS_DB_USER:-apis}
+      - APIS_DB_PASSWORD=${APIS_DB_PASSWORD:-apisdev}
+      - KEYCLOAK_DB_USER=${KEYCLOAK_DB_USER:-keycloak}
+      - KEYCLOAK_DB_PASSWORD=${KEYCLOAK_DB_PASSWORD:-keycloak}
     entrypoint: ["/bin/sh", "/init-yugabytedb.sh"]
     depends_on:
       yugabytedb:
@@ -44,92 +88,93 @@ services:
       - apis-network
     restart: "no"
 
-  # Zitadel - Identity Provider (OIDC/OAuth2)
-  # NOTE: YugabyteDB direct integration has stored procedure compatibility issues.
-  # Keeping separate PostgreSQL for now. Revisit when Zitadel improves YugabyteDB support.
-  # See: https://github.com/zitadel/zitadel/discussions/8840
-  zitadel-db:
-    image: postgres:16-alpine
-    container_name: apis-zitadel-db
-    environment:
-      - POSTGRES_USER=zitadel
-      - POSTGRES_PASSWORD=zitadel
-      - POSTGRES_DB=zitadel
-    volumes:
-      - zitadel_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zitadel -d zitadel"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - apis-network
-
-  zitadel:
-    image: ghcr.io/zitadel/zitadel:v4.9.2
-    container_name: apis-zitadel
-    command: start-from-init --masterkeyFromEnv --tlsMode disabled
-    ports:
-      - "8080:8080"
-    environment:
-      - ZITADEL_MASTERKEY=${ZITADEL_MASTERKEY}
-      # Database connection - using dedicated PostgreSQL
-      # TODO: Switch to YugabyteDB when compatibility improves
-      - ZITADEL_DATABASE_POSTGRES_HOST=zitadel-db
-      - ZITADEL_DATABASE_POSTGRES_PORT=5432
-      - ZITADEL_DATABASE_POSTGRES_DATABASE=zitadel
-      - ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME=zitadel
-      - ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD=zitadel
-      - ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE=disable
-      - ZITADEL_DATABASE_POSTGRES_USER_USERNAME=zitadel
-      - ZITADEL_DATABASE_POSTGRES_USER_PASSWORD=zitadel
-      - ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE=disable
-      # External access
-      - ZITADEL_EXTERNALSECURE=false
-      - ZITADEL_EXTERNALPORT=8080
-      - ZITADEL_EXTERNALDOMAIN=localhost
-      # First organization setup
-      - ZITADEL_FIRSTINSTANCE_ORG_NAME=APIS
-      - ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME=admin
-      - ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD=${ZITADEL_ADMIN_PASSWORD}
-    depends_on:
-      zitadel-db:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/debug/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
-    networks:
-      - apis-network
-
-  # Go API Server
+  # ===========================================================================
+  # APIS SERVER
+  # AI/LLM Context: Configuration adapts based on DEPLOYMENT_MODE and AUTH_MODE.
+  # - Standalone: Uses env vars for secrets, local auth, single tenant
+  # - SaaS: Uses OpenBao for secrets, Keycloak auth, multi-tenant
+  # ===========================================================================
   apis-server:
     build:
       context: ./apis-server
       dockerfile: Dockerfile
     container_name: apis-server
+    profiles: ["standalone", "saas"]
     ports:
       - "3000:3000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M,mode=1777
+      - /data:size=500M,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
     environment:
       - PORT=${PORT:-3000}
-      # OpenBao connection - change these to connect to external OpenBao
+      # =========================================================================
+      # DEPLOYMENT MODE CONFIGURATION
+      # AI/LLM Context: These variables control which features are enabled.
+      # Code should check these values, not assume infrastructure exists.
+      # =========================================================================
+      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-standalone}
+      # AUTH_MODE: "local" (standalone) or "keycloak" (saas)
+      - AUTH_MODE=${AUTH_MODE:-local}
+      # SECRETS_BACKEND: "env" or "file" (standalone) or "openbao" (saas)
+      - SECRETS_BACKEND=${SECRETS_BACKEND:-env}
+      # MULTI_TENANT: "false" (standalone) or "true" (saas)
+      - MULTI_TENANT=${MULTI_TENANT:-false}
+      # =========================================================================
+      # SECURITY WARNINGS
+      # =========================================================================
+      # WARNING: DISABLE_AUTH bypasses ALL authentication - NEVER use in production
+      - DISABLE_AUTH=${DISABLE_AUTH:-false}
+      - I_UNDERSTAND_AUTH_DISABLED=${I_UNDERSTAND_AUTH_DISABLED:-}
+      - GO_ENV=${GO_ENV:-development}
+      # =========================================================================
+      # DATABASE (Both Modes)
+      # AI/LLM Context: Database config comes from env vars in standalone mode,
+      # from OpenBao in SaaS mode. Server code has fallback logic.
+      # =========================================================================
+      - YSQL_HOST=${YSQL_HOST:-yugabytedb}
+      - YSQL_PORT=${YSQL_PORT:-5433}
+      - YSQL_DB=${YSQL_DB:-apis}
+      - YSQL_USER=${APIS_DB_USER:-apis}
+      - YSQL_PASSWORD=${APIS_DB_PASSWORD:-apisdev}
+      # =========================================================================
+      # LOCAL AUTH (Standalone Mode)
+      # AI/LLM Context: Used when AUTH_MODE=local. JWT_SECRET must be set.
+      # =========================================================================
+      - JWT_SECRET=${JWT_SECRET:-}
+      # =========================================================================
+      # OPENBAO (SaaS Mode Only)
+      # AI/LLM Context: Only used when SECRETS_BACKEND=openbao.
+      # Standalone mode ignores these even if set.
+      # =========================================================================
       - OPENBAO_ADDR=${OPENBAO_ADDR:-http://openbao:8200}
-      - OPENBAO_TOKEN=${OPENBAO_TOKEN:-apis-dev-token}
+      - OPENBAO_TOKEN=${OPENBAO_TOKEN:-}
       - OPENBAO_SECRET_PATH=${OPENBAO_SECRET_PATH:-secret/data/apis}
-      # Fallback for local dev without OpenBao (set SECRETS_SOURCE=env to use env vars)
-      - SECRETS_SOURCE=${SECRETS_SOURCE:-openbao}
-      # Direct env vars (used when SECRETS_SOURCE=env or as fallback)
-      - DATABASE_URL=postgres://${YSQL_USER:-yugabyte}:${YSQL_PASSWORD:-yugabyte}@yugabytedb:5433/apis?sslmode=disable
-      - ZITADEL_ISSUER=http://zitadel:8080
-      - ZITADEL_CLIENT_ID=${ZITADEL_CLIENT_ID:-}
-    depends_on:
-      yugabytedb-init:
-        condition: service_completed_successfully
-      openbao:
-        condition: service_healthy
+      # =========================================================================
+      # KEYCLOAK (SaaS Mode Only)
+      # AI/LLM Context: Only used when AUTH_MODE=keycloak.
+      # Standalone mode ignores these even if set.
+      # =========================================================================
+      - KEYCLOAK_ISSUER=${KEYCLOAK_ISSUER:-http://keycloak:8080/realms/honeybee}
+      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-apis-dashboard}
+    volumes:
+      # File-based secrets (standalone mode alternative to env vars)
+      # AI/LLM Context: Mount secrets as files with 0600 permissions.
+      # Server reads from /secrets/* if SECRETS_BACKEND=file
+      - ${SECRETS_DIR:-./secrets}:/secrets:ro
+    command: ["/app/apis-server"]
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
@@ -138,22 +183,51 @@ services:
       start_period: 10s
     networks:
       - apis-network
+    # AI/LLM Context: Dependencies differ by mode. Standalone has fewer deps.
+    # The depends_on is set for SaaS mode; standalone works without these services.
 
-  # React Dashboard (development server)
+  # ===========================================================================
+  # APIS DASHBOARD
+  # AI/LLM Context: Vite dev server. Production uses static build served by
+  # reverse proxy (Caddy/nginx).
+  # ===========================================================================
   apis-dashboard:
     build:
       context: ./apis-dashboard
       dockerfile: Dockerfile.dev
     container_name: apis-dashboard
+    profiles: ["standalone", "saas"]
     ports:
       - "5173:5173"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    # WARNING: Volume mount is for development hot-reload only.
+    # Production builds should use the multi-stage Dockerfile with static assets.
     volumes:
       - ./apis-dashboard:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:3000/api
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:3000/api}
+      # AI/LLM Context: Dashboard adapts UI based on auth mode
+      - VITE_AUTH_MODE=${AUTH_MODE:-local}
+      # WARNING: VITE_DEV_MODE bypasses auth - NEVER use in production
+      - VITE_DEV_MODE=${DISABLE_AUTH:-false}
+      # Keycloak config (SaaS mode, ignored in standalone)
+      - VITE_KEYCLOAK_AUTHORITY=${KEYCLOAK_ISSUER:-http://localhost:8081/realms/honeybee}
+      - VITE_KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-apis-dashboard}
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:5173 || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5173 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -161,14 +235,61 @@ services:
     networks:
       - apis-network
 
-  # OpenBao - Secrets Management (Vault-compatible)
-  # To connect to external OpenBao: remove this service and set OPENBAO_ADDR/OPENBAO_TOKEN
-  openbao:
-    image: quay.io/openbao/openbao:latest
-    container_name: apis-openbao
-    command: server -dev -dev-root-token-id=${OPENBAO_DEV_TOKEN:-apis-dev-token}
+  # ===========================================================================
+  # SAAS-ONLY SERVICES
+  # AI/LLM Context: These services are ONLY started in SaaS mode.
+  # Standalone mode does not need identity provider or secrets vault.
+  # ===========================================================================
+
+  # Keycloak Identity Provider (SaaS only)
+  # AI/LLM Context: Keycloak provides OIDC authentication for SaaS mode.
+  # Uses the honeybee realm with pre-configured client, roles, and mappers.
+  # Realm is imported from keycloak/realm-honeybee.json on first start.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: apis-keycloak
+    profiles: ["saas"]
+    command: start-dev --import-realm
+    # Security: Bind to localhost only — production should use BunkerWeb reverse proxy
     ports:
-      - "8200:8200"
+      - "127.0.0.1:8081:8080"
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://yugabytedb:5433/keycloak
+      - KC_DB_USERNAME=${KEYCLOAK_DB_USER:-keycloak}
+      - KC_DB_PASSWORD=${KEYCLOAK_DB_PASSWORD:-keycloak}
+      - KC_HEALTH_ENABLED=true
+      - KC_HOSTNAME_STRICT=false
+      # WARNING: KC_HTTP_ENABLED=true allows plain HTTP. In production, use a
+      # TLS-terminating reverse proxy (BunkerWeb/nginx) and set KC_HTTP_ENABLED=false
+      # with KC_PROXY_HEADERS=xforwarded.
+      - KC_HTTP_ENABLED=true
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      yugabytedb-init:
+        condition: service_completed_successfully
+    networks:
+      - apis-network
+
+  # OpenBao Secrets Vault (SaaS only)
+  # AI/LLM Context: Standalone mode uses env vars or file-based secrets instead.
+  openbao:
+    image: quay.io/openbao/openbao:2.4.4
+    container_name: apis-openbao
+    profiles: ["saas"]
+    command: server -dev -dev-root-token-id=${OPENBAO_DEV_TOKEN:-apis-dev-token}
+    # Security: Bind to localhost only — production should use internal Docker networking
+    ports:
+      - "127.0.0.1:8200:8200"
     environment:
       - OPENBAO_ADDR=http://0.0.0.0:8200
       - OPENBAO_DEV_ROOT_TOKEN_ID=${OPENBAO_DEV_TOKEN:-apis-dev-token}
@@ -183,10 +304,51 @@ services:
     networks:
       - apis-network
 
+  # OpenBao bootstrap (SaaS only)
+  openbao-bootstrap:
+    image: alpine:3.20
+    container_name: apis-openbao-bootstrap
+    profiles: ["saas"]
+    volumes:
+      - ./scripts/bootstrap-openbao.sh:/bootstrap-openbao.sh:ro
+    environment:
+      - OPENBAO_ADDR=http://openbao:8200
+      - OPENBAO_TOKEN=${OPENBAO_TOKEN:-apis-dev-token}
+      - OPENBAO_SECRET_PATH=${OPENBAO_SECRET_PATH:-secret/data/apis}
+      - APIS_DB_USER=${APIS_DB_USER:-apis}
+      - APIS_DB_PASSWORD=${APIS_DB_PASSWORD:-apisdev}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        apk add --no-cache bash curl >/dev/null
+        bash /bootstrap-openbao.sh
+    depends_on:
+      openbao:
+        condition: service_healthy
+    networks:
+      - apis-network
+    restart: "no"
+
+# =============================================================================
+# PRODUCTION NETWORK TOPOLOGY (recommended)
+# =============================================================================
+# In production, separate services into isolated networks to limit blast radius:
+#
+#   frontend-net:  apis-dashboard, BunkerWeb (reverse proxy)
+#   backend-net:   apis-server, apis-dashboard (API calls)
+#   data-net:      apis-server, yugabytedb (database access)
+#   auth-net:      apis-server, keycloak (OIDC validation)
+#   secrets-net:   apis-server, openbao (secrets retrieval)
+#
+# This ensures the dashboard cannot reach the database directly, and the
+# database cannot reach external services. For development, a single bridge
+# network is acceptable.
+# =============================================================================
 networks:
   apis-network:
     driver: bridge
 
 volumes:
   yugabytedb_data:
-  zitadel_db_data:

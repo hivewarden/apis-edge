@@ -78,7 +78,7 @@ func ListSites(ctx context.Context, conn *pgxpool.Conn) ([]Site, error) {
 	}
 	defer rows.Close()
 
-	var sites []Site
+	sites := make([]Site, 0)
 	for rows.Next() {
 		var site Site
 		err := rows.Scan(&site.ID, &site.TenantID, &site.Name, &site.Latitude, &site.Longitude,
@@ -120,11 +120,30 @@ func GetSiteByID(ctx context.Context, conn *pgxpool.Conn, id string) (*Site, err
 // UpdateSite updates an existing site with the provided fields.
 // Only non-nil fields in the input are updated.
 // Returns ErrNotFound if the site does not exist or belongs to a different tenant.
+// SECURITY FIX (DL-H04): Uses SELECT ... FOR UPDATE to prevent TOCTOU races.
 func UpdateSite(ctx context.Context, conn *pgxpool.Conn, id string, input *UpdateSiteInput) (*Site, error) {
-	// First, verify the site exists and get current values
-	current, err := GetSiteByID(ctx, conn, id)
+	tx, err := conn.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("storage: failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Lock the row with FOR UPDATE to prevent concurrent modifications
+	var current Site
+	err = tx.QueryRow(ctx,
+		`SELECT id, tenant_id, name, gps_lat, gps_lng, timezone, created_at, updated_at
+		 FROM sites
+		 WHERE id = $1
+		 FOR UPDATE`,
+		id,
+	).Scan(&current.ID, &current.TenantID, &current.Name, &current.Latitude, &current.Longitude,
+		&current.Timezone, &current.CreatedAt, &current.UpdatedAt)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to get site for update: %w", err)
 	}
 
 	// Apply updates (use current values for nil fields)
@@ -149,7 +168,7 @@ func UpdateSite(ctx context.Context, conn *pgxpool.Conn, id string, input *Updat
 	}
 
 	var site Site
-	err = conn.QueryRow(ctx,
+	err = tx.QueryRow(ctx,
 		`UPDATE sites
 		 SET name = $2, gps_lat = $3, gps_lng = $4, timezone = $5
 		 WHERE id = $1
@@ -163,6 +182,10 @@ func UpdateSite(ctx context.Context, conn *pgxpool.Conn, id string, input *Updat
 	}
 	if err != nil {
 		return nil, fmt.Errorf("storage: failed to update site: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("storage: failed to commit site update: %w", err)
 	}
 	return &site, nil
 }

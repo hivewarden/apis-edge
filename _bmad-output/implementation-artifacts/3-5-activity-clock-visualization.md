@@ -242,9 +242,10 @@ None
 
 ### File List
 
-- `apis-dashboard/src/components/ActivityClockCard.tsx` - NEW: Activity clock component
+- `apis-dashboard/src/components/ActivityClockCard.tsx` - MODIFIED: Activity clock component with error handling, responsive heights
 - `apis-dashboard/src/components/index.ts` - MODIFIED: Export ActivityClockCard
 - `apis-dashboard/src/pages/Dashboard.tsx` - MODIFIED: Added ActivityClockCard to grid
+- `apis-dashboard/tests/components/ActivityClockCard.test.tsx` - NEW: 21 comprehensive unit tests
 
 ## Change Log
 
@@ -255,3 +256,10 @@ None
   - M1: Fixed tooltip formatter to use hourIndex instead of parsing string
   - M2: Extracted animation config to static constant (avoid re-creation)
   - M3: Renamed unused hourNum to hourIndex and used it properly
+- 2026-01-25: Remediation: Fixed 6 issues from bulk code review:
+  - I1 (HIGH): Created 21 unit tests in ActivityClockCard.test.tsx
+  - I2 (LOW): Added documentation comment to isCardinalHour function
+  - I3 (LOW): Added documentation comment explaining 'as const' usage (RadarConfig doesn't expose animation type)
+  - I4 (MEDIUM): Changed chart container to responsive height (100%, min 200, max 280)
+  - I5 (MEDIUM): Added error state handling with WarningOutlined icon
+  - I6 (LOW): Added minHeight: 320 to all card states for consistency

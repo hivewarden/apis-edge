@@ -185,14 +185,67 @@ func CreateHiveLoss(ctx context.Context, conn *pgxpool.Conn, tenantID string, in
 	return &loss, nil
 }
 
+// CreateHiveLossWithTransaction creates a hive loss record and marks the hive as lost in a single transaction.
+// This ensures atomicity - either both operations succeed or both fail.
+func CreateHiveLossWithTransaction(ctx context.Context, conn *pgxpool.Conn, tenantID string, hiveID string, lostAt time.Time, input *CreateHiveLossInput) (*HiveLoss, error) {
+	// Parse discovered_at date
+	discoveredAt, err := time.Parse("2006-01-02", input.DiscoveredAt)
+	if err != nil {
+		return nil, fmt.Errorf("storage: invalid discovered_at date format: %w", err)
+	}
+
+	// Start transaction
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) // Rollback if we don't commit
+
+	// Create hive loss record
+	var loss HiveLoss
+	err = tx.QueryRow(ctx,
+		`INSERT INTO hive_losses (tenant_id, hive_id, discovered_at, cause, cause_other, symptoms, symptoms_notes, reflection, data_choice)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 RETURNING id, tenant_id, hive_id, discovered_at, cause, cause_other, symptoms, symptoms_notes, reflection, data_choice, created_at`,
+		tenantID, input.HiveID, discoveredAt, input.Cause, input.CauseOther, input.Symptoms, input.SymptomsNotes, input.Reflection, input.DataChoice,
+	).Scan(&loss.ID, &loss.TenantID, &loss.HiveID, &loss.DiscoveredAt, &loss.Cause, &loss.CauseOther, &loss.Symptoms, &loss.SymptomsNotes, &loss.Reflection, &loss.DataChoice, &loss.CreatedAt)
+
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to create hive loss record: %w", err)
+	}
+
+	// Mark hive as lost
+	result, err := tx.Exec(ctx,
+		`UPDATE hives SET status = 'lost', lost_at = $1 WHERE id = $2 AND status != 'lost'`,
+		lostAt, hiveID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to mark hive as lost: %w", err)
+	}
+
+	// Check if hive was already lost (0 rows affected means it was already lost)
+	if result.RowsAffected() == 0 {
+		// This is acceptable - we still created the loss record
+		// The hive was already marked as lost, which can happen in edge cases
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("storage: failed to commit transaction: %w", err)
+	}
+
+	return &loss, nil
+}
+
 // GetHiveLossByHiveID retrieves the hive loss record for a specific hive.
+// Uses explicit tenant_id filtering in addition to RLS for defense-in-depth security.
 func GetHiveLossByHiveID(ctx context.Context, conn *pgxpool.Conn, hiveID string) (*HiveLoss, error) {
 	var loss HiveLoss
 	err := conn.QueryRow(ctx,
 		`SELECT hl.id, hl.tenant_id, hl.hive_id, hl.discovered_at, hl.cause, hl.cause_other, hl.symptoms, hl.symptoms_notes, hl.reflection, hl.data_choice, hl.created_at, h.name
 		 FROM hive_losses hl
 		 JOIN hives h ON h.id = hl.hive_id
-		 WHERE hl.hive_id = $1`,
+		 WHERE hl.hive_id = $1 AND hl.tenant_id = current_setting('app.tenant_id', true)`,
 		hiveID,
 	).Scan(&loss.ID, &loss.TenantID, &loss.HiveID, &loss.DiscoveredAt, &loss.Cause, &loss.CauseOther, &loss.Symptoms, &loss.SymptomsNotes, &loss.Reflection, &loss.DataChoice, &loss.CreatedAt, &loss.HiveName)
 
@@ -236,6 +289,7 @@ func ListHiveLosses(ctx context.Context, conn *pgxpool.Conn) ([]HiveLoss, error)
 }
 
 // GetHiveLossStats returns aggregated loss statistics for BeeBrain analysis.
+// FIX (DL-L05): Added explicit tenant_id filter as defense-in-depth alongside RLS.
 func GetHiveLossStats(ctx context.Context, conn *pgxpool.Conn) (*HiveLossStats, error) {
 	stats := &HiveLossStats{
 		LossesByCause:  make(map[string]int),
@@ -247,6 +301,7 @@ func GetHiveLossStats(ctx context.Context, conn *pgxpool.Conn) (*HiveLossStats, 
 	rows, err := conn.Query(ctx,
 		`SELECT cause, COUNT(*) as count
 		 FROM hive_losses
+		 WHERE tenant_id = current_setting('app.tenant_id', true)
 		 GROUP BY cause`)
 	if err != nil {
 		return nil, fmt.Errorf("storage: failed to get losses by cause: %w", err)
@@ -270,6 +325,7 @@ func GetHiveLossStats(ctx context.Context, conn *pgxpool.Conn) (*HiveLossStats, 
 	rows, err = conn.Query(ctx,
 		`SELECT EXTRACT(YEAR FROM discovered_at)::int as year, COUNT(*) as count
 		 FROM hive_losses
+		 WHERE tenant_id = current_setting('app.tenant_id', true)
 		 GROUP BY year
 		 ORDER BY year DESC`)
 	if err != nil {
@@ -293,6 +349,7 @@ func GetHiveLossStats(ctx context.Context, conn *pgxpool.Conn) (*HiveLossStats, 
 	rows, err = conn.Query(ctx,
 		`SELECT symptom, COUNT(*) as count
 		 FROM hive_losses, unnest(symptoms) as symptom
+		 WHERE tenant_id = current_setting('app.tenant_id', true)
 		 GROUP BY symptom
 		 ORDER BY count DESC
 		 LIMIT 10`)

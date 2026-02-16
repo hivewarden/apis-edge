@@ -54,10 +54,10 @@ So that I can find and review specific incidents.
   - [x] 5.2 Implement data fetching with apiClient
   - [x] 5.3 Handle pagination and filter state
 
-- [ ] Task 6: Testing (All ACs)
-  - [ ] 6.1 Unit test for ListClips handler
-  - [ ] 6.2 Test filter parameter validation
-  - [ ] 6.3 Test empty state display
+- [x] Task 6: Testing (All ACs)
+  - [x] 6.1 Unit test for ListClips handler
+  - [x] 6.2 Test filter parameter validation
+  - [x] 6.3 Test empty state display
 
 ## Dev Notes
 
@@ -173,6 +173,7 @@ function formatDuration(seconds: number): string {
 ### Dependencies
 
 - Requires Story 4-1 (clip storage) to be complete
+- **Cross-Story Dependency:** Uses `ClipPlayerModal` component from Story 4.3 (Clip Video Playback). The modal is imported into Clips.tsx to enable video playback when clicking on clip cards. If Story 4.2 is deployed before 4.3, the ClipPlayerModal component must exist (even as a stub).
 - Ant Design: Card, Image, DatePicker, Select, Pagination, Row, Col
 - dayjs for date formatting
 
@@ -186,4 +187,26 @@ function formatDuration(seconds: number): string {
 
 ### Completion Notes List
 
+### Change Log
+- [2026-01-25] Remediation: Fixed 8 issues from code review (I1-I8)
+  - Added tests for ListClips handler, ClipCard, useClips, Clips page
+  - Added total_pages to API response
+  - Fixed tenant validation for site_id
+  - Improved date parameter precision
+  - Optimized ClipCard hover states with CSS
+  - Extracted pagination constants
+
 ### File List
+
+**Backend (Go):**
+- `apis-server/internal/handlers/clips.go` - ListClips, GetClipThumbnail handlers added
+- `apis-server/internal/storage/clips.go` - ListClipsWithUnitName function added
+- `apis-server/tests/handlers/clips_test.go` - Added ListClips tests
+
+**Frontend (React/TypeScript):**
+- `apis-dashboard/src/pages/Clips.tsx` - Updated with filtering, pagination, grid view
+- `apis-dashboard/src/components/ClipCard.tsx` - Created clip thumbnail card component
+- `apis-dashboard/src/hooks/useClips.ts` - Created data fetching hook
+- `apis-dashboard/tests/components/ClipCard.test.tsx` - Component tests
+- `apis-dashboard/tests/hooks/useClips.test.ts` - Hook tests
+- `apis-dashboard/tests/pages/Clips.test.tsx` - Page tests

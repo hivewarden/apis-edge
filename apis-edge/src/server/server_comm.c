@@ -5,10 +5,23 @@
  * Uses POSIX sockets for HTTP POST requests.
  */
 
+// Enable strptime and timegm on POSIX systems
+// Note: _GNU_SOURCE enables timegm; _XOPEN_SOURCE enables strptime
+// _DARWIN_C_SOURCE enables timegm on macOS
+#define _GNU_SOURCE
+#define _XOPEN_SOURCE 700
+#define _DEFAULT_SOURCE
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE
+#endif
+
 #include "server_comm.h"
 #include "config_manager.h"
 #include "led_controller.h"
 #include "clip_uploader.h"
+#include "storage_manager.h"
+#include "http_utils.h"
+#include "tls_client.h"
 #include "log.h"
 #include "platform.h"
 
@@ -25,11 +38,10 @@
 #include <fcntl.h>
 
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
-#include <pthread.h>
+/* pthread.h pulled in by platform_mutex.h */
 #else
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/semphr.h"
 #endif
 
 #include "cJSON.h"
@@ -42,6 +54,15 @@
 #define FIRMWARE_VERSION    "1.0.0"
 #define DEFAULT_SERVER_PORT 443
 
+// Security Helpers (COMM-001-4 fix)
+#include "secure_util.h"
+
+// ============================================================================
+// COMM-001-6: Auth Failure Constants
+// ============================================================================
+
+#define MAX_AUTH_FAILURES 3  // Require re-provisioning after this many auth failures
+
 // ============================================================================
 // Global State
 // ============================================================================
@@ -51,18 +72,18 @@ static volatile bool g_running = false;
 static volatile server_status_t g_status = SERVER_STATUS_UNKNOWN;
 static volatile int64_t g_last_success_time = 0;  // Unix timestamp of last success
 static time_t g_start_time = 0;
+static volatile int g_auth_fail_count = 0;  // COMM-001-6: Track consecutive auth failures
 
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 static pthread_t g_heartbeat_thread;
-static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
-#define COMM_LOCK()   pthread_mutex_lock(&g_mutex)
-#define COMM_UNLOCK() pthread_mutex_unlock(&g_mutex)
 #else
-static SemaphoreHandle_t g_comm_mutex = NULL;
 static TaskHandle_t g_heartbeat_task = NULL;
-#define COMM_LOCK()   do { if (g_comm_mutex) xSemaphoreTake(g_comm_mutex, portMAX_DELAY); } while(0)
-#define COMM_UNLOCK() do { if (g_comm_mutex) xSemaphoreGive(g_comm_mutex); } while(0)
 #endif
+
+#include "platform_mutex.h"
+APIS_MUTEX_DECLARE(comm);
+#define COMM_LOCK()   APIS_MUTEX_LOCK(comm)
+#define COMM_UNLOCK() APIS_MUTEX_UNLOCK(comm)
 
 // ============================================================================
 // Utility Functions
@@ -83,59 +104,8 @@ static uint32_t get_uptime_seconds(void) {
     return (uint32_t)(time(NULL) - g_start_time);
 }
 
-// Parse URL into host, port, path
-static int parse_url(const char *url, char *host, size_t host_len,
-                     uint16_t *port, char *path, size_t path_len) {
-    // Default values
-    *port = 80;
-    strncpy(path, "/api/units/heartbeat", path_len - 1);
-    path[path_len - 1] = '\0';
-
-    if (!url || strlen(url) == 0) {
-        return -1;
-    }
-
-    const char *start = url;
-
-    // Skip protocol
-    if (strncmp(url, "https://", 8) == 0) {
-        start = url + 8;
-        *port = 443;
-    } else if (strncmp(url, "http://", 7) == 0) {
-        start = url + 7;
-        *port = 80;
-    }
-
-    // Find end of host (port or path)
-    const char *host_end = start;
-    while (*host_end && *host_end != ':' && *host_end != '/') {
-        host_end++;
-    }
-
-    size_t host_part_len = host_end - start;
-    if (host_part_len >= host_len) {
-        host_part_len = host_len - 1;
-    }
-    memcpy(host, start, host_part_len);
-    host[host_part_len] = '\0';
-
-    // Check for port
-    if (*host_end == ':') {
-        *port = (uint16_t)atoi(host_end + 1);
-        // Skip to path
-        while (*host_end && *host_end != '/') {
-            host_end++;
-        }
-    }
-
-    // Check for path
-    if (*host_end == '/') {
-        strncpy(path, host_end, path_len - 1);
-        path[path_len - 1] = '\0';
-    }
-
-    return 0;
-}
+// Heartbeat always uses /api/units/heartbeat endpoint
+#define HEARTBEAT_PATH "/api/units/heartbeat"
 
 // ============================================================================
 // HTTP Client
@@ -143,20 +113,88 @@ static int parse_url(const char *url, char *host, size_t host_len,
 
 static int http_post(const char *host, uint16_t port, const char *path,
                      const char *api_key, const char *body,
+                     bool use_tls,
                      char *response, size_t response_size, int *http_status) {
     *http_status = 0;
 
-    // Resolve hostname
-    struct hostent *he = gethostbyname(host);
-    if (!he) {
-        LOG_ERROR("Failed to resolve host: %s", host);
+    // TLS path: use tls_client wrapper for encrypted connection
+    if (use_tls) {
+        tls_context_t *tls_ctx = tls_connect(host, port);
+        if (!tls_ctx) {
+            LOG_ERROR("TLS connection to %s:%d failed", host, port);
+            return -1;
+        }
+
+        // Build request
+        char request[HTTP_BUFFER_SIZE];
+        size_t body_len = body ? strlen(body) : 0;
+        int req_len = snprintf(request, sizeof(request),
+            "POST %s HTTP/1.1\r\n"
+            "Host: %s\r\n"
+            "X-API-Key: %s\r\n"
+            "Content-Type: application/json\r\n"
+            "Content-Length: %zu\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "%s",
+            path, host, api_key ? api_key : "", body_len, body ? body : "");
+
+        // Send request over TLS
+        int write_result = tls_write(tls_ctx, request, req_len);
+        // COMM-001-4 fix: Clear API key from request buffer after sending
+        secure_clear(request, sizeof(request));
+
+        if (write_result < 0) {
+            LOG_ERROR("Failed to send request over TLS");
+            tls_close(tls_ctx);
+            return -1;
+        }
+
+        // Receive response over TLS
+        int received = tls_read(tls_ctx, response, response_size - 1);
+        tls_close(tls_ctx);
+
+        if (received <= 0) {
+            if (received < 0) {
+                LOG_ERROR("Failed to receive TLS response");
+            }
+            return -1;
+        }
+
+        response[received] = '\0';
+
+        // Parse HTTP status
+        if (sscanf(response, "HTTP/1.1 %d", http_status) != 1 &&
+            sscanf(response, "HTTP/1.0 %d", http_status) != 1) {
+            LOG_ERROR("Failed to parse HTTP status");
+            return -1;
+        }
+
+        return 0;
+    }
+
+    // Plain HTTP path: use POSIX sockets directly
+
+    // Resolve hostname using thread-safe getaddrinfo (supports IPv4 and IPv6)
+    struct addrinfo hints = {0};
+    struct addrinfo *result = NULL;
+    hints.ai_family = AF_INET;      // IPv4
+    hints.ai_socktype = SOCK_STREAM;
+
+    char port_str[8];
+    snprintf(port_str, sizeof(port_str), "%u", port);
+
+    int gai_err = getaddrinfo(host, port_str, &hints, &result);
+    if (gai_err != 0) {
+        LOG_ERROR("Failed to resolve host: %s (%s)", host, gai_strerror(gai_err));
         return -1;
     }
 
     // Create socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int sock = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
     if (sock < 0) {
         LOG_ERROR("Failed to create socket: %s", strerror(errno));
+        freeaddrinfo(result);
         return -1;
     }
 
@@ -168,18 +206,15 @@ static int http_post(const char *host, uint16_t port, const char *path,
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
-    // Connect
-    struct sockaddr_in addr = {
-        .sin_family = AF_INET,
-        .sin_port = htons(port),
-    };
-    memcpy(&addr.sin_addr, he->h_addr, he->h_length);
-
-    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    // Connect using resolved address
+    if (connect(sock, result->ai_addr, result->ai_addrlen) < 0) {
         LOG_ERROR("Failed to connect to %s:%d: %s", host, port, strerror(errno));
         close(sock);
+        freeaddrinfo(result);
         return -1;
     }
+
+    freeaddrinfo(result);
 
     // Build request
     char request[HTTP_BUFFER_SIZE];
@@ -198,22 +233,45 @@ static int http_post(const char *host, uint16_t port, const char *path,
     // Send request
     if (send(sock, request, req_len, 0) < 0) {
         LOG_ERROR("Failed to send request: %s", strerror(errno));
+        // COMM-001-4 fix: Clear API key from request buffer before returning
+        secure_clear(request, sizeof(request));
         close(sock);
         return -1;
     }
 
-    // Receive response
-    ssize_t received = recv(sock, response, response_size - 1, 0);
+    // COMM-001-4 fix: Clear API key from request buffer after sending
+    // This prevents the API key from remaining in memory
+    secure_clear(request, sizeof(request));
+
+    // S8-H4 fix: Loop on recv() to handle partial HTTP responses.
+    // A single recv() may not return the complete response, especially
+    // on slow networks or when the response is larger than one TCP segment.
+    size_t total_received = 0;
+    while (total_received < response_size - 1) {
+        ssize_t chunk = recv(sock, response + total_received,
+                             response_size - 1 - total_received, 0);
+        if (chunk < 0) {
+            if (errno == EINTR) continue;  // Interrupted, retry
+            if (total_received > 0) break;  // Got some data, use it
+            LOG_ERROR("Failed to receive response: %s", strerror(errno));
+            close(sock);
+            return -1;
+        }
+        if (chunk == 0) break;  // Connection closed by server
+        total_received += (size_t)chunk;
+
+        // Check if we have a complete HTTP response (headers + body based on Connection: close)
+        // For "Connection: close" responses, the server closes the connection when done,
+        // so recv() returning 0 is the signal. We keep looping until that happens.
+    }
     close(sock);
 
-    if (received <= 0) {
-        if (received < 0) {
-            LOG_ERROR("Failed to receive response: %s", strerror(errno));
-        }
+    if (total_received == 0) {
+        LOG_ERROR("Empty response from server");
         return -1;
     }
 
-    response[received] = '\0';
+    response[total_received] = '\0';
 
     // Parse HTTP status
     if (sscanf(response, "HTTP/1.1 %d", http_status) != 1 &&
@@ -230,33 +288,72 @@ static int http_post(const char *host, uint16_t port, const char *path,
 // ============================================================================
 
 static int do_heartbeat(heartbeat_response_t *resp) {
-    const runtime_config_t *config = config_manager_get();
-    if (!config) {
-        LOG_ERROR("No configuration available");
-        return -1;
-    }
+    // S8-C3 fix: Use thread-safe snapshot instead of raw pointer
+    runtime_config_t config_local;
+    config_manager_get_snapshot(&config_local);
+
+    // Copy the api_key to a local buffer and then mask it in the snapshot
+    char api_key_copy[CFG_MAX_API_KEY_LEN];
+    strncpy(api_key_copy, config_local.server.api_key, sizeof(api_key_copy) - 1);
+    api_key_copy[sizeof(api_key_copy) - 1] = '\0';
+
+    // Clear sensitive data from the snapshot for safety
+    memset(config_local.server.api_key, 0, sizeof(config_local.server.api_key));
+    // From here on, use config_local and api_key_copy only
 
     // Check if server is configured
-    if (strlen(config->server.url) == 0) {
+    if (strlen(config_local.server.url) == 0) {
         LOG_DEBUG("No server URL configured, skipping heartbeat");
+        secure_clear(api_key_copy, sizeof(api_key_copy));
         return -1;
     }
 
-    // Parse server URL
+    // Parse server URL (I8 fix: uses shared http_parse_url)
     char host[256];
     uint16_t port;
     char path[256];
-    if (parse_url(config->server.url, host, sizeof(host), &port, path, sizeof(path)) < 0) {
-        LOG_ERROR("Invalid server URL: %s", config->server.url);
+    if (http_parse_url(config_local.server.url, host, sizeof(host), &port, path, sizeof(path),
+                       HEARTBEAT_PATH) < 0) {
+        LOG_ERROR("Invalid server URL: %s", config_local.server.url);
+        secure_clear(api_key_copy, sizeof(api_key_copy));
         return -1;
+    }
+
+    // Determine if HTTPS should be used based on URL scheme
+    bool use_tls = false;
+    if (strncmp(config_local.server.url, "https://", 8) == 0) {
+        if (tls_available()) {
+            use_tls = true;
+            LOG_DEBUG("Using TLS for heartbeat to %s:%u", host, port);
+        } else {
+            // S8-H1 fix: Refuse to silently downgrade from HTTPS to plain HTTP.
+            // Sending API keys over unencrypted connections exposes credentials.
+            LOG_ERROR("Server URL requires HTTPS but TLS is not available on this platform. "
+                      "Refusing to send credentials over plain HTTP. "
+                      "Either use an HTTP URL or enable TLS support.");
+            secure_clear(api_key_copy, sizeof(api_key_copy));
+            return -1;
+        }
     }
 
     // Build request body
     cJSON *req_json = cJSON_CreateObject();
-    cJSON_AddBoolToObject(req_json, "armed", config->armed);
+    cJSON_AddStringToObject(req_json, "unit_id", config_local.device.id);
+    cJSON_AddBoolToObject(req_json, "armed", config_local.armed);
     cJSON_AddStringToObject(req_json, "firmware_version", FIRMWARE_VERSION);
     cJSON_AddNumberToObject(req_json, "uptime_seconds", get_uptime_seconds());
-    cJSON_AddNumberToObject(req_json, "free_storage_mb", 1024);  // TODO: Get from storage_manager
+    // Get actual free storage from storage_manager
+    uint32_t free_storage_mb = 0;
+    if (storage_manager_is_initialized()) {
+        storage_stats_t stats;
+        if (storage_manager_get_stats(&stats) == STORAGE_MANAGER_OK) {
+            // Calculate free storage: max_size - used_size
+            // Use DEFAULT_MAX_STORAGE_MB from storage_manager.h
+            free_storage_mb = (stats.total_size_mb < DEFAULT_MAX_STORAGE_MB)
+                ? (DEFAULT_MAX_STORAGE_MB - stats.total_size_mb) : 0;
+        }
+    }
+    cJSON_AddNumberToObject(req_json, "free_storage_mb", free_storage_mb);
     cJSON_AddNumberToObject(req_json, "pending_clips",
         clip_uploader_is_initialized() ? clip_uploader_pending_count() : 0);
 
@@ -271,9 +368,13 @@ static int do_heartbeat(heartbeat_response_t *resp) {
     // Send request
     char response[HTTP_BUFFER_SIZE];
     int http_status;
-    int result = http_post(host, port, path, config->server.api_key,
-                           body, response, sizeof(response), &http_status);
+    int result = http_post(host, port, path, api_key_copy,
+                           body, use_tls,
+                           response, sizeof(response), &http_status);
     free(body);
+
+    // Clear sensitive api_key copy from stack
+    secure_clear(api_key_copy, sizeof(api_key_copy));
 
     if (result < 0) {
         // Network error
@@ -293,9 +394,38 @@ static int do_heartbeat(heartbeat_response_t *resp) {
     if (http_status == 401 || http_status == 403) {
         COMM_LOCK();
         g_status = SERVER_STATUS_AUTH_FAILED;
+        g_auth_fail_count++;  // COMM-001-6: Track auth failures
+        int fail_count = g_auth_fail_count;
         COMM_UNLOCK();
 
-        LOG_ERROR("Heartbeat failed: authentication error (HTTP %d)", http_status);
+        LOG_ERROR("Heartbeat failed: authentication error (HTTP %d, attempt %d/%d)",
+                  http_status, fail_count, MAX_AUTH_FAILURES);
+
+        // COMM-001-6: Visual alert to user via LED
+        if (led_controller_is_initialized()) {
+            led_controller_set_state(LED_STATE_AUTH_FAILED);
+        }
+
+        // COMM-001-6: After repeated failures, require re-provisioning
+        if (fail_count >= MAX_AUTH_FAILURES) {
+            LOG_ERROR("Multiple auth failures - requiring re-provisioning");
+
+            // Disable sensitive operations - disarm the device
+            config_manager_set_armed(false);
+
+            // Update LED to show disarmed state
+            if (led_controller_is_initialized()) {
+                led_controller_clear_state(LED_STATE_ARMED);
+                led_controller_set_state(LED_STATE_DISARMED);
+            }
+
+            // Clear potentially compromised key
+            config_manager_clear_api_key();
+
+            // Mark device as needing setup
+            config_manager_set_needs_setup(true);
+        }
+
         return -1;
     }
 
@@ -308,13 +438,52 @@ static int do_heartbeat(heartbeat_response_t *resp) {
         return -1;
     }
 
-    // Parse response
+    // Parse response with Content-Length validation
     const char *body_start = strstr(response, "\r\n\r\n");
     if (!body_start) {
         LOG_ERROR("Malformed HTTP response");
         return -1;
     }
-    body_start += 4;
+
+    // Parse Content-Length header for body size validation
+    // Uses strtol() instead of atoi() to detect overflow and negative values
+    const char *cl_header = strstr(response, "Content-Length:");
+    if (!cl_header) {
+        cl_header = strstr(response, "content-length:");
+    }
+    size_t content_length = 0;
+    if (cl_header && cl_header < body_start) {
+        const char *cl_value = cl_header + 15;  // Skip "Content-Length:"
+        // Skip leading whitespace
+        while (*cl_value == ' ' || *cl_value == '\t') cl_value++;
+        errno = 0;
+        char *endptr = NULL;
+        long cl_parsed = strtol(cl_value, &endptr, 10);
+        if (errno == ERANGE || cl_parsed < 0 || endptr == cl_value) {
+            LOG_WARN("Invalid Content-Length header value, ignoring");
+            cl_parsed = 0;
+        }
+        content_length = (size_t)cl_parsed;
+    }
+
+    body_start += 4;  // Skip "\r\n\r\n"
+
+    // Validate body doesn't exceed Content-Length (if provided) or response buffer
+    size_t body_len = strlen(body_start);
+    if (content_length > 0 && body_len > content_length) {
+        // Truncate body to Content-Length for safety
+        body_len = content_length;
+    }
+
+    // Validate body is reasonable size before parsing
+    if (body_len == 0) {
+        LOG_ERROR("Empty response body");
+        return -1;
+    }
+    if (body_len > HTTP_BUFFER_SIZE - 512) {  // Leave room for headers
+        LOG_ERROR("Response body too large: %zu bytes", body_len);
+        return -1;
+    }
 
     cJSON *resp_json = cJSON_Parse(body_start);
     if (!resp_json) {
@@ -331,9 +500,31 @@ static int do_heartbeat(heartbeat_response_t *resp) {
                 sizeof(local_resp.server_time) - 1);
         local_resp.server_time[sizeof(local_resp.server_time) - 1] = '\0';
 
-        // TODO: Parse server time and calculate drift
-        // For now, just log it
-        LOG_DEBUG("Server time: %s", local_resp.server_time);
+        // Parse ISO 8601 server time and calculate drift
+        // Format: "2026-01-26T14:30:00Z" or with timezone offset
+        struct tm server_tm = {0};
+        char *parse_result = strptime(local_resp.server_time, "%Y-%m-%dT%H:%M:%S", &server_tm);
+        if (parse_result != NULL) {
+            // Convert server time to Unix timestamp (assuming UTC)
+            time_t server_epoch = timegm(&server_tm);
+            time_t local_epoch = time(NULL);
+            int64_t drift_seconds = (int64_t)(local_epoch - server_epoch);
+
+            // Store drift in milliseconds
+            local_resp.time_drift_ms = drift_seconds * 1000;
+
+            // Log warning if drift exceeds 5 seconds
+            if (drift_seconds > 5 || drift_seconds < -5) {
+                LOG_WARN("Clock drift detected: %lld seconds (local %s server)",
+                         (long long)drift_seconds,
+                         drift_seconds > 0 ? "ahead of" : "behind");
+            } else {
+                LOG_DEBUG("Server time: %s, drift: %lld seconds",
+                          local_resp.server_time, (long long)drift_seconds);
+            }
+        } else {
+            LOG_DEBUG("Could not parse server time: %s", local_resp.server_time);
+        }
     }
 
     // Check for config updates
@@ -346,7 +537,7 @@ static int do_heartbeat(heartbeat_response_t *resp) {
             local_resp.armed = cJSON_IsTrue(armed);
 
             // Update local armed state if changed
-            if (local_resp.armed != config->armed) {
+            if (local_resp.armed != config_local.armed) {
                 LOG_INFO("Server updated armed state to: %s",
                          local_resp.armed ? "true" : "false");
                 config_manager_set_armed(local_resp.armed);
@@ -367,6 +558,18 @@ static int do_heartbeat(heartbeat_response_t *resp) {
         cJSON *detection = cJSON_GetObjectItem(cfg, "detection_enabled");
         if (detection && cJSON_IsBool(detection)) {
             local_resp.detection_enabled = cJSON_IsTrue(detection);
+
+            // Update local detection enabled state if changed
+            if (local_resp.detection_enabled != config_local.detection.enabled) {
+                LOG_INFO("Server updated detection_enabled to: %s",
+                         local_resp.detection_enabled ? "true" : "false");
+                // Use config_manager_update with JSON to apply change
+                char update_json[64];
+                snprintf(update_json, sizeof(update_json),
+                         "{\"detection\":{\"enabled\":%s}}",
+                         local_resp.detection_enabled ? "true" : "false");
+                config_manager_update(update_json, NULL);
+            }
         }
     }
 
@@ -376,11 +579,13 @@ static int do_heartbeat(heartbeat_response_t *resp) {
     COMM_LOCK();
     g_status = SERVER_STATUS_ONLINE;
     g_last_success_time = time(NULL);
+    g_auth_fail_count = 0;  // COMM-001-6: Reset auth failure counter on success
     COMM_UNLOCK();
 
-    // Clear offline LED state
+    // Clear offline and auth failed LED states
     if (led_controller_is_initialized()) {
         led_controller_clear_state(LED_STATE_OFFLINE);
+        led_controller_clear_state(LED_STATE_AUTH_FAILED);  // COMM-001-6: Clear auth failed indicator
     }
 
     LOG_DEBUG("Heartbeat successful");
@@ -475,16 +680,8 @@ int server_comm_init(void) {
         return 0;
     }
 
-#if !defined(APIS_PLATFORM_PI) && !defined(APIS_PLATFORM_TEST)
-    // ESP32: Create mutex
-    if (g_comm_mutex == NULL) {
-        g_comm_mutex = xSemaphoreCreateMutex();
-        if (g_comm_mutex == NULL) {
-            LOG_ERROR("Failed to create server comm mutex");
-            return -1;
-        }
-    }
-#endif
+    // Initialize mutex (no-op on Pi/Test where statically initialized)
+    APIS_MUTEX_INIT(comm);
 
     g_status = SERVER_STATUS_UNKNOWN;
     g_last_success_time = 0;
@@ -574,12 +771,7 @@ void server_comm_cleanup(void) {
 
     server_comm_stop();
 
-#if !defined(APIS_PLATFORM_PI) && !defined(APIS_PLATFORM_TEST)
-    if (g_comm_mutex != NULL) {
-        vSemaphoreDelete(g_comm_mutex);
-        g_comm_mutex = NULL;
-    }
-#endif
+    /* Mutex cleanup handled by platform_mutex lifecycle */
 
     g_initialized = false;
     LOG_INFO("Server comm cleanup complete");

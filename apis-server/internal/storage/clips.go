@@ -200,18 +200,39 @@ func ListClips(ctx context.Context, conn *pgxpool.Conn, params *ListClipsParams)
 }
 
 // SoftDeleteClip marks a clip as deleted without removing from database.
+// SECURITY FIX (DL-M08): Check RowsAffected to return ErrNotFound when
+// the clip ID does not exist or is already soft-deleted.
 func SoftDeleteClip(ctx context.Context, conn *pgxpool.Conn, clipID string) error {
-	_, err := conn.Exec(ctx,
-		`UPDATE clips SET deleted_at = NOW() WHERE id = $1`,
+	result, err := conn.Exec(ctx,
+		`UPDATE clips SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL`,
 		clipID,
 	)
 	if err != nil {
 		return fmt.Errorf("storage: failed to soft delete clip: %w", err)
 	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
 	return nil
 }
 
+// PurgeOldSoftDeletedClips permanently removes soft-deleted clips older than the specified duration.
+// This is used for system cleanup per AC3 - only soft-deleted clips are permanently removed.
+func PurgeOldSoftDeletedClips(ctx context.Context, conn *pgxpool.Conn, olderThan time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-olderThan)
+	result, err := conn.Exec(ctx,
+		`DELETE FROM clips WHERE deleted_at IS NOT NULL AND deleted_at < $1`,
+		cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("storage: failed to purge old clips: %w", err)
+	}
+	return result.RowsAffected(), nil
+}
+
 // ListClipsWithUnitName returns clips matching the given parameters with unit names.
+// TODO (DL-M09): This function and ListClips have nearly identical WHERE clause
+// construction logic. Extract shared filter-building into a helper to keep in sync.
 func ListClipsWithUnitName(ctx context.Context, conn *pgxpool.Conn, params *ListClipsParams) ([]Clip, int, error) {
 	// Build WHERE clause dynamically
 	whereClause := `WHERE c.tenant_id = $1 AND c.deleted_at IS NULL`

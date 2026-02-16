@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Typography,
@@ -21,36 +21,11 @@ import {
   KeyOutlined,
   VideoCameraOutlined,
 } from '@ant-design/icons';
-import axios from 'axios';
-import { apiClient } from '../providers/apiClient';
 import { APIKeyModal } from '../components/APIKeyModal';
 import { LiveStream } from '../components/LiveStream';
+import { useUnitDetail } from '../hooks';
 
 const { Title, Text } = Typography;
-
-interface Unit {
-  id: string;
-  serial: string;
-  name: string | null;
-  site_id: string | null;
-  site_name: string | null;
-  firmware_version: string | null;
-  status: string;
-  last_seen: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface UnitResponse {
-  data: Unit;
-}
-
-interface RegenerateKeyResponse {
-  data: {
-    api_key: string;
-  };
-  warning: string;
-}
 
 /**
  * Unit Detail Page
@@ -59,40 +34,26 @@ interface RegenerateKeyResponse {
  * Allows editing, deletion, and API key regeneration.
  *
  * Part of Epic 2, Story 2.2: Register APIS Units
+ * Refactored for Layered Hooks Architecture
  */
 export function UnitDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [unit, setUnit] = useState<Unit | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
+
+  // Use hook for unit detail
+  const {
+    unit,
+    loading,
+    deleteUnit,
+    deleting,
+    regenerateKey,
+    regenerating,
+    refetch,
+  } = useUnitDetail(id || '');
+
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [showLiveStream, setShowLiveStream] = useState(false);
-
-  const fetchUnit = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get<UnitResponse>(`/units/${id}`);
-      setUnit(response.data.data);
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        message.error('Unit not found');
-      } else {
-        message.error('Failed to load unit');
-      }
-      navigate('/units');
-    } finally {
-      setLoading(false);
-    }
-  }, [id, navigate]);
-
-  useEffect(() => {
-    if (id) {
-      fetchUnit();
-    }
-  }, [id, fetchUnit]);
 
   const handleDelete = () => {
     Modal.confirm({
@@ -103,14 +64,11 @@ export function UnitDetail() {
       cancelText: 'Cancel',
       onOk: async () => {
         try {
-          setDeleting(true);
-          await apiClient.delete(`/units/${id}`);
+          await deleteUnit();
           message.success('Unit deleted successfully');
           navigate('/units');
         } catch {
           message.error('Failed to delete unit');
-        } finally {
-          setDeleting(false);
         }
       },
     });
@@ -125,15 +83,12 @@ export function UnitDetail() {
       cancelText: 'Cancel',
       onOk: async () => {
         try {
-          setRegenerating(true);
-          const response = await apiClient.post<RegenerateKeyResponse>(`/units/${id}/regenerate-key`);
-          setNewApiKey(response.data.data.api_key);
+          const apiKey = await regenerateKey();
+          setNewApiKey(apiKey);
           setShowKeyModal(true);
           message.success('API key regenerated successfully');
         } catch {
           message.error('Failed to regenerate API key');
-        } finally {
-          setRegenerating(false);
         }
       },
     });
@@ -263,7 +218,7 @@ export function UnitDetail() {
       <div style={{ marginTop: 16 }}>
         <Button
           icon={<ReloadOutlined />}
-          onClick={fetchUnit}
+          onClick={refetch}
           loading={loading}
         >
           Refresh Status

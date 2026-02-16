@@ -15,6 +15,7 @@ func TestInitDB(t *testing.T) {
 	if os.Getenv("DATABASE_URL") == "" {
 		t.Skip("DATABASE_URL not set - skipping integration test")
 	}
+	t.Setenv("SECRETS_SOURCE", "env")
 
 	ctx := context.Background()
 	err := InitDB(ctx)
@@ -34,6 +35,7 @@ func TestRunMigrations(t *testing.T) {
 	if os.Getenv("DATABASE_URL") == "" {
 		t.Skip("DATABASE_URL not set - skipping integration test")
 	}
+	t.Setenv("SECRETS_SOURCE", "env")
 
 	ctx := context.Background()
 	err := InitDB(ctx)

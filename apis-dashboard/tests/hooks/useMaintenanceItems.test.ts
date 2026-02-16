@@ -4,7 +4,17 @@
  * Tests for the maintenance items hook and its interfaces.
  * Part of Epic 8, Story 8.5 (Maintenance Priority View)
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, waitFor, act } from '@testing-library/react';
+import { useMaintenanceItems } from '../../src/hooks/useMaintenanceItems';
+import { apiClient } from '../../src/providers/apiClient';
+
+// Mock the apiClient
+vi.mock('../../src/providers/apiClient', () => ({
+  apiClient: {
+    get: vi.fn(),
+  },
+}));
 
 // Interface definitions for testing
 interface QuickAction {
@@ -38,6 +48,210 @@ interface MaintenanceData {
   total_count: number;
   all_caught_up: boolean;
 }
+
+// Mock response data
+const mockMaintenanceData: MaintenanceData = {
+  items: [
+    {
+      hive_id: 'hive-123',
+      hive_name: 'Test Hive',
+      site_id: 'site-456',
+      site_name: 'Home Apiary',
+      priority: 'Urgent',
+      priority_score: 130,
+      summary: 'Treatment overdue',
+      insights: [{ id: 'ins-1', rule_id: 'treatment_due', severity: 'action-needed' }],
+      quick_actions: [{ label: 'Log Treatment', url: '/hives/hive-123', tab: 'treatments' }],
+    },
+  ],
+  recently_completed: [
+    {
+      hive_id: 'hive-789',
+      hive_name: 'Completed Hive',
+      action: 'Treatment logged',
+      completed_at: '2026-01-24T15:00:00Z',
+    },
+  ],
+  total_count: 1,
+  all_caught_up: false,
+};
+
+const mockEmptyData: MaintenanceData = {
+  items: [],
+  recently_completed: [],
+  total_count: 0,
+  all_caught_up: true,
+};
+
+describe('useMaintenanceItems hook', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  describe('initial state', () => {
+    it('starts with loading=true and data=null', () => {
+      vi.mocked(apiClient.get).mockImplementation(() => new Promise(() => {})); // Never resolves
+
+      const { result } = renderHook(() => useMaintenanceItems(null));
+
+      expect(result.current.loading).toBe(true);
+      expect(result.current.data).toBeNull();
+      expect(result.current.error).toBeNull();
+    });
+  });
+
+  describe('successful data fetch', () => {
+    it('fetches maintenance items without site filter', async () => {
+      vi.mocked(apiClient.get).mockResolvedValue({ data: { data: mockMaintenanceData } });
+
+      const { result } = renderHook(() => useMaintenanceItems(null));
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(apiClient.get).toHaveBeenCalledWith('/beebrain/maintenance');
+      expect(result.current.data).toEqual(mockMaintenanceData);
+      expect(result.current.error).toBeNull();
+    });
+
+    it('fetches maintenance items with site filter', async () => {
+      const validUUID = '12345678-1234-4234-8234-123456789abc';
+      vi.mocked(apiClient.get).mockResolvedValue({ data: { data: mockMaintenanceData } });
+
+      const { result } = renderHook(() => useMaintenanceItems(validUUID));
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(apiClient.get).toHaveBeenCalledWith(`/beebrain/maintenance?site_id=${encodeURIComponent(validUUID)}`);
+      expect(result.current.data).toEqual(mockMaintenanceData);
+    });
+
+    it('returns all_caught_up=true when no items exist', async () => {
+      vi.mocked(apiClient.get).mockResolvedValue({ data: { data: mockEmptyData } });
+
+      const { result } = renderHook(() => useMaintenanceItems(null));
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(result.current.data?.all_caught_up).toBe(true);
+      expect(result.current.data?.items).toHaveLength(0);
+    });
+  });
+
+  describe('error handling', () => {
+    it('sets error state on API failure', async () => {
+      const mockError = new Error('Network error');
+      vi.mocked(apiClient.get).mockRejectedValue(mockError);
+
+      const { result } = renderHook(() => useMaintenanceItems(null));
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(result.current.error).toBe(mockError);
+      expect(result.current.data).toBeNull();
+    });
+
+    it('returns error for invalid UUID format', async () => {
+      const invalidUUID = 'not-a-valid-uuid';
+
+      const { result } = renderHook(() => useMaintenanceItems(invalidUUID));
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(result.current.error).toBeInstanceOf(Error);
+      expect(result.current.error?.message).toBe('Invalid site ID format');
+      expect(apiClient.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('refetch functionality', () => {
+    it('provides a refetch function that reloads data', async () => {
+      vi.mocked(apiClient.get)
+        .mockResolvedValueOnce({ data: { data: mockEmptyData } })
+        .mockResolvedValueOnce({ data: { data: mockMaintenanceData } });
+
+      const { result } = renderHook(() => useMaintenanceItems(null));
+
+      // Wait for initial load
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(result.current.data?.all_caught_up).toBe(true);
+
+      // Trigger refetch
+      await act(async () => {
+        await result.current.refetch();
+      });
+
+      expect(result.current.data?.all_caught_up).toBe(false);
+      expect(apiClient.get).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('site filter changes', () => {
+    it('refetches when siteId changes', async () => {
+      const validUUID1 = '11111111-1111-4111-8111-111111111111';
+      const validUUID2 = '22222222-2222-4222-8222-222222222222';
+
+      vi.mocked(apiClient.get).mockResolvedValue({ data: { data: mockMaintenanceData } });
+
+      const { result, rerender } = renderHook(
+        ({ siteId }) => useMaintenanceItems(siteId),
+        { initialProps: { siteId: validUUID1 } }
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(apiClient.get).toHaveBeenCalledWith(`/beebrain/maintenance?site_id=${encodeURIComponent(validUUID1)}`);
+
+      // Change siteId
+      rerender({ siteId: validUUID2 });
+
+      await waitFor(() => {
+        expect(apiClient.get).toHaveBeenCalledWith(`/beebrain/maintenance?site_id=${encodeURIComponent(validUUID2)}`);
+      });
+
+      expect(apiClient.get).toHaveBeenCalledTimes(2);
+    });
+
+    it('refetches without filter when siteId becomes null', async () => {
+      const validUUID = '12345678-1234-4234-8234-123456789abc';
+      vi.mocked(apiClient.get).mockResolvedValue({ data: { data: mockMaintenanceData } });
+
+      const { result, rerender } = renderHook(
+        ({ siteId }) => useMaintenanceItems(siteId),
+        { initialProps: { siteId: validUUID as string | null } }
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      // Change to null
+      rerender({ siteId: null });
+
+      await waitFor(() => {
+        expect(apiClient.get).toHaveBeenLastCalledWith('/beebrain/maintenance');
+      });
+    });
+  });
+});
 
 describe('MaintenanceItem interface', () => {
   it('has all required fields', () => {

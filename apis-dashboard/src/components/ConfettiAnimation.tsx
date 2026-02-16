@@ -39,9 +39,22 @@ const confettiColors = [
 ];
 
 /**
- * CSS styles injected into the page for confetti animation
+ * CSS keyframes ID for confetti animation (prevents duplicate injection)
  */
-const keyframesStyle = `
+const CONFETTI_STYLE_ID = 'confetti-animation-keyframes';
+
+/**
+ * Injects CSS keyframes into the document head (safe alternative to dangerouslySetInnerHTML)
+ */
+function injectKeyframes(): void {
+  // Check if already injected
+  if (document.getElementById(CONFETTI_STYLE_ID)) {
+    return;
+  }
+
+  const style = document.createElement('style');
+  style.id = CONFETTI_STYLE_ID;
+  style.textContent = `
 @keyframes confetti-fall {
   0% {
     transform: translateY(-20px) rotate(0deg) scale(1);
@@ -71,6 +84,8 @@ const keyframesStyle = `
   }
 }
 `;
+  document.head.appendChild(style);
+}
 
 /**
  * Generates random confetti pieces with varied properties
@@ -128,6 +143,11 @@ export function ConfettiAnimation({
   const [pieces, setPieces] = useState<ConfettiPiece[]>([]);
   const [visible, setVisible] = useState(active);
 
+  // Inject keyframes CSS on mount (safe alternative to dangerouslySetInnerHTML)
+  useEffect(() => {
+    injectKeyframes();
+  }, []);
+
   useEffect(() => {
     if (active) {
       setPieces(generateConfettiPieces(pieceCount));
@@ -149,9 +169,7 @@ export function ConfettiAnimation({
   }
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: keyframesStyle }} />
-      <div
+    <div
         style={{
           position: 'absolute',
           top: 0,
@@ -182,8 +200,7 @@ export function ConfettiAnimation({
             }}
           />
         ))}
-      </div>
-    </>
+    </div>
   );
 }
 

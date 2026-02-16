@@ -10,40 +10,45 @@
  *
  * Part of Epic 8, Story 8.5: Maintenance Priority View
  */
-import { Card, Checkbox, Tag, Typography, Button, Space, Tooltip } from 'antd';
+import { Checkbox, Typography } from 'antd';
 import {
   ExclamationCircleOutlined,
   WarningOutlined,
   InfoCircleOutlined,
-  RightOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { colors } from '../theme/apisTheme';
-import type { MaintenanceItem, QuickAction } from '../hooks/useMaintenanceItems';
+import type { MaintenanceItem } from '../hooks/useMaintenanceItems';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 /**
- * Priority styling configuration.
+ * Priority styling configuration per mockup design.
+ * - Urgent: muted-rose color scheme
+ * - Soon: amber color scheme
+ * - Optional/Routine: soft-sage color scheme
  */
 const priorityStyles = {
   Urgent: {
-    color: colors.error,
-    bgColor: '#ffebee',
-    icon: <ExclamationCircleOutlined />,
-    tagColor: 'red' as const,
+    iconBg: 'rgba(238, 180, 180, 0.2)', // muted-rose/20
+    iconColor: '#c16464',
+    badgeBg: '#eeb4b4', // muted-rose
+    badgeText: '#7a2e2e',
+    icon: <WarningOutlined />,
   },
   Soon: {
-    color: colors.warning,
-    bgColor: '#fff8e1',
-    icon: <WarningOutlined />,
-    tagColor: 'orange' as const,
+    iconBg: '#fef3c7', // amber-100
+    iconColor: '#b45309', // amber-700
+    badgeBg: '#fcd34d', // amber-300
+    badgeText: '#78350f', // amber-900
+    icon: <ExclamationCircleOutlined />,
   },
   Optional: {
-    color: colors.success,
-    bgColor: '#e8f5e9',
+    iconBg: 'rgba(164, 191, 163, 0.2)', // soft-sage/20
+    iconColor: '#5c7a5b',
+    badgeBg: 'rgba(164, 191, 163, 0.5)', // soft-sage/50
+    badgeText: '#3a5239',
     icon: <InfoCircleOutlined />,
-    tagColor: 'green' as const,
   },
 } as const;
 
@@ -58,7 +63,7 @@ export interface MaintenanceItemCardProps {
   /** Callback when selection changes */
   onSelectionChange: (hiveId: string, selected: boolean) => void;
   /** Callback when a quick action is clicked (optional, for analytics) */
-  onQuickAction?: (action: QuickAction) => void;
+  onQuickAction?: (action: { url: string; tab?: string; label: string }) => void;
 }
 
 /**
@@ -83,7 +88,6 @@ export function MaintenanceItemCard({
   item,
   selected,
   onSelectionChange,
-  onQuickAction,
 }: MaintenanceItemCardProps) {
   const navigate = useNavigate();
   const style = priorityStyles[item.priority];
@@ -96,107 +100,112 @@ export function MaintenanceItemCard({
     navigate(`/hives/${item.hive_id}`);
   };
 
-  const handleQuickAction = (action: QuickAction) => {
-    onQuickAction?.(action);
-
-    // Navigate to the URL
-    if (action.tab) {
-      // For actions with tabs, navigate with state
-      navigate(action.url, { state: { activeTab: action.tab } });
-    } else {
-      navigate(action.url);
-    }
-  };
-
   return (
-    <Card
-      size="small"
+    <div
       style={{
-        marginBottom: 12,
-        borderLeft: `4px solid ${style.color}`,
-        backgroundColor: style.bgColor,
+        backgroundColor: '#ffffff',
+        borderRadius: 16,
+        padding: 20,
+        borderLeft: `4px solid ${style.iconColor}`,
+        boxShadow: '0 1px 3px rgba(102, 38, 4, 0.08)',
+        cursor: 'pointer',
+        transition: 'all 0.3s ease',
+        height: '100%',
       }}
-      styles={{ body: { padding: '12px 16px' } }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = '0 4px 16px rgba(247, 162, 43, 0.15)';
+        e.currentTarget.style.transform = 'translateY(-2px)';
+        const iconEl = e.currentTarget.querySelector('[data-icon-container]') as HTMLElement;
+        if (iconEl) {
+          iconEl.style.backgroundColor = style.iconColor;
+          iconEl.style.color = '#ffffff';
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = '0 1px 3px rgba(102, 38, 4, 0.08)';
+        e.currentTarget.style.transform = 'translateY(0)';
+        const iconEl = e.currentTarget.querySelector('[data-icon-container]') as HTMLElement;
+        if (iconEl) {
+          iconEl.style.backgroundColor = style.iconBg;
+          iconEl.style.color = style.iconColor;
+        }
+      }}
+      onClick={handleHiveClick}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        {/* Selection checkbox */}
-        <Checkbox
-          checked={selected}
-          onChange={handleCheckboxChange}
-          style={{ marginTop: 4 }}
-          aria-label={`Select ${item.hive_name}`}
-        />
-
-        {/* Content area */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Header row: Priority badge + Hive name */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Tag
-              color={style.tagColor}
-              icon={style.icon}
-              style={{ margin: 0 }}
-            >
-              {item.priority}
-            </Tag>
-
-            <Tooltip title="View hive details">
-              <Title
-                level={5}
-                onClick={handleHiveClick}
-                style={{
-                  margin: 0,
-                  cursor: 'pointer',
-                  color: colors.brownBramble,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {item.hive_name}
-              </Title>
-            </Tooltip>
-
-            <RightOutlined style={{ color: colors.textMuted, fontSize: 10 }} />
-
-            <Text
-              type="secondary"
-              style={{
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {item.site_name}
-            </Text>
-          </div>
-
-          {/* Summary text */}
-          <Text
+      {/* Top row: Icon + Priority badge + Checkbox */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div
+          data-icon-container
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            backgroundColor: style.iconBg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: style.iconColor,
+            transition: 'all 0.3s ease',
+          }}
+        >
+          <span style={{ fontSize: 20 }}>
+            {style.icon}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span
             style={{
-              display: 'block',
-              marginBottom: 8,
-              color: colors.brownBramble,
+              fontSize: 11,
+              fontWeight: 600,
+              backgroundColor: style.badgeBg,
+              color: style.badgeText,
+              padding: '4px 8px',
+              borderRadius: 9999,
             }}
           >
-            {item.summary}
-          </Text>
-
-          {/* Quick action buttons */}
-          <Space wrap size={8}>
-            {item.quick_actions.map((action, index) => (
-              <Button
-                key={`${action.url}-${index}`}
-                size="small"
-                type={index === 0 ? 'primary' : 'default'}
-                onClick={() => handleQuickAction(action)}
-              >
-                {action.label}
-              </Button>
-            ))}
-          </Space>
+            {item.priority}
+          </span>
+          <Checkbox
+            checked={selected}
+            onChange={handleCheckboxChange}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Select ${item.hive_name}`}
+          />
         </div>
       </div>
-    </Card>
+
+      {/* Hive name */}
+      <Text
+        strong
+        style={{
+          display: 'block',
+          fontSize: 15,
+          color: colors.brownBramble,
+          marginBottom: 4,
+        }}
+      >
+        {item.hive_name}
+      </Text>
+
+      {/* Summary */}
+      <Text
+        style={{
+          display: 'block',
+          fontSize: 13,
+          color: '#8c7e72',
+          lineHeight: 1.5,
+          marginBottom: 8,
+        }}
+        ellipsis={{ tooltip: true }}
+      >
+        {item.summary}
+      </Text>
+
+      {/* Site name */}
+      <Text style={{ fontSize: 12, color: '#a89f95' }}>
+        {item.site_name}
+      </Text>
+    </div>
   );
 }
 

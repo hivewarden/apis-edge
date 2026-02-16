@@ -4,6 +4,13 @@
  * Pure C implementation of background subtraction and connected component
  * analysis. Works on both Pi and ESP32 platforms without external dependencies.
  *
+ * THREAD SAFETY (C7-MED-003):
+ * This module is NOT thread-safe. All functions use static global buffers
+ * (g_background, g_fg_mask, g_gray, g_visited, g_stack) without mutex protection.
+ * By design, motion_detect() is called from a single detection pipeline thread.
+ * Callers MUST NOT invoke motion_detect() concurrently from multiple threads.
+ * If concurrent access is ever needed, add a mutex around motion_detect() calls.
+ *
  * Algorithm:
  * 1. Convert BGR to grayscale
  * 2. Update running average background model
@@ -110,6 +117,15 @@ motion_status_t motion_init(const motion_config_t *config) {
     }
 
     size_t pixels = FRAME_WIDTH * FRAME_HEIGHT;
+
+    // C7-LOW-003: Log total memory requirement upfront so developers can verify
+    // it fits within available RAM (especially on ESP32 without PSRAM).
+    size_t total_needed = pixels * sizeof(float) + pixels * 4 +
+                          (size_t)g_stack_size * 2 * sizeof(int);
+    LOG_INFO("Motion detection buffer allocation: %zu bytes total "
+             "(bg_float=%zu, bg+mask+gray+visited=%zu, stack=%zu)",
+             total_needed, pixels * sizeof(float), pixels * 4,
+             (size_t)g_stack_size * 2 * sizeof(int));
 
     // Allocate buffers
     g_background_float = alloc_buffer(pixels * sizeof(float));
@@ -307,6 +323,9 @@ static int find_connected_components(detection_t *detections, int max_detections
             int min_y = start_y, max_y = start_y;
             int area = 0;
             long sum_x = 0, sum_y = 0;
+            // C7-MED-004: Track whether this component had a stack overflow,
+            // meaning its area/bounds may be incomplete (partial flood fill)
+            bool component_truncated = false;
 
             // Iterative flood fill using stack
             int sp = 0;  // Stack pointer
@@ -356,6 +375,8 @@ static int find_connected_components(detection_t *detections, int max_detections
                                      sp, max_stack_entries);
                             stack_overflow_warned = true;
                         }
+                        // C7-MED-004: Flag component as truncated so we can discard it
+                        component_truncated = true;
                         continue;  // Skip this neighbor rather than overflow
                     }
 
@@ -364,6 +385,14 @@ static int find_connected_components(detection_t *detections, int max_detections
                     g_stack[sp++] = nx;
                     g_stack[sp++] = ny;
                 }
+            }
+
+            // C7-MED-004: Discard components that were truncated by stack overflow.
+            // Their area and bounds are unreliable since the flood fill was incomplete.
+            if (component_truncated) {
+                LOG_DEBUG("Discarding truncated component at (%d,%d) with partial area %d",
+                          start_x, start_y, area);
+                continue;
             }
 
             // Filter by area
@@ -454,9 +483,10 @@ int motion_detect(const uint8_t *frame_data, detection_result_t *result) {
     erode_3x3();
 
     // Find connected components and extract detections
-    result->count = (uint8_t)find_connected_components(
-        result->detections, MAX_DETECTIONS
-    );
+    // C7-LOW-001: Defensive check before uint8_t cast. find_connected_components()
+    // currently only returns >= 0, but guard against future changes returning negative.
+    int raw_count = find_connected_components(result->detections, MAX_DETECTIONS);
+    result->count = (raw_count > 0) ? (uint8_t)raw_count : 0;
 
     return result->count;
 }

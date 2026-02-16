@@ -1,13 +1,17 @@
 /**
  * AuthGuard Component
  *
- * Protects routes by checking authentication status.
+ * Protects routes by checking authentication status using Refine's auth system.
  * Redirects unauthenticated users to the login page.
+ * Works with both local and Keycloak auth modes.
+ *
+ * DEV MODE: When VITE_DEV_MODE=true, authentication is bypassed.
  */
-import { useEffect, useState, type ReactNode } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { type ReactNode } from "react";
+import { useIsAuthenticated } from "@refinedev/core";
+import { Navigate, useLocation } from "react-router-dom";
 import { Spin, Typography } from "antd";
-import { userManager } from "../../providers/authProvider";
+import { DEV_MODE } from "../../config";
 
 const { Paragraph } = Typography;
 
@@ -18,10 +22,14 @@ interface AuthGuardProps {
 /**
  * Wraps protected content and ensures user is authenticated.
  *
+ * Uses Refine's useIsAuthenticated hook which works with any auth provider,
+ * making it compatible with both local and Keycloak authentication modes.
+ *
  * Behavior:
+ * - DEV MODE: Immediately renders children (no auth check)
  * - While checking auth status: Shows loading spinner
  * - If authenticated: Renders children
- * - If not authenticated: Triggers OIDC login with return URL in state
+ * - If not authenticated: Redirects to login with return URL
  *
  * @example
  * <AuthGuard>
@@ -29,32 +37,16 @@ interface AuthGuardProps {
  * </AuthGuard>
  */
 export function AuthGuard({ children }: AuthGuardProps) {
-  const navigate = useNavigate();
   const location = useLocation();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const { data, isLoading } = useIsAuthenticated();
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const user = await userManager.getUser();
-        if (user && !user.expired) {
-          setIsAuthenticated(true);
-        } else {
-          // Redirect to login page with return URL stored for after login
-          const returnTo = location.pathname + location.search;
-          navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
-        }
-      } catch {
-        // Auth check failed - redirect to login
-        navigate("/login", { replace: true });
-      }
-    };
-
-    checkAuth();
-  }, [navigate, location]);
+  // DEV MODE: Skip auth check entirely
+  if (DEV_MODE) {
+    return <>{children}</>;
+  }
 
   // Show loading spinner while checking authentication
-  if (isAuthenticated === null) {
+  if (isLoading) {
     return (
       <div
         style={{
@@ -70,6 +62,12 @@ export function AuthGuard({ children }: AuthGuardProps) {
         <Paragraph type="secondary">Checking authentication...</Paragraph>
       </div>
     );
+  }
+
+  // Redirect to login if not authenticated
+  if (!data?.authenticated) {
+    const returnTo = location.pathname + location.search;
+    return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
   }
 
   // Render protected content if authenticated

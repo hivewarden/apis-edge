@@ -1,12 +1,29 @@
 /**
- * Tests for Login page component
+ * Tests for Login page component (Basic Tests)
+ *
+ * These are basic smoke tests for the Login page.
+ * Comprehensive tests for dual-mode auth are in tests/pages/Login.test.tsx.
+ *
+ * The Login page now supports dual-mode authentication:
+ * - Local mode: Email/password form
+ * - Keycloak mode: SSO button
+ *
+ * Updated for Epic 15, Story 15.6: Login Page & Callback Integration
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { apisTheme } from '../../src/theme/apisTheme';
-import { Login } from '../../src/pages/Login';
+
+// Mock fetchAuthConfig to return Keycloak mode by default
+const mockFetchAuthConfig = vi.fn();
+vi.mock('../../src/config', () => ({
+  DEV_MODE: false,
+  fetchAuthConfig: () => mockFetchAuthConfig(),
+  API_URL: 'http://localhost:3000/api',
+}));
 
 // Mock the loginWithReturnTo function from providers
 const mockLoginWithReturnTo = vi.fn();
@@ -14,96 +31,97 @@ vi.mock('../../src/providers', () => ({
   loginWithReturnTo: (returnTo?: string) => mockLoginWithReturnTo(returnTo),
 }));
 
+// Mock Refine's useLogin hook for local mode tests
+const mockLogin = vi.fn();
+vi.mock('@refinedev/core', () => ({
+  useLogin: () => ({
+    mutate: mockLogin,
+    isLoading: false,
+  }),
+}));
+
+// Import after mocks
+import { Login } from '../../src/pages/Login';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+    mutations: { retry: false },
+  },
+});
+
 const renderWithProviders = (
   ui: React.ReactElement,
   { initialEntries = ['/login'] } = {}
 ) => {
   return render(
-    <MemoryRouter
-      initialEntries={initialEntries}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
-      <ConfigProvider theme={apisTheme}>
-        {ui}
-      </ConfigProvider>
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter
+        initialEntries={initialEntries}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <ConfigProvider theme={apisTheme}>
+          {ui}
+        </ConfigProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 };
 
 describe('Login', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default to Keycloak mode
+    mockFetchAuthConfig.mockResolvedValue({
+      mode: 'keycloak',
+      keycloak_authority: 'https://keycloak.example.com/realms/honeybee',
+      client_id: 'apis-dashboard',
+    });
   });
 
-  it('renders the APIS title', () => {
-    renderWithProviders(<Login />);
+  it('renders the APIS title', async () => {
+    await act(async () => {
+      renderWithProviders(<Login />);
+    });
     expect(screen.getByText('APIS')).toBeInTheDocument();
   });
 
-  it('renders the login button', () => {
-    renderWithProviders(<Login />);
-    expect(screen.getByRole('button', { name: /sign in with zitadel/i })).toBeInTheDocument();
+  it('renders the login button in Keycloak mode', async () => {
+    await act(async () => {
+      renderWithProviders(<Login />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /sign in with sso/i })).toBeInTheDocument();
+    });
   });
 
-  it('renders the subtitle', () => {
-    renderWithProviders(<Login />);
+  it('renders the subtitle', async () => {
+    await act(async () => {
+      renderWithProviders(<Login />);
+    });
     expect(screen.getByText('Anti-Predator Interference System')).toBeInTheDocument();
   });
 
-  it('renders description text', () => {
-    renderWithProviders(<Login />);
+  it('renders description text', async () => {
+    await act(async () => {
+      renderWithProviders(<Login />);
+    });
     expect(screen.getByText(/sign in to monitor your hives/i)).toBeInTheDocument();
   });
 
-  it('renders Zitadel attribution', () => {
-    renderWithProviders(<Login />);
-    expect(screen.getByText(/secure authentication powered by zitadel/i)).toBeInTheDocument();
-  });
+  it('renders local auth attribution in local mode', async () => {
+    mockFetchAuthConfig.mockResolvedValue({
+      mode: 'local',
+      setup_required: false,
+    });
 
-  it('calls loginWithReturnTo when button is clicked', async () => {
-    mockLoginWithReturnTo.mockResolvedValue(undefined);
-    renderWithProviders(<Login />);
+    await act(async () => {
+      renderWithProviders(<Login />);
+    });
 
-    const loginButton = screen.getByRole('button', { name: /sign in with zitadel/i });
-    fireEvent.click(loginButton);
-
-    // Login should be called (without returnTo when not in query params)
-    expect(mockLoginWithReturnTo).toHaveBeenCalledWith(undefined);
-  });
-
-  it('passes returnTo from query params to loginWithReturnTo', async () => {
-    mockLoginWithReturnTo.mockResolvedValue(undefined);
-    renderWithProviders(<Login />, { initialEntries: ['/login?returnTo=%2Fhives'] });
-
-    const loginButton = screen.getByRole('button', { name: /sign in with zitadel/i });
-    fireEvent.click(loginButton);
-
-    // Login should be called with the decoded returnTo
-    expect(mockLoginWithReturnTo).toHaveBeenCalledWith('/hives');
-  });
-
-  it('shows error alert when login fails', async () => {
-    mockLoginWithReturnTo.mockRejectedValue(new Error('Network error'));
-    renderWithProviders(<Login />);
-
-    const loginButton = screen.getByRole('button', { name: /sign in with zitadel/i });
-    fireEvent.click(loginButton);
-
-    // Wait for error to be displayed
-    await screen.findByText('Connection Error');
-    expect(screen.getByText('Network error')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
-  });
-
-  it('shows generic error message for non-Error exceptions', async () => {
-    mockLoginWithReturnTo.mockRejectedValue('Unknown error');
-    renderWithProviders(<Login />);
-
-    const loginButton = screen.getByRole('button', { name: /sign in with zitadel/i });
-    fireEvent.click(loginButton);
-
-    // Wait for error to be displayed
-    await screen.findByText('Connection Error');
-    expect(screen.getByText('Failed to connect to authentication service')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/secure local authentication/i)).toBeInTheDocument();
+    });
   });
 });

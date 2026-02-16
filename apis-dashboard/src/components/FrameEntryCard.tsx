@@ -89,8 +89,9 @@ export function FrameEntryCard({
     if (frame.drawnFrames > frame.totalFrames) {
       return 'Drawn frames cannot exceed total frames';
     }
-    if (frame.broodFrames + frame.honeyFrames > frame.drawnFrames) {
-      return 'Brood + honey frames cannot exceed drawn frames';
+    // Match backend validation: brood + honey + pollen <= drawn
+    if (frame.broodFrames + frame.honeyFrames + frame.pollenFrames > frame.drawnFrames) {
+      return 'Brood + honey + pollen frames cannot exceed drawn frames';
     }
     return null;
   };

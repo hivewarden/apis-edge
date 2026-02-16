@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Weather Dashboard</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a22b",
+                        "primary-dark": "#e08d1f",
+                        "coconut-cream": "#fbf9e7",
+                        "brown-bramble": "#662604",
+                        "salomie": "#fcd483",
+                        "boutique-white": "#ffffff",
+                        "soft-shadow": "rgba(102, 38, 4, 0.08)",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem", 
+                        "lg": "0.5rem", 
+                        "xl": "0.75rem", 
+                        "card": "16px",
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        "soft": "0 10px 30px -5px rgba(102, 38, 4, 0.06), 0 4px 12px -3px rgba(102, 38, 4, 0.03)",
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #e5e5e5;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: #d4d4d4;
+        }.material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream text-brown-bramble h-screen overflow-hidden">
+<div class="flex h-screen w-full overflow-hidden">
+<aside class="w-64 flex-shrink-0 border-r border-[#efeadd] bg-boutique-white flex flex-col justify-between p-4 hidden md:flex z-20 shadow-sm">
+<div class="flex flex-col gap-8">
+<div class="px-2 pt-2">
+<div class="flex items-center gap-2">
+<div class="size-8 rounded bg-brown-bramble flex items-center justify-center text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">hexagon</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-brown-bramble text-lg font-bold leading-none tracking-tight">APIS</h1>
+<p class="text-[#9d7a48] text-xs font-normal leading-normal">Management</p>
+</div>
+</div>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#8c6b52] hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-[#8c6b52] group-hover:text-brown-bramble transition-colors">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#8c6b52] hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-[#8c6b52] group-hover:text-brown-bramble transition-colors">package_2</span>
+<span class="text-sm font-medium">Hives</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-salomie text-brown-bramble transition-colors shadow-sm" href="#">
+<span class="material-symbols-outlined text-brown-bramble" style="font-variation-settings: 'FILL' 1;">cloud_circle</span>
+<span class="text-sm font-bold">Weather</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#8c6b52] hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-[#8c6b52] group-hover:text-brown-bramble transition-colors">description</span>
+<span class="text-sm font-medium">Reports</span>
+</a>
+</nav>
+</div>
+<div class="flex flex-col gap-2 border-t border-[#efeadd] pt-4">
+<button class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#8c6b52] hover:bg-coconut-cream transition-colors w-full text-left">
+<span class="material-symbols-outlined text-[#8c6b52]">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</button>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full overflow-y-auto relative bg-coconut-cream">
+<header class="sticky top-0 z-20 flex items-center justify-between border-b border-[#efeadd] bg-coconut-cream/90 backdrop-blur-md px-6 py-4">
+<div class="flex items-center gap-3">
+<button class="md:hidden p-1 text-brown-bramble">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<div class="flex items-center gap-2 text-brown-bramble">
+<h2 class="text-lg font-bold leading-tight">Weather Monitoring</h2>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative flex items-center justify-center size-10 rounded-full hover:bg-white text-[#8c6b52] transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-coconut-cream"></span>
+</button>
+<div class="size-9 bg-center bg-no-repeat bg-cover rounded-full border border-[#efeadd] shadow-sm" data-alt="User profile avatar showing a smiling person" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDS4bDJn8yVO3MdWSbQUcXIo43YDJSeSIsOUt_J_3hWaYzt1ZsDjqT5-JZy-33ygfVLjWjF9wGaVOl59DzlmXFu6fpGlbqFfs_7wSr6yLBCoF6coZ-zKdhokd-fLI4RCy9DaXo-uLvrrOIYGFiQ1IQU6iHNpUDvW-qN9vaG-0ufqTruvCbx3-nDPEmGBQNqmBsnjz4NvxnzbP-CQ32Cv8xoi5rsFkVmEA8PBmI6zRtb8P4015H2nN0fhbf3-DcedzoXKL0SHm02G5s");'></div>
+</div>
+</header>
+<div class="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full">
+<div class="mb-8">
+<h1 class="text-3xl font-bold text-brown-bramble tracking-tight mb-2">Live Conditions</h1>
+<p class="text-[#8c6b52] max-w-2xl">Real-time weather data from your connected apiaries to help manage hive health and foraging activity.</p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+<div class="lg:col-span-4 md:col-span-6 col-span-12">
+<div class="relative flex flex-col bg-white rounded-card shadow-soft overflow-hidden transition-all hover:shadow-[0_15px_35px_-5px_rgba(102,38,4,0.1)] border border-[#f3efe6]">
+<div class="flex justify-between items-start p-6 pb-2">
+<div class="flex flex-col">
+<span class="text-[#9d7a48] text-xs font-semibold uppercase tracking-wider mb-1">Station 1</span>
+<h3 class="text-[#8c6b52] font-medium text-sm">Valley Apiary</h3>
+</div>
+<div class="p-3 bg-salomie/20 rounded-full">
+<span class="material-symbols-outlined text-brown-bramble text-2xl font-light">sunny</span>
+</div>
+</div>
+<div class="px-6 py-4 flex flex-col gap-2">
+<div class="flex flex-col items-start gap-1">
+<span class="text-[48px] font-bold text-brown-bramble leading-none">22°C</span>
+<span class="text-base text-[#8c6b52] font-medium italic mt-1">Feels like 24°C</span>
+</div>
+<div class="flex items-center gap-3 mt-3 pt-3 border-t border-[#f3efe6] w-full">
+<span class="text-brown-bramble text-sm font-medium">Sunny</span>
+<span class="text-[#d8cdb8]">•</span>
+<span class="text-brown-bramble text-sm font-medium">Humidity 65%</span>
+</div>
+</div>
+<div class="mt-2 px-6 py-4 bg-[#faf8f4] border-t border-[#efeadd] flex items-center justify-between">
+<p class="text-xs text-[#9d7a48] font-medium flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+                                    Updated 10 min ago
+                                </p>
+<div class="flex items-center gap-2">
+<span class="text-xs text-[#9d7a48] font-medium">Active</span>
+<span class="size-2 rounded-full bg-green-500 ring-2 ring-green-100"></span>
+</div>
+</div>
+</div>
+</div>
+<div class="lg:col-span-8 md:col-span-6 col-span-12 flex flex-col gap-6">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+<div class="bg-white p-5 rounded-card shadow-soft border border-[#f3efe6] hover:shadow-[0_8px_20px_-4px_rgba(102,38,4,0.06)] transition-shadow">
+<div class="flex items-center gap-3 mb-3">
+<div class="p-2 rounded-full bg-blue-50 text-blue-800">
+<span class="material-symbols-outlined text-xl">water_drop</span>
+</div>
+<span class="text-sm font-medium text-[#8c6b52]">Precipitation</span>
+</div>
+<p class="text-2xl font-bold text-brown-bramble">0% <span class="text-xs font-normal text-[#9d7a48] ml-1">Chance</span></p>
+</div>
+<div class="bg-white p-5 rounded-card shadow-soft border border-[#f3efe6] hover:shadow-[0_8px_20px_-4px_rgba(102,38,4,0.06)] transition-shadow">
+<div class="flex items-center gap-3 mb-3">
+<div class="p-2 rounded-full bg-purple-50 text-purple-800">
+<span class="material-symbols-outlined text-xl">air</span>
+</div>
+<span class="text-sm font-medium text-[#8c6b52]">Wind Speed</span>
+</div>
+<p class="text-2xl font-bold text-brown-bramble">12 <span class="text-xs font-normal text-[#9d7a48] ml-1">km/h NW</span></p>
+</div>
+<div class="bg-white p-5 rounded-card shadow-soft border border-[#f3efe6] hover:shadow-[0_8px_20px_-4px_rgba(102,38,4,0.06)] transition-shadow">
+<div class="flex items-center gap-3 mb-3">
+<div class="p-2 rounded-full bg-orange-50 text-orange-800">
+<span class="material-symbols-outlined text-xl">wb_twilight</span>
+</div>
+<span class="text-sm font-medium text-[#8c6b52]">UV Index</span>
+</div>
+<p class="text-2xl font-bold text-brown-bramble">Moderate <span class="text-xs font-normal text-[#9d7a48] ml-1">4</span></p>
+</div>
+</div>
+<div class="bg-white rounded-card shadow-soft border border-[#f3efe6] overflow-hidden flex-1 min-h-[300px] flex flex-col">
+<div class="p-4 border-b border-[#efeadd] flex justify-between items-center bg-[#faf8f4]">
+<h3 class="font-semibold text-brown-bramble">Regional Forecast Map</h3>
+<button class="text-xs text-brown-bramble font-medium hover:text-[#4a1c03] underline underline-offset-2">View Full Map</button>
+</div>
+<div class="relative w-full h-full min-h-[250px] bg-[#f0eee6]">
+<div class="absolute inset-0 bg-cover bg-center opacity-70 mix-blend-multiply" data-alt="Map showing geographic location of the apiary with green vegetation areas" data-location="Valley Apiary Map Location" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCSGUGkSoSQm_4bbHnNQvWUIwB1zqWOOzGoAnfH0CEaAXI36cpiMu2a79vHYDZoeviQmdOIYur-IdXo0Y47I9oVogIaj3YablvegVcA_cIBEAJj_robzbs6vp_TDBUBj3okX7YwQEg_2hERplHCuLLP6pneLEJgopWjM5ahbPqiy7Ks9MN3tqiyqBTr-JW8SMVoEKPv4SkwGvQkk7XHsopHKgcLLyO9SSb_MUAtRnDQbDu6YDw-rHAZteoUDxXUFfAXMSKgP1N8ZgE");'></div>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+<div class="bg-white p-2.5 rounded-lg shadow-lg flex items-center gap-2 border border-[#efeadd]">
+<span class="size-3 bg-salomie rounded-full ring-2 ring-white"></span>
+<span class="text-xs font-bold text-brown-bramble">Valley Apiary</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

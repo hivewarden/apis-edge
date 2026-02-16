@@ -19,6 +19,9 @@ jobs:
       INFRA_REPO_CLONE_URL: "https://forgejo.ratetheplate.dev/ssik/infrastructure.git"
       INFRA_VALUES_FILE: "helm/hivewarden-saas/values.yaml"
       OPENBAO_ADDR_DEFAULT: "https://bao.ratetheplate.dev"
+      OPENBAO_ADDR_INTERNAL: "http://ssik-core-openbao.ssik-core.svc.cluster.local:8200"
+      FORGEJO_HTTP_BASE_DEFAULT: "https://forgejo.ratetheplate.dev"
+      FORGEJO_HTTP_BASE_INTERNAL: "http://forgejo.ssik-cicd.svc.cluster.local:3000"
       OPENBAO_CI_SECRET_PATH: "secret/data/apps/hivewarden-saas/ci/forgejo"
     steps:
       - name: Checkout app repo
@@ -36,40 +39,51 @@ jobs:
 
           role_id="${{ secrets.OPENBAO_ROLE_ID }}"
           secret_id="${{ secrets.OPENBAO_SECRET_ID }}"
-          openbao_addr="${{ secrets.OPENBAO_ADDR }}"
+          openbao_addr_override="${{ secrets.OPENBAO_ADDR }}"
           openbao_skip_verify="${{ secrets.OPENBAO_SKIP_VERIFY }}"
+          openbao_addr_selected=""
           source_mode="forgejo-secrets"
 
           if [ -n "${role_id}" ] && [ -n "${secret_id}" ]; then
-            if [ -z "${openbao_addr}" ]; then
-              openbao_addr="${OPENBAO_ADDR_DEFAULT}"
-            fi
-
             curl_flags="-fsS"
             if [ "${openbao_skip_verify}" = "true" ]; then
               curl_flags="-k -fsS"
             fi
 
-            login_payload="$(printf '{"role_id":"%s","secret_id":"%s"}' "${role_id}" "${secret_id}")"
-            login_json="$(curl ${curl_flags} -X POST \
-              -H "Content-Type: application/json" \
-              "${openbao_addr}/v1/auth/approle/login" \
-              -d "${login_payload}")"
+            openbao_candidates="${openbao_addr_override} ${OPENBAO_ADDR_DEFAULT} ${OPENBAO_ADDR_INTERNAL}"
+            for candidate in ${openbao_candidates}; do
+              [ -z "${candidate}" ] && continue
 
-            openbao_token="$(printf '%s' "${login_json}" | jq -r '.auth.client_token // empty')"
-            if [ -z "${openbao_token}" ]; then
-              echo "Failed to authenticate to OpenBao via AppRole" >&2
-              exit 1
+              login_payload="$(printf '{"role_id":"%s","secret_id":"%s"}' "${role_id}" "${secret_id}")"
+              login_json="$(curl ${curl_flags} -X POST \
+                -H "Content-Type: application/json" \
+                "${candidate}/v1/auth/approle/login" \
+                -d "${login_payload}" 2>/dev/null || true)"
+
+              openbao_token="$(printf '%s' "${login_json}" | jq -r '.auth.client_token // empty')"
+              [ -z "${openbao_token}" ] && continue
+
+              secret_json="$(curl ${curl_flags} \
+                -H "X-Vault-Token: ${openbao_token}" \
+                "${candidate}/v1/${OPENBAO_CI_SECRET_PATH}" 2>/dev/null || true)"
+
+              registry_username="$(printf '%s' "${secret_json}" | jq -r '.data.data.REGISTRY_USERNAME // empty')"
+              registry_password="$(printf '%s' "${secret_json}" | jq -r '.data.data.REGISTRY_PASSWORD // empty')"
+              infra_git_token="$(printf '%s' "${secret_json}" | jq -r '.data.data.INFRA_GIT_TOKEN // empty')"
+
+              if [ -n "${registry_username}" ] && [ -n "${registry_password}" ] && [ -n "${infra_git_token}" ]; then
+                openbao_addr_selected="${candidate}"
+                source_mode="openbao"
+                break
+              fi
+            done
+
+            if [ "${source_mode}" != "openbao" ]; then
+              registry_username="${{ secrets.REGISTRY_USERNAME }}"
+              registry_password="${{ secrets.REGISTRY_PASSWORD }}"
+              infra_git_token="${{ secrets.INFRA_GIT_TOKEN }}"
+              source_mode="forgejo-secrets"
             fi
-
-            secret_json="$(curl ${curl_flags} \
-              -H "X-Vault-Token: ${openbao_token}" \
-              "${openbao_addr}/v1/${OPENBAO_CI_SECRET_PATH}")"
-
-            registry_username="$(printf '%s' "${secret_json}" | jq -r '.data.data.REGISTRY_USERNAME // empty')"
-            registry_password="$(printf '%s' "${secret_json}" | jq -r '.data.data.REGISTRY_PASSWORD // empty')"
-            infra_git_token="$(printf '%s' "${secret_json}" | jq -r '.data.data.INFRA_GIT_TOKEN // empty')"
-            source_mode="openbao"
           else
             registry_username="${{ secrets.REGISTRY_USERNAME }}"
             registry_password="${{ secrets.REGISTRY_PASSWORD }}"
@@ -87,6 +101,7 @@ jobs:
             echo "REGISTRY_USERNAME=${registry_username}"
             echo "REGISTRY_PASSWORD=${registry_password}"
             echo "INFRA_GIT_TOKEN=${infra_git_token}"
+            echo "OPENBAO_ADDR_SELECTED=${openbao_addr_selected}"
           } >> "$GITHUB_ENV"
           echo "source_mode=${source_mode}" >> "$GITHUB_OUTPUT"
 
@@ -125,9 +140,36 @@ jobs:
           echo "repo_digest=${repo_digest}" >> "$GITHUB_OUTPUT"
           echo "image_digest=${image_digest}" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve Forgejo endpoint
+        id: forgejo
+        run: |
+          set -eu
+
+          preferred="${{ secrets.FORGEJO_HTTP_BASE }}"
+          candidates="${preferred} ${FORGEJO_HTTP_BASE_DEFAULT} ${FORGEJO_HTTP_BASE_INTERNAL}"
+          selected=""
+
+          for candidate in ${candidates}; do
+            [ -z "${candidate}" ] && continue
+            code="$(curl -sk --max-time 5 -o /tmp/forgejo-version.json -w '%{http_code}' "${candidate}/api/v1/version" || true)"
+            if [ "${code}" != "000" ]; then
+              selected="${candidate}"
+              break
+            fi
+          done
+
+          if [ -z "${selected}" ]; then
+            selected="${FORGEJO_HTTP_BASE_DEFAULT}"
+          fi
+
+          echo "FORGEJO_HTTP_BASE=${selected}" >> "$GITHUB_ENV"
+          echo "forgejo_http_base=${selected}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout SSIK infrastructure repo
         run: |
-          git clone "https://oauth2:${INFRA_GIT_TOKEN}@forgejo.ratetheplate.dev/ssik/infrastructure.git" infra
+          forgejo_base="${FORGEJO_HTTP_BASE%/}"
+          clone_url="${forgejo_base/\/\//\/\/oauth2:${INFRA_GIT_TOKEN}@}/ssik/infrastructure.git"
+          git clone "${clone_url}" infra
 
       - name: Update image tag and digest in infra values
         env:
@@ -233,7 +275,7 @@ jobs:
           pr_response="$(curl -sS -X POST \
             -H "Authorization: token ${INFRA_GIT_TOKEN}" \
             -H "Content-Type: application/json" \
-            "https://forgejo.ratetheplate.dev/api/v1/repos/ssik/infrastructure/pulls" \
+            "${FORGEJO_HTTP_BASE%/}/api/v1/repos/ssik/infrastructure/pulls" \
             -d "${pr_payload}")"
 
           pr_url="$(printf '%s' "${pr_response}" | sed -n 's/.*"html_url":"\([^"]*\)".*/\1/p')"
@@ -251,6 +293,7 @@ jobs:
             echo "## Hivewarden-SAAS release"
             echo ""
             echo "- Credentials source: \`${{ steps.creds.outputs.source_mode }}\`"
+            echo "- Forgejo endpoint: \`${FORGEJO_HTTP_BASE}\`"
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo "- Image: \`${{ steps.digest.outputs.repo_digest }}\`"
             if [ -n "${{ steps.pr.outputs.pr_url }}" ]; then

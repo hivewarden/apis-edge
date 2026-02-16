@@ -17,6 +17,7 @@ func TestEnsureUserProvisioned(t *testing.T) {
 	if os.Getenv("DATABASE_URL") == "" {
 		t.Skip("DATABASE_URL not set - skipping integration test")
 	}
+	t.Setenv("SECRETS_SOURCE", "env")
 
 	ctx := context.Background()
 	err := storage.InitDB(ctx)
@@ -37,7 +38,7 @@ func TestEnsureUserProvisioned(t *testing.T) {
 		cleanupConn, _ := storage.DB.Acquire(ctx)
 		defer cleanupConn.Release()
 		// Delete test users and tenants (cascade will handle users)
-		cleanupConn.Exec(ctx, `DELETE FROM users WHERE zitadel_user_id LIKE 'test-%'`)
+		cleanupConn.Exec(ctx, `DELETE FROM users WHERE external_user_id LIKE 'test-%'`)
 		cleanupConn.Exec(ctx, `DELETE FROM tenants WHERE id LIKE 'test-%'`)
 	})
 
@@ -57,7 +58,7 @@ func TestEnsureUserProvisioned(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, user.ID)
 		assert.Equal(t, claims.OrgID, user.TenantID)
-		assert.Equal(t, claims.UserID, user.ZitadelUserID)
+		assert.Equal(t, claims.UserID, user.ExternalUserID)
 		assert.Equal(t, claims.Email, user.Email)
 		assert.Equal(t, claims.Name, user.Name)
 	})
@@ -133,6 +134,7 @@ func TestRLSIsolation(t *testing.T) {
 	if os.Getenv("DATABASE_URL") == "" {
 		t.Skip("DATABASE_URL not set - skipping integration test")
 	}
+	t.Setenv("SECRETS_SOURCE", "env")
 
 	ctx := context.Background()
 	err := storage.InitDB(ctx)
@@ -147,7 +149,7 @@ func TestRLSIsolation(t *testing.T) {
 	t.Cleanup(func() {
 		cleanupConn, _ := storage.DB.Acquire(ctx)
 		defer cleanupConn.Release()
-		cleanupConn.Exec(ctx, `DELETE FROM users WHERE zitadel_user_id LIKE '%rls-test'`)
+		cleanupConn.Exec(ctx, `DELETE FROM users WHERE external_user_id LIKE '%rls-test'`)
 		cleanupConn.Exec(ctx, `DELETE FROM tenants WHERE id LIKE '%rls-test'`)
 	})
 

@@ -76,5 +76,6 @@ That's it! The Go server will now read secrets from your external OpenBao.
 |------|------------|---------|
 | `secrets.template.yaml` | Yes | Template showing secret structure |
 | `secrets.enc.yaml` | Yes | SOPS-encrypted secrets (safe to commit) |
+| `ssik-ci-secrets.sops.yaml` | Yes | SOPS-encrypted SSIK CI bridge values (`OPENBAO_ADDR`, AppRole IDs) |
 | `secrets.dec.yaml` | **NO** | Decrypted secrets (add to .gitignore) |
 | `README.md` | Yes | This file |

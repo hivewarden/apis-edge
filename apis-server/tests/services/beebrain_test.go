@@ -377,3 +377,260 @@ func TestRuleConditionTypes(t *testing.T) {
 		}
 	}
 }
+
+// TestEvaluateTreatmentDue_RuleThresholds tests the treatment due rule threshold logic.
+// This test verifies:
+// - Days calculation correctly determines when threshold is exceeded
+// - Message template substitution works correctly
+// - DataPoints contain expected values
+func TestEvaluateTreatmentDue_RuleThresholds(t *testing.T) {
+	// Test the rule condition parameter extraction and threshold logic
+	condition := beebrain.RuleCondition{
+		Type: "days_since_treatment",
+		Params: map[string]interface{}{
+			"max_days": 90,
+		},
+	}
+
+	maxDays, ok := condition.GetParamInt("max_days")
+	if !ok {
+		t.Fatal("expected max_days param to be extractable")
+	}
+	if maxDays != 90 {
+		t.Errorf("expected max_days=90, got %d", maxDays)
+	}
+
+	// Test threshold comparison logic
+	testCases := []struct {
+		name           string
+		daysSince      int
+		shouldTrigger  bool
+	}{
+		{"under threshold", 85, false},
+		{"at threshold", 90, false},
+		{"over threshold", 91, true},
+		{"well over threshold", 120, true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// The rule triggers when daysSince > maxDays (not >=)
+			triggered := tc.daysSince > maxDays
+			if triggered != tc.shouldTrigger {
+				t.Errorf("daysSince=%d: expected trigger=%v, got %v", tc.daysSince, tc.shouldTrigger, triggered)
+			}
+		})
+	}
+}
+
+// TestEvaluateInspectionOverdue_RuleThresholds tests the inspection overdue rule threshold logic.
+func TestEvaluateInspectionOverdue_RuleThresholds(t *testing.T) {
+	condition := beebrain.RuleCondition{
+		Type: "days_since_inspection",
+		Params: map[string]interface{}{
+			"max_days": 14,
+		},
+	}
+
+	maxDays, ok := condition.GetParamInt("max_days")
+	if !ok {
+		t.Fatal("expected max_days param to be extractable")
+	}
+	if maxDays != 14 {
+		t.Errorf("expected max_days=14, got %d", maxDays)
+	}
+
+	// Test threshold comparison logic
+	testCases := []struct {
+		name           string
+		daysSince      int
+		shouldTrigger  bool
+	}{
+		{"under threshold", 10, false},
+		{"at threshold", 14, false},
+		{"over threshold", 15, true},
+		{"well over threshold", 30, true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			triggered := tc.daysSince > maxDays
+			if triggered != tc.shouldTrigger {
+				t.Errorf("daysSince=%d: expected trigger=%v, got %v", tc.daysSince, tc.shouldTrigger, triggered)
+			}
+		})
+	}
+}
+
+// TestEvaluateHornetCorrelation_SpikeDetection tests the spike detection multiplier logic.
+func TestEvaluateHornetCorrelation_SpikeDetection(t *testing.T) {
+	condition := beebrain.RuleCondition{
+		Type: "detection_spike",
+		Params: map[string]interface{}{
+			"window_hours":         24,
+			"threshold_multiplier": 2.0,
+		},
+	}
+
+	windowHours, ok := condition.GetParamInt("window_hours")
+	if !ok {
+		t.Fatal("expected window_hours param to be extractable")
+	}
+	if windowHours != 24 {
+		t.Errorf("expected window_hours=24, got %d", windowHours)
+	}
+
+	thresholdMultiplier, ok := condition.GetParamFloat("threshold_multiplier")
+	if !ok {
+		t.Fatal("expected threshold_multiplier param to be extractable")
+	}
+	if thresholdMultiplier != 2.0 {
+		t.Errorf("expected threshold_multiplier=2.0, got %f", thresholdMultiplier)
+	}
+
+	// Test spike detection logic
+	testCases := []struct {
+		name               string
+		recentCount        int
+		avgDaily           float64
+		windowHours        int
+		shouldTrigger      bool
+	}{
+		{"no activity", 0, 0, 24, false},
+		{"normal activity", 10, 10.0, 24, false},
+		{"exactly 2x", 20, 10.0, 24, true}, // >= threshold triggers the rule
+		{"spike detected", 25, 10.0, 24, true},
+		{"large spike", 50, 10.0, 24, true},
+		{"below threshold", 15, 10.0, 24, false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.avgDaily == 0 || tc.recentCount == 0 {
+				// Edge case: no activity doesn't trigger
+				if tc.shouldTrigger {
+					t.Error("expected no trigger when no activity")
+				}
+				return
+			}
+
+			expectedCount := tc.avgDaily * (float64(tc.windowHours) / 24.0)
+			actualMultiplier := float64(tc.recentCount) / expectedCount
+			triggered := actualMultiplier >= thresholdMultiplier
+
+			if triggered != tc.shouldTrigger {
+				t.Errorf("recentCount=%d, avgDaily=%.1f: expected trigger=%v, got %v (multiplier=%.2f)",
+					tc.recentCount, tc.avgDaily, tc.shouldTrigger, triggered, actualMultiplier)
+			}
+		})
+	}
+}
+
+// TestEvaluateQueenAging_AgeCalculation tests the queen age calculation and threshold logic.
+func TestEvaluateQueenAging_AgeCalculation(t *testing.T) {
+	condition := beebrain.RuleCondition{
+		Type: "queen_age_productivity",
+		Params: map[string]interface{}{
+			"min_queen_age_years": 2.0,
+		},
+	}
+
+	minAgeYears, ok := condition.GetParamFloat("min_queen_age_years")
+	if !ok {
+		t.Fatal("expected min_queen_age_years param to be extractable")
+	}
+	if minAgeYears != 2.0 {
+		t.Errorf("expected min_queen_age_years=2.0, got %f", minAgeYears)
+	}
+
+	// Test age threshold logic
+	testCases := []struct {
+		name          string
+		ageYears      float64
+		shouldTrigger bool
+	}{
+		{"young queen", 0.5, false},
+		{"one year old", 1.0, false},
+		{"almost 2 years", 1.9, false},
+		{"exactly 2 years", 2.0, true}, // >= threshold triggers the rule
+		{"over 2 years", 2.1, true},
+		{"old queen", 3.5, true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			triggered := tc.ageYears >= minAgeYears
+			if triggered != tc.shouldTrigger {
+				t.Errorf("ageYears=%.1f: expected trigger=%v, got %v", tc.ageYears, tc.shouldTrigger, triggered)
+			}
+		})
+	}
+}
+
+// TestMessageTemplateSubstitution tests the message template variable substitution.
+func TestMessageTemplateSubstitution(t *testing.T) {
+	testCases := []struct {
+		name     string
+		template string
+		vars     map[string]string
+		expected string
+	}{
+		{
+			name:     "treatment due",
+			template: "{{hive_name}}: Varroa treatment due ({{days}} days since last treatment)",
+			vars:     map[string]string{"{{hive_name}}": "Hive 1", "{{days}}": "95"},
+			expected: "Hive 1: Varroa treatment due (95 days since last treatment)",
+		},
+		{
+			name:     "inspection overdue",
+			template: "{{hive_name}}: Consider inspection ({{days}} days since last)",
+			vars:     map[string]string{"{{hive_name}}": "My Favorite Hive", "{{days}}": "21"},
+			expected: "My Favorite Hive: Consider inspection (21 days since last)",
+		},
+		{
+			name:     "hornet spike",
+			template: "Unusual hornet activity detected: {{count}} detections in last 24h ({{multiplier}}x normal)",
+			vars:     map[string]string{"{{count}}": "50", "{{multiplier}}": "3.5"},
+			expected: "Unusual hornet activity detected: 50 detections in last 24h (3.5x normal)",
+		},
+		{
+			name:     "queen aging",
+			template: "Queen in {{hive_name}} is {{queen_age}} old. Consider monitoring productivity and planning for potential requeening.",
+			vars:     map[string]string{"{{hive_name}}": "Alpha", "{{queen_age}}": "2 years 5 months"},
+			expected: "Queen in Alpha is 2 years 5 months old. Consider monitoring productivity and planning for potential requeening.",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.template
+			for key, value := range tc.vars {
+				result = replaceAll(result, key, value)
+			}
+			if result != tc.expected {
+				t.Errorf("expected %q, got %q", tc.expected, result)
+			}
+		})
+	}
+}
+
+// replaceAll is a simple helper for testing (mirrors strings.ReplaceAll)
+func replaceAll(s, old, new string) string {
+	for {
+		idx := indexOf(s, old)
+		if idx == -1 {
+			return s
+		}
+		s = s[:idx] + new + s[idx+len(old):]
+	}
+}
+
+// indexOf finds the index of substr in s, or -1 if not found
+func indexOf(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}

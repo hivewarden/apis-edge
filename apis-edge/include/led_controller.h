@@ -27,8 +27,9 @@ typedef enum {
     LED_STATE_DISARMED,       // Priority 2 - Solid yellow
     LED_STATE_ARMED,          // Priority 3 - Solid green
     LED_STATE_OFFLINE,        // Priority 4 - Orange blink overlay
-    LED_STATE_DETECTION,      // Priority 5 - Flash white/blue
-    LED_STATE_ERROR,          // Priority 6 - Blinking red (highest)
+    LED_STATE_AUTH_FAILED,    // Priority 5 - Fast red/orange blink (COMM-001-6)
+    LED_STATE_DETECTION,      // Priority 6 - Flash white/blue
+    LED_STATE_ERROR,          // Priority 7 - Blinking red (highest)
     LED_STATE_COUNT           // Number of states
 } led_state_t;
 
@@ -41,7 +42,9 @@ typedef struct {
     uint8_t blue;
 } led_color_t;
 
-// Predefined colors
+// Predefined colors (require C99 compound literals)
+// Note: These macros use C99 compound literal syntax. If your compiler
+// doesn't support C99, convert these to static const variables.
 #define LED_COLOR_OFF       ((led_color_t){0, 0, 0})
 #define LED_COLOR_RED       ((led_color_t){255, 0, 0})
 #define LED_COLOR_GREEN     ((led_color_t){0, 255, 0})

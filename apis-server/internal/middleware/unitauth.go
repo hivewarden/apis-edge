@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,13 +15,18 @@ type unitContextKey struct{}
 // UnitAuth returns middleware that validates X-API-Key header for unit authentication.
 // On success, the unit information is added to the request context.
 // On failure, responds with 401 Unauthorized.
+//
+// Connection lifecycle: The middleware acquires a pooled connection and guarantees
+// its release after the handler completes, even if a panic occurs. This is achieved
+// by deferring conn.Release() before calling next.ServeHTTP(), which ensures the
+// defer runs during panic unwinding.
 func UnitAuth(pool *pgxpool.Pool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.Header.Get("X-API-Key")
 			if apiKey == "" {
 				log.Debug().Msg("unit auth: missing X-API-Key header")
-				respondUnitAuthError(w, "API key required", http.StatusUnauthorized)
+				respondErrorJSON(w, "API key required", http.StatusUnauthorized)
 				return
 			}
 
@@ -30,26 +34,29 @@ func UnitAuth(pool *pgxpool.Pool) func(http.Handler) http.Handler {
 			conn, err := pool.Acquire(r.Context())
 			if err != nil {
 				log.Error().Err(err).Msg("unit auth: failed to acquire connection")
-				respondUnitAuthError(w, "Authentication failed", http.StatusUnauthorized)
+				respondErrorJSON(w, "Authentication failed", http.StatusUnauthorized)
 				return
 			}
+
+			// Defer conn.Release() to guarantee connection release even if the handler panics.
+			// Go's defer mechanism ensures this runs during panic unwinding.
 			defer conn.Release()
 
 			// Look up the unit by API key (using pooled connection)
 			unit, err := storage.GetUnitByAPIKey(r.Context(), conn, apiKey)
 			if err != nil {
 				log.Debug().Err(err).Msg("unit auth: invalid API key")
-				respondUnitAuthError(w, "Invalid API key", http.StatusUnauthorized)
+				respondErrorJSON(w, "Invalid API key", http.StatusUnauthorized)
 				return
 			}
 
 			// Set tenant context in database session for RLS
-			// Using SET LOCAL so it only applies to this connection's session.
+			// Using set_config with true for local scope (transaction-only).
 			// The tenant_id comes from the validated unit, so it's trusted.
-			_, err = conn.Exec(r.Context(), "SET LOCAL app.tenant_id = $1", unit.TenantID)
+			_, err = conn.Exec(r.Context(), "SELECT set_config('app.tenant_id', $1, true)", unit.TenantID)
 			if err != nil {
 				log.Error().Err(err).Str("tenant_id", unit.TenantID).Msg("unit auth: failed to set tenant context")
-				respondUnitAuthError(w, "Authentication failed", http.StatusInternalServerError)
+				respondErrorJSON(w, "Authentication failed", http.StatusInternalServerError)
 				return
 			}
 
@@ -88,12 +95,3 @@ func RequireUnit(ctx context.Context) *storage.Unit {
 	return unit
 }
 
-// respondUnitAuthError sends a JSON error response for unit auth errors.
-func respondUnitAuthError(w http.ResponseWriter, message string, code int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]any{
-		"error": message,
-		"code":  code,
-	})
-}

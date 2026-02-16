@@ -6,7 +6,6 @@
  *
  * Part of Epic 9, Story 9.4: Season Recap Summary
  */
-import React from 'react';
 import { Card, Row, Col, Typography, Progress, Empty } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, MinusOutlined } from '@ant-design/icons';
 import { colors } from '../theme/apisTheme';
@@ -26,7 +25,6 @@ export interface YearComparisonChartProps {
  */
 function ChangeIndicator({ change, inverse = false }: { change: number; inverse?: boolean }) {
   const isPositive = change >= 0;
-  const displayChange = Math.abs(change);
 
   // For hornets, an increase is bad (inverse=true)
   // For harvest, an increase is good

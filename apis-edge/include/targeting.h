@@ -110,17 +110,39 @@ typedef struct {
 // ============================================================================
 
 /**
+ * IMPORTANT: Thread Safety for Callbacks
+ *
+ * All callbacks are invoked with the targeting mutex UNLOCKED to prevent
+ * deadlocks. This means:
+ *
+ * 1. Callbacks MUST NOT call targeting functions (targeting_process_detections,
+ *    targeting_update, targeting_cancel, etc.) as this could cause race conditions.
+ *
+ * 2. Keep callbacks short and fast - they are called from the targeting context.
+ *
+ * 3. If you need to call targeting functions in response to a callback, queue
+ *    the operation for later execution in a separate thread/task.
+ *
+ * 4. The target_info_t pointer in acquired_callback is only valid during the
+ *    callback - copy any needed data before returning.
+ */
+
+/**
  * Callback when target state changes.
+ * WARNING: Do not call targeting functions from this callback.
  */
 typedef void (*target_state_callback_t)(target_state_t new_state, void *user_data);
 
 /**
  * Callback when target acquired.
+ * WARNING: Do not call targeting functions from this callback.
+ * The target pointer is only valid during the callback.
  */
 typedef void (*target_acquired_callback_t)(const target_info_t *target, void *user_data);
 
 /**
  * Callback when target lost.
+ * WARNING: Do not call targeting functions from this callback.
  */
 typedef void (*target_lost_callback_t)(uint32_t track_duration_ms, void *user_data);
 
@@ -269,5 +291,28 @@ const char *target_status_name(target_status_t status);
  * Cleanup targeting system.
  */
 void targeting_cleanup(void);
+
+// ============================================================================
+// Test Support Functions (only available in APIS_PLATFORM_TEST builds)
+// ============================================================================
+
+#ifdef APIS_PLATFORM_TEST
+/**
+ * Set mock time for testing (avoids real-time sleeps).
+ * @param time_ms Absolute time in milliseconds
+ */
+void targeting_test_set_mock_time(uint64_t time_ms);
+
+/**
+ * Advance mock time by delta (avoids real-time sleeps).
+ * @param delta_ms Time to add in milliseconds
+ */
+void targeting_test_advance_time(uint64_t delta_ms);
+
+/**
+ * Reset mock time and return to using real time.
+ */
+void targeting_test_reset_mock_time(void);
+#endif
 
 #endif // APIS_TARGETING_H

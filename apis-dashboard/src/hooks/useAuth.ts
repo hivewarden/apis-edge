@@ -1,22 +1,16 @@
 /**
  * useAuth Hook
  *
- * Custom hook for accessing authentication state and actions.
+ * Mode-aware authentication hook that works with both local and Keycloak auth modes.
+ * Uses Refine's auth provider abstraction for mode-agnostic operations.
  * Provides a simple interface for components to interact with auth.
  */
-import { useState, useEffect, useCallback } from "react";
-import type { User } from "oidc-client-ts";
-import { zitadelAuth, userManager } from "../providers/authProvider";
-
-/**
- * User identity information extracted from JWT claims.
- */
-export interface UserIdentity {
-  id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-}
+import { useCallback } from "react";
+import { useIsAuthenticated, useGetIdentity, useLogout, useLogin } from "@refinedev/core";
+import { getAuthConfigSync } from "../config";
+import { userManager } from "../providers/keycloakAuthProvider";
+import type { UserIdentity } from "../types/auth";
+import { sanitizeError } from "../utils/sanitizeError";
 
 /**
  * Authentication state and actions.
@@ -28,18 +22,22 @@ export interface AuthState {
   isLoading: boolean;
   /** Current user information (null if not authenticated) */
   user: UserIdentity | null;
-  /** Trigger OIDC login flow */
+  /** Trigger login flow (mode-aware) */
   login: () => Promise<void>;
   /** Logout and clear session */
   logout: () => Promise<void>;
-  /** Get the current access token (for API calls) */
+  /** Get the current access token (for API calls) - only available in Keycloak mode */
   getAccessToken: () => Promise<string | null>;
 }
 
 /**
- * Hook for authentication state and actions.
+ * Mode-aware hook for authentication state and actions.
+ *
+ * Works with both local (email/password) and Keycloak (OIDC) authentication modes.
+ * Uses Refine's auth hooks internally for mode-agnostic operations.
  *
  * @example
+ * ```typescript
  * function MyComponent() {
  *   const { isAuthenticated, user, login, logout } = useAuth();
  *
@@ -54,104 +52,72 @@ export interface AuthState {
  *     </div>
  *   );
  * }
+ * ```
  */
 export function useAuth(): AuthState {
-  const [user, setUser] = useState<UserIdentity | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Use Refine's auth hooks for mode-agnostic operations
+  const { data: authData, isLoading: authLoading } = useIsAuthenticated();
+  const { data: identity, isLoading: identityLoading } = useGetIdentity<UserIdentity>();
+  const { mutateAsync: refineLogout } = useLogout();
+  const { mutateAsync: refineLogin } = useLogin();
 
-  // Check auth status on mount and subscribe to user changes
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const oidcUser = await userManager.getUser();
-        updateUserState(oidcUser);
-      } catch (error) {
-        console.error("Failed to load user:", error);
-        setUser(null);
-        setIsAuthenticated(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadUser();
-
-    // Subscribe to user loaded events (after login or token refresh)
-    const handleUserLoaded = (oidcUser: User) => {
-      updateUserState(oidcUser);
-    };
-
-    // Subscribe to user unloaded events (after logout or session end)
-    const handleUserUnloaded = () => {
-      setUser(null);
-      setIsAuthenticated(false);
-    };
-
-    userManager.events.addUserLoaded(handleUserLoaded);
-    userManager.events.addUserUnloaded(handleUserUnloaded);
-
-    return () => {
-      userManager.events.removeUserLoaded(handleUserLoaded);
-      userManager.events.removeUserUnloaded(handleUserUnloaded);
-    };
-  }, []);
+  const isLoading = authLoading || identityLoading;
+  const isAuthenticated = authData?.authenticated ?? false;
+  const user = identity ?? null;
 
   /**
-   * Update user state from OIDC user object.
-   */
-  const updateUserState = (oidcUser: User | null) => {
-    if (oidcUser && !oidcUser.expired) {
-      setUser({
-        id: oidcUser.profile.sub,
-        name: oidcUser.profile.name || oidcUser.profile.preferred_username || "User",
-        email: oidcUser.profile.email || "",
-        avatar: oidcUser.profile.picture,
-      });
-      setIsAuthenticated(true);
-    } else {
-      setUser(null);
-      setIsAuthenticated(false);
-    }
-  };
-
-  /**
-   * Trigger OIDC login flow.
-   * Redirects to Zitadel login page.
+   * Trigger login flow.
+   * In Keycloak mode: Redirects to OIDC authorization endpoint
+   * In local mode: Should be called from the Login page with credentials
    */
   const login = useCallback(async () => {
-    await zitadelAuth.authorize();
-  }, []);
+    const authConfig = getAuthConfigSync();
+
+    if (authConfig?.mode === 'keycloak') {
+      // Keycloak mode: trigger OIDC redirect
+      await userManager.signinRedirect();
+    } else {
+      // Local mode: this should be called from the login form with credentials
+      // This no-op call is for components that just want to trigger navigation to login
+      await refineLogin({});
+    }
+  }, [refineLogin]);
 
   /**
    * Logout and clear session.
-   * Redirects to Zitadel logout endpoint.
+   * Works in both local and Keycloak modes via Refine's auth provider.
    */
   const logout = useCallback(async () => {
-    try {
-      await zitadelAuth.signout();
-    } catch (error) {
-      // Even if signout fails, clear local state
-      console.error("Signout failed, clearing local state:", error);
-      await userManager.removeUser();
-    }
-  }, []);
+    await refineLogout();
+  }, [refineLogout]);
 
   /**
    * Get current access token for API requests.
-   * Returns null if not authenticated or token expired.
+   * Only available in Keycloak mode - local mode uses cookies.
+   *
+   * @returns Access token string, or null if not available/expired
    */
   const getAccessToken = useCallback(async (): Promise<string | null> => {
+    const authConfig = getAuthConfigSync();
+
+    // Local mode uses cookies, not tokens
+    if (authConfig?.mode === 'local') {
+      console.warn('getAccessToken() called in local mode - cookies handle auth automatically');
+      return null;
+    }
+
+    // Keycloak mode: get token from OIDC user
     try {
       const oidcUser = await userManager.getUser();
       if (oidcUser && !oidcUser.expired) {
         return oidcUser.access_token;
       }
-      // Try to refresh token (automaticSilentRenew should handle this)
+      // Try to refresh token
       const refreshedUser = await userManager.signinSilent();
-      return refreshedUser?.access_token || null;
+      return refreshedUser?.access_token ?? null;
     } catch (error) {
-      console.error("Failed to get/refresh access token:", error);
+      // SECURITY: Use sanitizeError to prevent token fragments from appearing in console
+      console.error("Failed to get/refresh access token:", sanitizeError(error));
       return null;
     }
   }, []);

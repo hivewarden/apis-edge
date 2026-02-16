@@ -35,13 +35,6 @@ type SiteDataResponse struct {
 	Data SiteResponse `json:"data"`
 }
 
-// MetaResponse contains pagination metadata.
-type MetaResponse struct {
-	Total   int `json:"total"`
-	Page    int `json:"page,omitempty"`
-	PerPage int `json:"per_page,omitempty"`
-}
-
 // CreateSiteRequest represents the request body for creating a site.
 type CreateSiteRequest struct {
 	Name      string   `json:"name"`
@@ -135,6 +128,12 @@ func CreateSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// FIX (S3A-L3): Validate string length for site name.
+	if len(req.Name) > 200 {
+		respondError(w, "Name must not exceed 200 characters", http.StatusBadRequest)
+		return
+	}
+
 	// Validate GPS coordinates if provided
 	if req.Latitude != nil && (*req.Latitude < -90 || *req.Latitude > 90) {
 		respondError(w, "Latitude must be between -90 and 90", http.StatusBadRequest)
@@ -171,6 +170,9 @@ func CreateSite(w http.ResponseWriter, r *http.Request) {
 		Str("name", site.Name).
 		Msg("Site created")
 
+	// Audit log: record site creation
+	AuditCreate(r.Context(), "sites", site.ID, site)
+
 	respondJSON(w, SiteDataResponse{Data: siteToResponse(site)}, http.StatusCreated)
 }
 
@@ -181,6 +183,18 @@ func UpdateSite(w http.ResponseWriter, r *http.Request) {
 
 	if siteID == "" {
 		respondError(w, "Site ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get old values for audit log before update
+	oldSite, err := storage.GetSiteByID(r.Context(), conn, siteID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Site not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("site_id", siteID).Msg("handler: failed to get site for audit")
+		respondError(w, "Failed to update site", http.StatusInternalServerError)
 		return
 	}
 
@@ -229,6 +243,9 @@ func UpdateSite(w http.ResponseWriter, r *http.Request) {
 		Str("name", site.Name).
 		Msg("Site updated")
 
+	// Audit log: record site update with old and new values
+	AuditUpdate(r.Context(), "sites", site.ID, oldSite, site)
+
 	respondJSON(w, SiteDataResponse{Data: siteToResponse(site)}, http.StatusOK)
 }
 
@@ -242,7 +259,19 @@ func DeleteSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := storage.DeleteSite(r.Context(), conn, siteID)
+	// Get old values for audit log before delete
+	oldSite, err := storage.GetSiteByID(r.Context(), conn, siteID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Site not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("site_id", siteID).Msg("handler: failed to get site for audit")
+		respondError(w, "Failed to delete site", http.StatusInternalServerError)
+		return
+	}
+
+	err = storage.DeleteSite(r.Context(), conn, siteID)
 	if errors.Is(err, storage.ErrNotFound) {
 		respondError(w, "Site not found", http.StatusNotFound)
 		return
@@ -260,6 +289,9 @@ func DeleteSite(w http.ResponseWriter, r *http.Request) {
 	log.Info().
 		Str("site_id", siteID).
 		Msg("Site deleted")
+
+	// Audit log: record site deletion with old values
+	AuditDelete(r.Context(), "sites", siteID, oldSite)
 
 	w.WriteHeader(http.StatusNoContent)
 }

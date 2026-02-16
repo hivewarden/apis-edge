@@ -14,8 +14,10 @@ So that I can easily navigate between Dashboard, Units, Hives, Clips, and Settin
 **Given** I am on any page of the dashboard
 **When** I view the layout
 **Then** I see a sidebar on the left with the APIS logo at top
-**And** navigation items: Dashboard, Units, Hives, Clips, Statistics, Settings
+**And** navigation items: Dashboard, Sites, Units, Hives, Maintenance, Clips, Statistics, Settings
 **And** the main content area is on the right
+
+> **Note:** AC1 originally specified 6 navigation items. Sites was added in Epic 3 (Story 3-1), Maintenance in Epic 5 (Story 5-2). The navigation item list is updated here to reflect current implementation state.
 
 ### AC2: Desktop sidebar behavior
 **Given** I am on desktop (viewport > 768px)
@@ -56,7 +58,7 @@ So that I can easily navigate between Dashboard, Units, Hives, Clips, and Settin
 - [x] **Task 3: Create navigation menu** (AC: 1, 4)
   - [x] 3.1: Define navigation items array with routes, icons, labels
   - [x] 3.2: Use Ant Design Menu component with theme="dark" style
-  - [x] 3.3: Map items: Dashboard (/), Units (/units), Hives (/hives), Clips (/clips), Statistics (/statistics), Settings (/settings)
+  - [x] 3.3: Map items: Dashboard (/), Sites (/sites), Units (/units), Hives (/hives), Maintenance (/maintenance), Clips (/clips), Statistics (/statistics), Settings (/settings)
   - [x] 3.4: Use appropriate Ant Design icons for each item
   - [x] 3.5: Highlight active item based on current route (useLocation)
 
@@ -79,6 +81,14 @@ So that I can easily navigate between Dashboard, Units, Hives, Clips, and Settin
   - [x] 6.3: Test active state matches current route
   - [x] 6.4: Test collapse button toggles sidebar width
   - [x] 6.5: Test localStorage persistence of collapse state
+
+- [x] **Task 7: User profile section** (Added for UX completeness)
+  - [x] 7.1: Add user profile section at bottom of sidebar
+  - [x] 7.2: Display avatar, name, and email when sidebar expanded
+  - [x] 7.3: Display avatar only with logout button when collapsed
+  - [x] 7.4: Integrate useAuth hook for user data and logout
+  - [x] 7.5: Style with theme colors (coconutCream on brownBramble)
+  > **Note:** User profile section was not in original story scope but added for UX completeness per architecture guidelines. Documented retroactively during code review remediation.
 
 ## Dev Notes
 
@@ -607,3 +617,11 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
   - Extracted magic numbers into named constants
   - Added 2 new tests: drawer close on menu click, invalid localStorage handling
   - All 38 tests passing, ESLint clean, build successful
+
+- 2026-01-25: Bulk Review Remediation (Claude Opus 4.5)
+  - Updated AC1 to reflect current 8 navigation items (Sites from Epic 3, Maintenance from Epic 5)
+  - Added Task 7 documenting user profile section (added for UX completeness)
+  - Added test for exact navItems.length (8) to catch undocumented additions
+  - Updated test expectedItems to include Sites and Maintenance
+  - Added detailed comment explaining eslint-disable-line for useEffect deps
+  - **Cross-epic integrations documented:** OfflineBanner (Epic 7), QRScannerModal (Epic 7), useBackgroundSyncContext (Epic 7) are imported in AppLayout.tsx - these were integrated when implementing Epic 7 PWA features

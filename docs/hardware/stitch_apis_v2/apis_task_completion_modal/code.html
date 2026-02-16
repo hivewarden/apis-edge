@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Task Completion Modal</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a22b",
+                        "background-light": "#fcfaf8",
+                        "background-dark": "#221b10",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#2d2417",
+                        "text-main-light": "#1c160d",
+                        "text-main-dark": "#e8e1d9",
+                        "text-secondary-light": "#9d7a48",
+                        "text-secondary-dark": "#b09b7b",
+                        "border-light": "#e9dece",
+                        "border-dark": "#453826",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #e9dece;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-text-main-light dark:text-text-main-dark overflow-hidden h-screen w-full relative">
+<div aria-hidden="true" class="flex h-full w-full blur-sm brightness-95 pointer-events-none select-none">
+<div class="w-64 flex-shrink-0 border-r border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark flex flex-col h-full">
+<div class="p-6 pb-2">
+<div class="flex gap-3 items-center">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-10 shadow-sm" data-alt="Golden honeycomb pattern abstract logo" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDGIdhIZFQjBRSMjxzZBk9r4svo_y1WMmDU28N3W4eHl5-t7VeTo4T01yjNgkKUCvopOGGt3iQRY5AK9mlV4NPtWMj532OG_hMBkQlG0Nh6V9cf7h6-IMOu4rQGIbwZCj7Boz6m_ctgIuhR3KL1jp6Y0AkZh3l-6jexFbm4PHuGYWffdOrVotfSfQLcdx-H6oHqStf_K1VqW-vetIEizZVbv1pO-bYPEJP_-wTluFPW7K3H7_ybGMaGqnqlVSYer4gwr77ZPa1ZZ-8");'></div>
+<div class="flex flex-col">
+<h1 class="text-text-main-light dark:text-text-main-dark text-base font-bold leading-tight">APIS</h1>
+<p class="text-text-secondary-light dark:text-text-secondary-dark text-xs font-medium uppercase tracking-wide">Beekeeping Platform</p>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-1 px-4 mt-6">
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary-light dark:text-text-secondary-dark hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary-light dark:text-text-secondary-dark hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-[20px]">map</span>
+<p class="text-sm font-medium">Apiaries</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary-light dark:text-text-secondary-dark hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-[20px]">hexagon</span>
+<p class="text-sm font-medium">Hives</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/15 text-primary dark:text-primary">
+<span class="material-symbols-outlined text-[20px] font-variation-settings-fill">check_box</span>
+<p class="text-sm font-bold">Tasks</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary-light dark:text-text-secondary-dark hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<p class="text-sm font-medium">Settings</p>
+</div>
+</div>
+</div>
+<div class="flex-1 flex flex-col h-full overflow-hidden bg-surface-light dark:bg-surface-dark">
+<div class="flex-1 overflow-y-auto p-8 lg:px-12">
+<div class="max-w-5xl mx-auto flex flex-col gap-8">
+<div class="flex flex-col gap-2">
+<h2 class="text-3xl font-bold tracking-tight text-text-main-light dark:text-text-main-dark">Tasks</h2>
+<p class="text-text-secondary-light dark:text-text-secondary-dark text-base">Manage your daily beekeeping activities for Sunnyvale Apiary.</p>
+</div>
+<div class="flex flex-col gap-4">
+<div class="flex items-center p-4 bg-background-light dark:bg-background-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm opacity-60">
+<span class="material-symbols-outlined text-text-secondary-light mr-4">check_box_outline_blank</span>
+<div class="flex flex-col">
+<span class="font-medium text-text-main-light dark:text-text-main-dark">Inspect Hive #4 for mites</span>
+<span class="text-xs text-text-secondary-light dark:text-text-secondary-dark">Due Today • Hive #4</span>
+</div>
+</div>
+<div class="flex items-center p-4 bg-background-light dark:bg-background-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+<span class="material-symbols-outlined text-primary mr-4 font-variation-settings-fill">check_box</span>
+<div class="flex flex-col">
+<span class="font-medium text-text-main-light dark:text-text-main-dark line-through decoration-text-secondary-light">Add Brood Box to Hive #2</span>
+<span class="text-xs text-text-secondary-light dark:text-text-secondary-dark">Due Today • Hive #2</span>
+</div>
+</div>
+<div class="flex items-center p-4 bg-background-light dark:bg-background-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm opacity-60">
+<span class="material-symbols-outlined text-text-secondary-light mr-4">check_box_outline_blank</span>
+<div class="flex flex-col">
+<span class="font-medium text-text-main-light dark:text-text-main-dark">Feed Hive #7 sugar syrup</span>
+<span class="text-xs text-text-secondary-light dark:text-text-secondary-dark">Tomorrow • Hive #7</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
+<div class="relative w-full max-w-[540px] bg-white dark:bg-surface-dark rounded-[16px] shadow-2xl border border-border-light dark:border-border-dark flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+<div class="flex items-center justify-between px-6 pt-6 pb-2">
+<h3 class="text-xl font-bold text-[#662604] dark:text-text-main-dark tracking-tight">Complete Task: Add Brood Box</h3>
+<button class="text-text-secondary-light dark:text-text-secondary-dark hover:bg-background-light dark:hover:bg-background-dark hover:text-text-main-light dark:hover:text-text-main-dark p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50">
+<span class="material-symbols-outlined text-[24px]">close</span>
+</button>
+</div>
+<div class="p-6 flex flex-col gap-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+<label class="flex flex-col gap-2">
+<span class="text-sm font-semibold text-text-main-light dark:text-text-main-dark">Box Type</span>
+<div class="relative">
+<select class="w-full appearance-none h-[56px] rounded-[12px] border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark text-text-main-light dark:text-text-main-dark px-4 pr-10 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow text-sm font-medium">
+<option disabled="" selected="" value="">Select Type</option>
+<option value="deep">Deep Box</option>
+<option value="medium">Medium Box</option>
+<option value="shallow">Shallow Box</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark pointer-events-none">expand_more</span>
+</div>
+</label>
+<label class="flex flex-col gap-2">
+<span class="text-sm font-semibold text-text-main-light dark:text-text-main-dark">Date Installed</span>
+<div class="relative">
+<input class="w-full h-[56px] rounded-[12px] border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark text-text-main-light dark:text-text-main-dark px-4 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow text-sm font-medium [color-scheme:light] dark:[color-scheme:dark]" type="date" value="2023-10-27"/>
+</div>
+</label>
+</div>
+<div class="rounded-[12px] bg-[#fcd483]/20 dark:bg-primary/5 border border-[#fcd483]/30 dark:border-primary/20 p-4 flex gap-3 items-start">
+<div class="bg-white/60 dark:bg-surface-dark rounded-full p-1 shadow-sm flex-shrink-0 text-[#662604] dark:text-primary">
+<span class="material-symbols-outlined text-[18px]">info</span>
+</div>
+<div class="flex flex-col gap-1">
+<p class="text-sm font-bold text-[#662604] dark:text-text-main-dark">Preview Update</p>
+<p class="text-sm text-[#662604]/80 dark:text-text-secondary-dark leading-relaxed">
+                            This action will automatically update the Hive Configuration for <span class="font-semibold text-[#662604] dark:text-text-main-dark">Hive #2</span> by adding <span class="font-semibold text-[#662604] dark:text-text-main-dark">+1 Brood Box</span>.
+                        </p>
+</div>
+</div>
+</div>
+<div class="px-6 py-4 bg-white dark:bg-background-dark border-t border-border-light dark:border-border-dark flex items-center justify-end gap-3">
+<button class="px-4 py-2 text-sm font-medium text-[#662604] dark:text-text-secondary-dark hover:underline transition-colors">
+                    Cancel
+                </button>
+<button class="bg-[#f7a42d] hover:bg-[#e6941f] text-white px-8 py-3 rounded-full text-sm font-bold shadow-sm hover:shadow-md transition-all active:scale-95 flex items-center gap-2">
+<span>Complete Task</span>
+<span class="material-symbols-outlined text-[18px]">check</span>
+</button>
+</div>
+</div>
+</div>
+</body></html>

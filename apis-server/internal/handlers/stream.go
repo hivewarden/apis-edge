@@ -7,7 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/go-chi/chi/v5"
@@ -28,9 +31,104 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024 * 64, // 64KB for video frames
 	CheckOrigin: func(r *http.Request) bool {
-		// Allow all origins - auth is handled by JWT middleware
-		return true
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true // Non-browser clients don't send Origin
+		}
+		// Validate against configured CORS origins
+		allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+		if allowedOrigins == "" {
+			// Default dev origins
+			return origin == "http://localhost:5173" || origin == "http://localhost:3000"
+		}
+		for _, allowed := range strings.Split(allowedOrigins, ",") {
+			if strings.TrimSpace(allowed) == origin {
+				return true
+			}
+		}
+		return false
 	},
+}
+
+// privateIPBlocks contains CIDR ranges for private/internal networks.
+// These are blocked to prevent SSRF attacks to internal services.
+var privateIPBlocks []*net.IPNet
+
+func init() {
+	// Initialize private IP blocks on package load
+	privateRanges := []string{
+		"127.0.0.0/8",    // IPv4 loopback
+		"10.0.0.0/8",     // RFC 1918 Class A private
+		"172.16.0.0/12",  // RFC 1918 Class B private
+		"192.168.0.0/16", // RFC 1918 Class C private
+		"169.254.0.0/16", // Link-local (APIPA)
+		"::1/128",        // IPv6 loopback
+		"fc00::/7",       // IPv6 unique local
+		"fe80::/10",      // IPv6 link-local
+	}
+
+	for _, cidr := range privateRanges {
+		_, block, err := net.ParseCIDR(cidr)
+		if err == nil {
+			privateIPBlocks = append(privateIPBlocks, block)
+		}
+	}
+}
+
+// isPrivateIP checks if an IP address belongs to a private/internal network.
+// Returns true if the IP is private, loopback, link-local, or otherwise internal.
+func isPrivateIP(ip net.IP) bool {
+	if ip == nil {
+		return true // Treat nil as private (fail-safe)
+	}
+
+	// Check loopback explicitly
+	if ip.IsLoopback() {
+		return true
+	}
+
+	// Check link-local
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+
+	// Check against private CIDR blocks
+	for _, block := range privateIPBlocks {
+		if block.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ValidateUnitIP validates that a unit's IP address is safe for HTTP requests.
+// Returns the resolved IP string and an error if the IP is private, loopback, or otherwise internal.
+// The returned IP should be used for the actual connection to prevent DNS rebinding attacks.
+func ValidateUnitIP(ipStr string) (string, error) {
+	// Parse the IP address (handles both IPv4 and IPv6)
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		// Could be a hostname - try to resolve it
+		ips, err := net.LookupIP(ipStr)
+		if err != nil || len(ips) == 0 {
+			return "", fmt.Errorf("invalid IP address or hostname: %s", ipStr)
+		}
+		// Check all resolved IPs - if any is private, reject
+		for _, resolvedIP := range ips {
+			if isPrivateIP(resolvedIP) {
+				return "", fmt.Errorf("unit IP resolves to private/internal network")
+			}
+		}
+		// Return the first resolved IP to prevent DNS rebinding
+		return ips[0].String(), nil
+	}
+
+	if isPrivateIP(ip) {
+		return "", fmt.Errorf("unit IP is in a private/internal network range")
+	}
+
+	return ip.String(), nil
 }
 
 // Stream handles WebSocket video proxy from unit to dashboard.
@@ -74,6 +172,19 @@ func Stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Security: Validate unit IP is not a private/internal address (SSRF protection)
+	// Use the resolved IP for the actual connection to prevent DNS rebinding
+	resolvedIP, err := ValidateUnitIP(*unit.IPAddress)
+	if err != nil {
+		log.Warn().
+			Str("unit_id", unitID).
+			Str("ip_address", *unit.IPAddress).
+			Err(err).
+			Msg("handler: unit IP validation failed - possible SSRF attempt")
+		http.Error(w, "Unit IP address is not valid for streaming", http.StatusBadRequest)
+		return
+	}
+
 	// Check concurrent stream limit
 	streamsMu.Lock()
 	if activeStreams[unitID] >= maxStreamsPerUnit {
@@ -109,7 +220,7 @@ func Stream(w http.ResponseWriter, r *http.Request) {
 
 	// Connect to unit's MJPEG endpoint
 	// No timeout for MJPEG streaming - it's a continuous stream
-	unitURL := fmt.Sprintf("http://%s:8080/stream", *unit.IPAddress)
+	unitURL := fmt.Sprintf("http://%s:8080/stream", resolvedIP)
 	client := &http.Client{
 		Timeout: 0, // No timeout for streaming
 	}
@@ -123,7 +234,7 @@ func Stream(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error().Err(err).Str("unit_id", unitID).Str("url", unitURL).Msg("handler: failed to connect to unit stream")
+		log.Error().Err(err).Str("event", "stream_connection_failed").Str("unit_id", unitID).Str("url", unitURL).Msg("handler: failed to connect to unit stream")
 		ws.WriteMessage(websocket.TextMessage, []byte("Connection to unit failed"))
 		return
 	}
@@ -197,6 +308,8 @@ func readMJPEGFrame(reader *bufio.Reader) ([]byte, error) {
 	frame.WriteByte(0xD8)
 
 	// Read until JPEG end marker (0xFF 0xD9)
+	// Cap frame size at 5MB to prevent memory exhaustion from malicious streams
+	const maxFrameSize = 5 * 1024 * 1024
 	prevByte := byte(0)
 	for {
 		b, err := reader.ReadByte()
@@ -204,6 +317,9 @@ func readMJPEGFrame(reader *bufio.Reader) ([]byte, error) {
 			return nil, err
 		}
 		frame.WriteByte(b)
+		if frame.Len() > maxFrameSize {
+			return nil, errors.New("MJPEG frame too large")
+		}
 
 		// Check for end marker
 		if prevByte == 0xFF && b == 0xD9 {

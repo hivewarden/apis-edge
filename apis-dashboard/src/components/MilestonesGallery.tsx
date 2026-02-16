@@ -13,6 +13,7 @@ import dayjs from 'dayjs';
 import { colors } from '../theme/apisTheme';
 import { useMilestonePhotos, getMilestoneTypeName } from '../hooks/useMilestones';
 import type { MilestonePhoto } from '../hooks/useMilestones';
+import { getSafeImageUrl } from '../utils';
 
 const { Text } = Typography;
 
@@ -41,7 +42,8 @@ interface MilestoneCardProps {
 
 function MilestoneCard({ photo, onView, onDelete }: MilestoneCardProps) {
   const [cardDeleting, setCardDeleting] = useState(false);
-  const thumbnailUrl = photo.thumbnail_path || photo.file_path;
+  // Validate image URLs to prevent XSS (XSS-001-3)
+  const thumbnailUrl = getSafeImageUrl(photo.thumbnail_path || photo.file_path);
 
   const handleDelete = async () => {
     setCardDeleting(true);
@@ -230,7 +232,7 @@ export function MilestonesGallery() {
         {viewingPhoto && (
           <div>
             <Image
-              src={viewingPhoto.file_path}
+              src={getSafeImageUrl(viewingPhoto.file_path)}
               alt={viewingPhoto.caption || 'Milestone photo'}
               style={{ width: '100%', maxHeight: '70vh', objectFit: 'contain' }}
               preview={false}

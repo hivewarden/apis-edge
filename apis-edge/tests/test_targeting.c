@@ -1,5 +1,9 @@
 /**
  * Unit tests for Targeting System.
+ *
+ * C7-INFO-005: Missing test coverage (suggested additions):
+ * TODO: Add test verifying safety_laser_on() is called instead of laser_controller_on()
+ * TODO: Add test verifying safety_laser_off() is used for all deactivation paths
  */
 
 #include "targeting.h"
@@ -311,6 +315,9 @@ static void test_target_lost(void) {
     reset_callback_tracking();
     targeting_set_lost_callback(lost_callback, NULL);
 
+    // Use mock time for deterministic, fast testing
+    targeting_test_set_mock_time(1000);  // Start at 1000ms
+
     // Acquire target
     detection_box_t det = {
         .x = 300, .y = 200, .width = 50, .height = 50, .confidence = 0.9f
@@ -318,8 +325,8 @@ static void test_target_lost(void) {
     targeting_process_detections(&det, 1);
     TEST_ASSERT(targeting_is_tracking() == true, "Tracking target");
 
-    // Wait for lost timeout
-    apis_sleep_ms(TARGET_LOST_TIMEOUT_MS + 100);
+    // Advance time past lost timeout (no real sleep needed)
+    targeting_test_advance_time(TARGET_LOST_TIMEOUT_MS + 100);
     targeting_update();
 
     TEST_ASSERT(targeting_is_tracking() == false, "No longer tracking");
@@ -333,6 +340,7 @@ static void test_target_lost(void) {
     TEST_ASSERT(stats.lost_count == 1, "Lost count is 1");
     TEST_ASSERT(stats.total_track_time_ms > 0, "Track time recorded");
 
+    targeting_test_reset_mock_time();
     cleanup_all_subsystems();
 }
 
@@ -516,6 +524,111 @@ static void test_cleanup_safety(void) {
 }
 
 // ============================================================================
+// Test: Full Targeting Pipeline Integration
+// ============================================================================
+
+static void test_full_targeting_pipeline(void) {
+    TEST_SECTION("Full Targeting Pipeline Integration");
+
+    init_all_subsystems();
+    targeting_init();
+    laser_controller_arm();
+
+    reset_callback_tracking();
+    targeting_set_state_callback(state_callback, NULL);
+    targeting_set_acquired_callback(acquired_callback, NULL);
+    targeting_set_lost_callback(lost_callback, NULL);
+
+    // Step 1: Initial state - IDLE, no target
+    TEST_ASSERT(targeting_get_state() == TARGET_STATE_IDLE,
+                "Initial state is IDLE");
+    TEST_ASSERT(targeting_is_tracking() == false,
+                "Not tracking initially");
+
+    // Step 2: Detection arrives -> Servos aim, laser activates
+    detection_box_t det1 = {
+        .x = 300, .y = 200, .width = 60, .height = 60, .confidence = 0.9f, .id = 1
+    };
+    target_status_t status = targeting_process_detections(&det1, 1);
+    TEST_ASSERT(status == TARGET_OK, "Process first detection OK");
+    TEST_ASSERT(targeting_is_tracking() == true, "Now tracking target");
+    TEST_ASSERT(acquired_callback_count == 1, "Acquired callback invoked");
+
+    target_info_t info;
+    targeting_get_current_target(&info);
+    TEST_ASSERT(info.centroid.x == 330, "Centroid x correct (300 + 60/2)");
+    TEST_ASSERT(info.centroid.y == 230, "Centroid y correct (200 + 60/2)");
+    TEST_ASSERT(laser_controller_is_active() == true, "Laser is active");
+
+    // Step 3: Target moves -> Sweep recenters smoothly
+    detection_box_t det2 = {
+        .x = 350, .y = 220, .width = 60, .height = 60, .confidence = 0.9f, .id = 1
+    };
+    status = targeting_process_detections(&det2, 1);
+    TEST_ASSERT(status == TARGET_OK, "Process moved detection OK");
+    TEST_ASSERT(acquired_callback_count == 1, "Acquired callback NOT invoked again (same target)");
+
+    targeting_get_current_target(&info);
+    TEST_ASSERT(info.centroid.x == 380, "Centroid x updated (350 + 60/2)");
+    TEST_ASSERT(info.centroid.y == 250, "Centroid y updated (220 + 60/2)");
+
+    // Step 4: Verify sweep is running (sweep_angle differs from target_angle)
+    targeting_update();
+    targeting_get_current_target(&info);
+    // The sweep pattern applies sinusoidal offset to pan - it should differ slightly
+    // from target_angle (unless we happen to be at exactly zero offset)
+    TEST_ASSERT(info.active == true, "Target still active after update");
+
+    // Step 5: Cancel tracking -> Laser off, servos home, state IDLE
+    targeting_cancel();
+    TEST_ASSERT(targeting_is_tracking() == false, "Not tracking after cancel");
+    TEST_ASSERT(targeting_get_state() == TARGET_STATE_IDLE, "State is IDLE after cancel");
+    TEST_ASSERT(laser_controller_is_active() == false, "Laser is off after cancel");
+
+    // Step 6: Verify statistics accumulated correctly
+    target_stats_t stats;
+    targeting_get_stats(&stats);
+    TEST_ASSERT(stats.target_count == 1, "One target was acquired");
+    TEST_ASSERT(stats.total_track_time_ms > 0, "Track time was recorded");
+
+    cleanup_all_subsystems();
+}
+
+// ============================================================================
+// Test: Minimum Area Boundary Cases
+// ============================================================================
+
+static void test_minimum_area_boundary(void) {
+    TEST_SECTION("Minimum Area Boundary Cases");
+
+    init_all_subsystems();
+    targeting_init();
+
+    // Area = 99 (just below threshold) - should be rejected
+    detection_box_t det_99 = {
+        .x = 100, .y = 100, .width = 9, .height = 11, .confidence = 0.9f  // 9*11 = 99
+    };
+    targeting_process_detections(&det_99, 1);
+    TEST_ASSERT(targeting_is_tracking() == false, "Area 99 (< 100) rejected");
+
+    // Area = 100 (exactly at threshold) - should be rejected (uses > not >=)
+    detection_box_t det_100 = {
+        .x = 100, .y = 100, .width = 10, .height = 10, .confidence = 0.9f  // 10*10 = 100
+    };
+    targeting_process_detections(&det_100, 1);
+    TEST_ASSERT(targeting_is_tracking() == false, "Area 100 (== 100) rejected (> comparison)");
+
+    // Area = 101 (just above threshold) - should be accepted
+    detection_box_t det_101 = {
+        .x = 100, .y = 100, .width = 10, .height = 11, .confidence = 0.9f  // 10*11 = 110
+    };
+    targeting_process_detections(&det_101, 1);
+    TEST_ASSERT(targeting_is_tracking() == true, "Area 110 (> 100) accepted");
+
+    cleanup_all_subsystems();
+}
+
+// ============================================================================
 // Main Test Runner
 // ============================================================================
 
@@ -543,6 +656,8 @@ int main(int argc, char *argv[]) {
     test_statistics();
     test_state_callback();
     test_cleanup_safety();
+    test_full_targeting_pipeline();
+    test_minimum_area_boundary();
 
     // Summary
     printf("\n==========================================================\n");

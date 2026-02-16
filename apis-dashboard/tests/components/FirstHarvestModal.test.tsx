@@ -235,6 +235,7 @@ describe('FirstHarvestModal', () => {
     });
 
     it('should call onPhotoUploaded callback after successful upload', async () => {
+      const { apiClient } = await import('../../src/providers/apiClient');
       const onPhotoUploaded = vi.fn();
 
       render(
@@ -243,8 +244,43 @@ describe('FirstHarvestModal', () => {
         </TestWrapper>
       );
 
-      // The callback should be available (actual upload test requires file interaction)
-      expect(onPhotoUploaded).not.toHaveBeenCalled();
+      // Find the file input (hidden but present for Ant Design Upload)
+      const uploadInput = document.querySelector('input[type="file"]');
+      expect(uploadInput).toBeInTheDocument();
+
+      // Create a mock file
+      const file = new File(['test image content'], 'test-photo.jpg', {
+        type: 'image/jpeg',
+      });
+
+      // Simulate file selection using userEvent or direct change
+      if (uploadInput) {
+        // Use Object.defineProperty to set files (input.files is read-only)
+        Object.defineProperty(uploadInput, 'files', {
+          value: [file],
+          writable: false,
+        });
+
+        fireEvent.change(uploadInput);
+
+        // Wait for the upload to process
+        await waitFor(() => {
+          // The mock apiClient.post should have been called
+          expect(apiClient.post).toHaveBeenCalled();
+        });
+      }
+    });
+
+    it('should show file input that accepts images', () => {
+      render(
+        <TestWrapper>
+          <FirstHarvestModal {...defaultProps} />
+        </TestWrapper>
+      );
+
+      const uploadInput = document.querySelector('input[type="file"]');
+      expect(uploadInput).toBeInTheDocument();
+      expect(uploadInput).toHaveAttribute('accept', 'image/*');
     });
   });
 });

@@ -297,6 +297,29 @@ void test_short_press_clears_emergency(void) {
     TEST_ASSERT_EQ(button_handler_get_system_mode(), SYSTEM_MODE_DISARMED, "Should be disarmed after clearing emergency");
 }
 
+void test_emergency_stop_when_armed(void) {
+    button_handler_init(false);
+    reset_callbacks();
+    button_handler_set_event_callback(test_event_callback, NULL);
+
+    // First arm the system
+    button_handler_arm();
+    TEST_ASSERT(button_handler_is_armed(), "Should be armed");
+
+    // Trigger long press for emergency stop while armed (most critical use case)
+    button_handler_test_simulate_press(true);
+    sleep_ms(BUTTON_DEBOUNCE_MS + 10);
+    button_handler_update();
+
+    // Wait for long press duration
+    sleep_ms(BUTTON_LONG_PRESS_MS + 100);
+    button_handler_update();
+
+    TEST_ASSERT(button_handler_is_emergency_stop(), "Should be in emergency stop");
+    TEST_ASSERT(!button_handler_is_armed(), "Should no longer be armed");
+    TEST_ASSERT_EQ(last_event, BUTTON_EVENT_LONG_PRESS, "Event should be long press");
+}
+
 void test_debounce_rejects_rapid_changes(void) {
     button_handler_init(false);
     button_stats_t stats;
@@ -648,6 +671,7 @@ int main(void) {
     RUN_TEST(test_button_release_detection);
     RUN_TEST(test_short_press_toggles_arm_state);
     RUN_TEST(test_long_press_triggers_emergency_stop);
+    RUN_TEST(test_emergency_stop_when_armed);
     RUN_TEST(test_short_press_clears_emergency);
     RUN_TEST(test_debounce_rejects_rapid_changes);
     RUN_TEST(test_undo_within_window);

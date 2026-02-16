@@ -1,5 +1,10 @@
 /**
  * Unit tests for Coordinate Mapper.
+ *
+ * NOTE: These tests link against servo_controller.c rather than using mocks.
+ * This is intentional integration testing to verify that coordinate_mapper
+ * correctly integrates with servo_controller_clamp_angle() for safety limits.
+ * The tests depend on the real servo controller implementation.
  */
 
 #include "coordinate_mapper.h"

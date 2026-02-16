@@ -176,6 +176,24 @@ func CreateHiveLoss(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate max length for text fields (matching frontend limits)
+	const maxCauseOther = 200
+	const maxSymptomsNotes = 500
+	const maxReflection = 500
+
+	if req.CauseOther != nil && len(*req.CauseOther) > maxCauseOther {
+		respondError(w, fmt.Sprintf("cause_other exceeds maximum length of %d characters", maxCauseOther), http.StatusBadRequest)
+		return
+	}
+	if req.SymptomsNotes != nil && len(*req.SymptomsNotes) > maxSymptomsNotes {
+		respondError(w, fmt.Sprintf("symptoms_notes exceeds maximum length of %d characters", maxSymptomsNotes), http.StatusBadRequest)
+		return
+	}
+	if req.Reflection != nil && len(*req.Reflection) > maxReflection {
+		respondError(w, fmt.Sprintf("reflection exceeds maximum length of %d characters", maxReflection), http.StatusBadRequest)
+		return
+	}
+
 	// Parse date to mark hive as lost
 	discoveredAt, err := time.Parse("2006-01-02", req.DiscoveredAt)
 	if err != nil {
@@ -190,7 +208,8 @@ func CreateHiveLoss(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create the hive loss record
+	// Create the hive loss record and mark hive as lost in a single transaction
+	// This ensures atomicity - either both operations succeed or both fail
 	input := &storage.CreateHiveLossInput{
 		HiveID:        hiveID,
 		DiscoveredAt:  req.DiscoveredAt,
@@ -202,18 +221,11 @@ func CreateHiveLoss(w http.ResponseWriter, r *http.Request) {
 		DataChoice:    req.DataChoice,
 	}
 
-	loss, err := storage.CreateHiveLoss(r.Context(), conn, tenantID, input)
+	loss, err := storage.CreateHiveLossWithTransaction(r.Context(), conn, tenantID, hiveID, discoveredAt, input)
 	if err != nil {
 		log.Error().Err(err).Str("hive_id", hiveID).Msg("handler: failed to create hive loss record")
 		respondError(w, "Failed to create hive loss record", http.StatusInternalServerError)
 		return
-	}
-
-	// Mark the hive as lost
-	err = storage.MarkHiveAsLost(r.Context(), conn, hiveID, discoveredAt)
-	if err != nil && !errors.Is(err, storage.ErrHiveAlreadyLost) {
-		log.Error().Err(err).Str("hive_id", hiveID).Msg("handler: failed to mark hive as lost")
-		// Don't fail the request - loss record was created
 	}
 
 	log.Info().

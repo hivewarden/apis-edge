@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Clip Card Detail</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "coconut-cream": "#fbf9e7",
+                        "brown-bramble": "#662604",
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"]
+                    },
+                    boxShadow: {
+                        'soft-lift': '0 10px 30px -5px rgba(102, 38, 4, 0.05)',
+                        'hover-lift': '0 20px 40px -5px rgba(102, 38, 4, 0.12)',
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .thin-icon {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 48;
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream min-h-screen w-full flex flex-col items-center justify-center p-6 font-display antialiased text-brown-bramble">
+<div class="w-full max-w-[380px]">
+<div class="group relative flex flex-col overflow-hidden rounded-[16px] bg-white shadow-soft-lift ring-1 ring-[#662604]/[0.03] transition-all duration-500 hover:shadow-hover-lift hover:-translate-y-1 cursor-pointer">
+<div class="relative aspect-video w-full overflow-hidden bg-gray-100">
+<div class="h-full w-full bg-cover bg-center transition-transform duration-700 ease-in-out will-change-transform group-hover:scale-105" data-alt="Sunny garden scene with wooden beehive boxes and green foliage" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAS_zxTDKEJWjxF2RnzfKl6NjtfH5WQHSCw9wKpRrRBd8boI28TmqfWZS40uxALkNdQB0Ioxjb3_SqKZww-PNWDw_qaE9Dhm9vyXFXV_J11gwH4uuO9RtX_tuHf5QOg3m_D5y94_FQp33Ne99O3OpAyA3Mc7dxz8tcNY93231AvvAQ3CcBpaw13Lmoc5Ij-e9yC0dOdRpz_K_4HqkuaPc0CURFZ0JW6eQOYJuQ8lfzzka9tHHjRXOemO87qAS9HJp_4f621aBxG3Iw');">
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-60 transition-opacity group-hover:opacity-40"></div>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="flex h-16 w-16 items-center justify-center rounded-full bg-white/30 backdrop-blur-[3px] border border-white/40 transition-all duration-300 group-hover:bg-white/40 group-hover:scale-110 group-active:scale-95 shadow-sm">
+<span class="material-symbols-outlined text-[40px] text-white ml-0.5 thin-icon">play_arrow</span>
+</div>
+</div>
+<div class="absolute right-3 top-3 translate-y-[-10px] opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+<button class="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-brown-bramble hover:bg-white shadow-sm transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_horiz</span>
+</button>
+</div>
+<div class="absolute bottom-3 right-3">
+<span class="inline-flex items-center justify-center rounded-md bg-[#fbf9e7]/95 px-2.5 py-1 text-[12px] font-medium tracking-wide text-brown-bramble backdrop-blur-sm shadow-sm border border-brown-bramble/5">
+                    0:04
+                </span>
+</div>
+</div>
+<div class="flex flex-col gap-1 px-5 py-5">
+<div class="flex items-center justify-between">
+<h3 class="text-[17px] font-semibold leading-tight tracking-tight text-brown-bramble">
+                    Jan 22, 14:30
+                </h3>
+</div>
+<div class="flex items-center gap-1.5">
+<p class="text-sm font-normal text-brown-bramble/70">
+                    Unit: West Guard 1
+                </p>
+</div>
+</div>
+</div>
+</div>
+
+</body></html>

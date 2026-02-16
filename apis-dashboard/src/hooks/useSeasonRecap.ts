@@ -94,7 +94,7 @@ interface IsRecapTimeResponse {
   };
 }
 
-interface UseSeasonRecapResult {
+export interface UseSeasonRecapResult {
   recap: SeasonRecap | null;
   loading: boolean;
   error: Error | null;
@@ -103,14 +103,14 @@ interface UseSeasonRecapResult {
   regenerating: boolean;
 }
 
-interface UseAvailableSeasonsResult {
+export interface UseAvailableSeasonsResult {
   seasons: number[];
   loading: boolean;
   error: Error | null;
   refetch: () => Promise<void>;
 }
 
-interface UseRecapTimeResult {
+export interface UseRecapTimeResult {
   isRecapTime: boolean;
   currentSeason: number;
   loading: boolean;

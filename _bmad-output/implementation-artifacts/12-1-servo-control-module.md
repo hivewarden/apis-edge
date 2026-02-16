@@ -56,13 +56,28 @@ So that I can aim the laser at detected targets.
 
 ### Implementation Notes
 
-Files created:
-- `include/servo_controller.h`
-- `src/servo/servo_controller.c`
-- `tests/test_servo_controller.c`
+Files created/modified:
+- `include/servo_controller.h` - Public API with 15+ functions
+- `src/servo/servo_controller.c` - Full implementation with:
+  - Pi PWM via sysfs (with mock fallback)
+  - ESP32 LEDC PWM
+  - Test platform mock
+  - Hardware failure detection with watchdog
+  - Laser/LED integration for safety
+- `tests/test_servo_controller.c` - 139 comprehensive tests
+
+Dependencies:
+- `include/platform.h` - Cross-platform sleep and definitions
+- `include/log.h` - Logging macros
+- `include/laser_controller.h` - Safety integration (disarm on fault)
+- `include/led_controller.h` - Status indication (error state on fault)
+
+Build configuration:
+- `CMakeLists.txt` - test_servo_controller target (lines 410-435)
 
 ## Change Log
 
 | Date | Author | Changes |
 |------|--------|---------|
 | 2026-01-23 | Claude | Story created and implementation started |
+| 2026-01-26 | Claude | Remediation: Fixed 8 issues from code review - hardware failure detection, laser/LED integration, Pi PWM implementation, self-test function |

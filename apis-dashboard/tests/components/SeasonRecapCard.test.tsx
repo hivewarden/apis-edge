@@ -22,7 +22,6 @@ vi.mock('../../src/theme/apisTheme', () => ({
 
 const mockRecap: SeasonRecap = {
   id: 'recap-1',
-  tenant_id: 'tenant-1',
   season_year: 2024,
   hemisphere: 'northern',
   season_dates: {
@@ -35,7 +34,6 @@ const mockRecap: SeasonRecap = {
   inspections_count: 24,
   treatments_count: 3,
   feedings_count: 8,
-  hives_active: 5,
   per_hive_stats: [],
   milestones: [
     {
@@ -44,7 +42,6 @@ const mockRecap: SeasonRecap = {
       description: 'First honey harvest of the season',
     },
   ],
-  comparison_data: null,
   generated_at: '2024-11-01T10:00:00Z',
 };
 

@@ -352,6 +352,12 @@ func CreateInspection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Limit number of frames per inspection to prevent abuse
+	if len(req.Frames) > 50 {
+		respondError(w, "Too many frames (max 50)", http.StatusBadRequest)
+		return
+	}
+
 	// Validate brood pattern
 	if !validateBroodPattern(req.BroodPattern) {
 		respondError(w, "Invalid brood_pattern. Must be one of: good, spotty, poor", http.StatusBadRequest)
@@ -463,6 +469,9 @@ func CreateInspection(w http.ResponseWriter, r *http.Request) {
 		Int("frame_count", len(frames)).
 		Msg("Inspection created")
 
+	// Audit log: record inspection creation
+	AuditCreate(r.Context(), "inspections", inspection.ID, inspection)
+
 	response := inspectionToResponse(inspection)
 	response.Frames = framesToResponse(frames)
 	respondJSON(w, InspectionDataResponse{Data: response}, http.StatusCreated)
@@ -505,6 +514,13 @@ func UpdateInspection(w http.ResponseWriter, r *http.Request) {
 	var req UpdateInspectionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// SECURITY FIX (S3A-M3): Validate frame count on update, matching CreateInspection limit.
+	// Without this, an attacker could bypass the create limit by updating with unlimited frames.
+	if len(req.Frames) > 50 {
+		respondError(w, "Too many frames (max 50)", http.StatusBadRequest)
 		return
 	}
 
@@ -595,7 +611,9 @@ func UpdateInspection(w http.ResponseWriter, r *http.Request) {
 	var frames []storage.InspectionFrame
 	if req.Frames != nil {
 		// Delete existing frames and create new ones
-		_ = storage.DeleteFramesByInspectionID(r.Context(), conn, inspectionID)
+		if err := storage.DeleteFramesByInspectionID(r.Context(), conn, inspectionID); err != nil {
+			log.Warn().Err(err).Str("inspection_id", inspectionID).Msg("Failed to delete existing frames")
+		}
 
 		if len(req.Frames) > 0 {
 			frameInputs := make([]storage.CreateInspectionFrameInput, len(req.Frames))
@@ -627,6 +645,9 @@ func UpdateInspection(w http.ResponseWriter, r *http.Request) {
 		Int("frame_count", len(frames)).
 		Msg("Inspection updated")
 
+	// Audit log: record inspection update with old and new values
+	AuditUpdate(r.Context(), "inspections", inspection.ID, existing, inspection)
+
 	response := inspectionToResponse(inspection)
 	response.Frames = framesToResponse(frames)
 	respondJSON(w, InspectionDataResponse{Data: response}, http.StatusOK)
@@ -642,7 +663,19 @@ func DeleteInspection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := storage.DeleteInspection(r.Context(), conn, inspectionID)
+	// Get old values for audit log before delete
+	oldInspection, err := storage.GetInspectionByID(r.Context(), conn, inspectionID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Inspection not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("inspection_id", inspectionID).Msg("handler: failed to get inspection for audit")
+		respondError(w, "Failed to delete inspection", http.StatusInternalServerError)
+		return
+	}
+
+	err = storage.DeleteInspection(r.Context(), conn, inspectionID)
 	if errors.Is(err, storage.ErrNotFound) {
 		respondError(w, "Inspection not found", http.StatusNotFound)
 		return
@@ -656,6 +689,9 @@ func DeleteInspection(w http.ResponseWriter, r *http.Request) {
 	log.Info().
 		Str("inspection_id", inspectionID).
 		Msg("Inspection deleted")
+
+	// Audit log: record inspection deletion with old values
+	AuditDelete(r.Context(), "inspections", inspectionID, oldInspection)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -691,7 +727,13 @@ func ExportInspections(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set CSV headers
-	filename := fmt.Sprintf("%s-inspections-%s.csv", sanitizeFilename(hive.Name), time.Now().Format("2006-01-02"))
+	// FIX (S3A-L5): Truncate sanitized hive name to prevent excessively long filenames
+	// that could cause issues with HTTP header size limits.
+	sanitizedName := sanitizeFilename(hive.Name)
+	if len(sanitizedName) > 100 {
+		sanitizedName = sanitizedName[:100]
+	}
+	filename := fmt.Sprintf("%s-inspections-%s.csv", sanitizedName, time.Now().Format("2006-01-02"))
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 
@@ -732,24 +774,26 @@ func ExportInspections(w http.ResponseWriter, r *http.Request) {
 			broodFrames = strconv.Itoa(*insp.BroodFrames)
 		}
 
+		// Apply escapeCSV consistently to all string fields for safety
+		// (enum values are unlikely to contain special chars, but this ensures correctness)
 		broodPattern := ""
 		if insp.BroodPattern != nil {
-			broodPattern = *insp.BroodPattern
+			broodPattern = escapeCSV(*insp.BroodPattern)
 		}
 
 		honeyLevel := ""
 		if insp.HoneyLevel != nil {
-			honeyLevel = *insp.HoneyLevel
+			honeyLevel = escapeCSV(*insp.HoneyLevel)
 		}
 
 		pollenLevel := ""
 		if insp.PollenLevel != nil {
-			pollenLevel = *insp.PollenLevel
+			pollenLevel = escapeCSV(*insp.PollenLevel)
 		}
 
 		temperament := ""
 		if insp.Temperament != nil {
-			temperament = *insp.Temperament
+			temperament = escapeCSV(*insp.Temperament)
 		}
 
 		issues := ""
@@ -794,6 +838,13 @@ func sanitizeFilename(name string) string {
 
 // escapeCSV escapes a string for CSV output.
 func escapeCSV(s string) string {
+	// Prevent CSV formula injection: prefix dangerous characters with single quote
+	// Spreadsheet applications (Excel, Google Sheets) treat cells starting with
+	// =, +, -, @ as formulas, which can be exploited for code execution
+	if len(s) > 0 && (s[0] == '=' || s[0] == '+' || s[0] == '-' || s[0] == '@') {
+		s = "'" + s
+	}
+
 	// If string contains comma, newline, or quote, wrap in quotes and escape internal quotes
 	if containsSpecialCSVChars(s) {
 		// Replace double quotes with two double quotes

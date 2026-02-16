@@ -121,11 +121,18 @@ describe('Logo Component', () => {
 });
 
 describe('navItems Configuration', () => {
+  it('contains exactly 8 navigation items', () => {
+    // Verify exact count to catch undocumented additions
+    expect(navItems?.length).toBe(8);
+  });
+
   it('contains all required navigation items', () => {
     const expectedItems = [
       { key: '/', label: 'Dashboard' },
+      { key: '/sites', label: 'Sites' },       // Added in Epic 3
       { key: '/units', label: 'Units' },
       { key: '/hives', label: 'Hives' },
+      { key: '/maintenance', label: 'Maintenance' }, // Added in Epic 5
       { key: '/clips', label: 'Clips' },
       { key: '/statistics', label: 'Statistics' },
       { key: '/settings', label: 'Settings' },

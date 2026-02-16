@@ -43,12 +43,21 @@ static void get_timestamp(char *buf, size_t len) {
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    struct tm *tm = localtime(&tv.tv_sec);
+    // S8-H3 fix: Use localtime_r() instead of localtime() for thread safety.
+    // localtime() uses a single static buffer shared across all threads,
+    // which can be corrupted by concurrent calls from the log mutex not
+    // covering all callers on all platforms.
+    struct tm tm_buf;
+    struct tm *tm = localtime_r(&tv.tv_sec, &tm_buf);
 
-    snprintf(buf, len, "%04d-%02d-%02dT%02d:%02d:%02d.%03d",
-             tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
-             tm->tm_hour, tm->tm_min, tm->tm_sec,
-             (int)(tv.tv_usec / 1000));
+    if (tm) {
+        snprintf(buf, len, "%04d-%02d-%02dT%02d:%02d:%02d.%03d",
+                 tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
+                 tm->tm_hour, tm->tm_min, tm->tm_sec,
+                 (int)(tv.tv_usec / 1000));
+    } else {
+        snprintf(buf, len, "0000-00-00T00:00:00.000");
+    }
 #else
     // ESP32: use tick count
     snprintf(buf, len, "%lu", (unsigned long)(esp_timer_get_time() / 1000));

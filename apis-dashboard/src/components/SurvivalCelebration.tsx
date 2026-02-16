@@ -16,6 +16,7 @@ import { Card, Typography } from 'antd';
 import { TrophyOutlined } from '@ant-design/icons';
 import { colors } from '../theme/apisTheme';
 import { ConfettiAnimation } from './ConfettiAnimation';
+import { ErrorBoundary } from './ErrorBoundary';
 import { getSeasonLabel } from '../hooks/useOverwintering';
 
 const { Title, Text, Paragraph } = Typography;
@@ -68,8 +69,12 @@ export function SurvivalCelebration({
         },
       }}
     >
-      {/* Confetti Animation */}
-      {showConfetti && <ConfettiAnimation active={showConfetti} pieceCount={40} duration={4} />}
+      {/* Confetti Animation - wrapped in error boundary for graceful degradation */}
+      {showConfetti && (
+        <ErrorBoundary fallback={null}>
+          <ConfettiAnimation active={showConfetti} pieceCount={40} duration={4} />
+        </ErrorBoundary>
+      )}
 
       {/* Trophy Icon */}
       <div

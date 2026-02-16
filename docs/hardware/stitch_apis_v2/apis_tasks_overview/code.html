@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Tasks Overview</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a42d", // Sea Buckthorn
+                        "salomie": "#fcd483", // Salomie
+                        "coconut-cream": "#fbf9e7", // Coconut Cream
+                        "brown-bramble": "#662604", // Brown Bramble
+                        "background-light": "#f8f7f5",
+                        "background-dark": "#221b10",
+                        "border-subtle": "#e6e0d6",
+                        "text-primary": "#1c160d",
+                        "text-secondary": "#9d7a48",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem", // 16px
+                        "lg": "1.5rem", 
+                        "xl": "2rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>.custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #e6e0d6;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream text-text-primary font-display antialiased overflow-hidden h-screen flex">
+<aside class="w-[240px] bg-white h-full flex flex-col border-r border-border-subtle shrink-0 z-20 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+<div class="p-6 flex items-center gap-3">
+<div class="bg-center bg-no-repeat bg-cover rounded-full h-10 w-10 border border-primary/20" data-alt="Golden honeycomb pattern logo" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDhGeToBiU6MJOJq1rUztRX1goYpnhIOO4axMaX1cP1cz5gifM3QSkEb6JkY8fRVgVFD_uFEhgDIsqaLPom3WUA6ur74yldZXa17Z4QSuXhPZVxd2CMkwoZRWQkPrH7Wvo0Fjo7pnqC6ZPX3I8cmlUJs2nw1Nwu4UxkNW6lHFoVK8yefq5xX5xVbnmaJuG3YR0ln8VncJWDCluFRxFp096BkJRlHBUQwK66kYSfzvY5mJH9DJlctGXixUAttPQRTnYXl_xBaAsVlEY");'></div>
+<div class="flex flex-col">
+<h1 class="text-brown-bramble text-lg font-bold leading-none tracking-tight">APIS</h1>
+<p class="text-text-secondary text-xs font-medium">Beekeeping Platform</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2 px-4 mt-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-text-secondary hover:bg-background-light transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">grid_view</span>
+<span class="text-sm font-semibold">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-text-secondary hover:bg-background-light transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">hexagon</span>
+<span class="text-sm font-semibold">Hives</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full bg-salomie text-brown-bramble transition-colors shadow-sm" href="#">
+<span class="material-symbols-outlined text-brown-bramble fill-1">check_circle</span>
+<span class="text-sm font-bold">Tasks</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-text-secondary hover:bg-background-light transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">bar_chart</span>
+<span class="text-sm font-semibold">Harvest Data</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-text-secondary hover:bg-background-light transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">settings</span>
+<span class="text-sm font-semibold">Settings</span>
+</a>
+</nav>
+<div class="mt-auto p-6">
+<div class="bg-gradient-to-br from-primary/10 to-salomie/20 rounded-2xl p-4 border border-primary/10">
+<div class="flex items-center gap-3 mb-2">
+<span class="material-symbols-outlined text-primary">psychology</span>
+<span class="text-xs font-bold text-primary uppercase tracking-wider">Tip of the day</span>
+</div>
+<p class="text-xs text-text-secondary leading-relaxed">Check for swarm cells every 7-10 days during peak season.</p>
+</div>
+<div class="flex items-center gap-3 mt-6 border-t border-border-subtle pt-4">
+<div class="h-8 w-8 rounded-full bg-slate-200 bg-center bg-cover" data-alt="User profile picture of a smiling beekeeper" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA0GB6BnswUeu4mRXDstM615BJUJyvH1u3fkCTlG0SAZsnQQYW47OZumoCyn-rr3RcGHmGT4LXjPDs0CR1tOkXYZGIJiwItFKAL6Ramag7RCmJ9Enq2P8yBTjceZpBUqTf6BOi8_Y0AMULuyJdyj-9EjcXlVM9trcZtL3NkRAbHSwDpXHo_uE3lqJSj5WBsSNp12lif41N_j5oYXDZjQXVl21-K2VWEg2_xv0GeDhikXq_gWMWGwBpE82eKeF6qjX69Vqjg1kUqtcw");'></div>
+<div class="flex flex-col">
+<p class="text-sm font-bold text-brown-bramble">Jane Doe</p>
+<p class="text-xs text-text-secondary">Apiary Manager</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full overflow-hidden bg-coconut-cream">
+<header class="px-8 py-6 shrink-0 flex justify-between items-end">
+<div>
+<p class="text-text-secondary text-sm font-medium mb-1">Operations Management</p>
+<h2 class="text-3xl font-bold text-brown-bramble tracking-tight">Tasks Overview</h2>
+</div>
+<div class="flex items-center gap-3">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-lg">search</span>
+<input class="pl-10 pr-4 py-2.5 rounded-full border border-border-subtle bg-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none w-64 shadow-sm placeholder:text-text-secondary/50" placeholder="Search tasks..." type="text"/>
+</div>
+<button class="flex items-center justify-center h-10 w-10 rounded-full bg-white border border-border-subtle shadow-sm hover:bg-background-light text-text-secondary transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-500 border border-white"></span>
+</button>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
+<div class="flex flex-col gap-8 max-w-[1400px] mx-auto">
+<section>
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-lg font-semibold text-brown-bramble flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">library_books</span>
+                            Task Library
+                        </h3>
+<button class="text-sm font-medium text-primary hover:text-primary/80">View all templates</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="group bg-white rounded p-5 border-l-4 border-l-primary shadow-sm hover:shadow-[0_4px_16px_rgba(247,162,43,0.15)] transition-all cursor-pointer">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-primary/10 rounded-lg text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[24px]">pest_control</span>
+</div>
+<span class="text-xs font-semibold text-text-secondary bg-background-light px-2 py-1 rounded-full">Standard</span>
+</div>
+<h4 class="text-base font-bold text-brown-bramble mb-1">Mite Treatment</h4>
+<p class="text-sm text-text-secondary line-clamp-2">Apply oxalic acid vapor treatment.</p>
+</div>
+<div class="group bg-white rounded p-5 border-l-4 border-l-primary shadow-sm hover:shadow-[0_4px_16px_rgba(247,162,43,0.15)] transition-all cursor-pointer">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-primary/10 rounded-lg text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[24px]">add_box</span>
+</div>
+<span class="text-xs font-semibold text-text-secondary bg-background-light px-2 py-1 rounded-full">Expansion</span>
+</div>
+<h4 class="text-base font-bold text-brown-bramble mb-1">Add Super Frame</h4>
+<p class="text-sm text-text-secondary line-clamp-2">Install new honey super for expansion.</p>
+</div>
+<div class="group bg-white rounded p-5 border-l-4 border-l-primary shadow-sm hover:shadow-[0_4px_16px_rgba(247,162,43,0.15)] transition-all cursor-pointer">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-primary/10 rounded-lg text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[24px]">crown</span>
+</div>
+<span class="text-xs font-semibold text-text-secondary bg-background-light px-2 py-1 rounded-full">Critical</span>
+</div>
+<h4 class="text-base font-bold text-brown-bramble mb-1">Requeen Hive</h4>
+<p class="text-sm text-text-secondary line-clamp-2">Replace failing queen with new genetics.</p>
+</div>
+<div class="group bg-white rounded p-5 border-l-4 border-l-primary shadow-sm hover:shadow-[0_4px_16px_rgba(247,162,43,0.15)] transition-all cursor-pointer">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-primary/10 rounded-lg text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[24px]">water_drop</span>
+</div>
+<span class="text-xs font-semibold text-text-secondary bg-background-light px-2 py-1 rounded-full">Harvest</span>
+</div>
+<h4 class="text-base font-bold text-brown-bramble mb-1">Honey Harvest</h4>
+<p class="text-sm text-text-secondary line-clamp-2">Pull frames for extraction process.</p>
+</div>
+</div>
+</section>
+<div class="grid lg:grid-cols-3 gap-8">
+<section class="lg:col-span-1 flex flex-col h-full">
+<h3 class="text-lg font-semibold text-brown-bramble mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">assignment_add</span>
+                            Quick Assign
+                        </h3>
+<div class="bg-white rounded p-6 shadow-sm border border-border-subtle flex-1 flex flex-col">
+<div class="mb-5">
+<label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Select Task</label>
+<div class="relative">
+<select class="w-full appearance-none bg-background-light border border-border-subtle text-text-primary text-sm rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary cursor-pointer font-medium">
+<option>Mite Treatment</option>
+<option>Add Super Frame</option>
+<option>Requeen Hive</option>
+<option>Honey Harvest</option>
+<option>General Inspection</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="mb-5 relative">
+<label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Assign to Hives</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-3 text-text-secondary group-focus-within:text-primary">search</span>
+<input class="w-full pl-10 pr-4 py-3 bg-background-light border border-border-subtle rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary placeholder:text-text-secondary/50" placeholder="Search Hives (e.g. A-01)" type="text"/>
+</div>
+<div class="mt-2 max-h-32 overflow-y-auto custom-scrollbar border border-border-subtle rounded-lg bg-background-light/30 p-2">
+<label class="flex items-center gap-3 p-2 hover:bg-white rounded cursor-pointer transition-colors">
+<input checked="" class="rounded text-primary focus:ring-primary border-gray-300 h-4 w-4" type="checkbox"/>
+<span class="text-sm font-medium text-text-primary">Hive A-01 (North Yard)</span>
+</label>
+<label class="flex items-center gap-3 p-2 hover:bg-white rounded cursor-pointer transition-colors">
+<input checked="" class="rounded text-primary focus:ring-primary border-gray-300 h-4 w-4" type="checkbox"/>
+<span class="text-sm font-medium text-text-primary">Hive A-02 (North Yard)</span>
+</label>
+<label class="flex items-center gap-3 p-2 hover:bg-white rounded cursor-pointer transition-colors">
+<input class="rounded text-primary focus:ring-primary border-gray-300 h-4 w-4" type="checkbox"/>
+<span class="text-sm font-medium text-text-primary">Hive B-05 (River Side)</span>
+</label>
+<label class="flex items-center gap-3 p-2 hover:bg-white rounded cursor-pointer transition-colors">
+<input class="rounded text-primary focus:ring-primary border-gray-300 h-4 w-4" type="checkbox"/>
+<span class="text-sm font-medium text-text-primary">Hive C-12 (Orchard)</span>
+</label>
+</div>
+<p class="text-xs text-text-secondary mt-1 text-right">2 Hives Selected</p>
+</div>
+<div class="mb-6">
+<label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Priority Level</label>
+<div class="flex gap-2">
+<label class="cursor-pointer flex-1">
+<input class="peer sr-only" name="priority" type="radio"/>
+<div class="text-center py-2 rounded-lg border border-border-subtle text-xs font-bold text-text-secondary peer-checked:bg-green-100 peer-checked:text-green-700 peer-checked:border-green-200 transition-all hover:bg-background-light">Low</div>
+</label>
+<label class="cursor-pointer flex-1">
+<input checked="" class="peer sr-only" name="priority" type="radio"/>
+<div class="text-center py-2 rounded-lg border border-border-subtle text-xs font-bold text-text-secondary peer-checked:bg-blue-100 peer-checked:text-blue-700 peer-checked:border-blue-200 transition-all hover:bg-background-light">Med</div>
+</label>
+<label class="cursor-pointer flex-1">
+<input class="peer sr-only" name="priority" type="radio"/>
+<div class="text-center py-2 rounded-lg border border-border-subtle text-xs font-bold text-text-secondary peer-checked:bg-primary/20 peer-checked:text-orange-700 peer-checked:border-primary/30 transition-all hover:bg-background-light">High</div>
+</label>
+<label class="cursor-pointer flex-1">
+<input class="peer sr-only" name="priority" type="radio"/>
+<div class="text-center py-2 rounded-lg border border-border-subtle text-xs font-bold text-text-secondary peer-checked:bg-red-100 peer-checked:text-red-700 peer-checked:border-red-200 transition-all hover:bg-background-light">Urg</div>
+</label>
+</div>
+</div>
+<button class="mt-auto w-full bg-primary hover:bg-primary/90 text-brown-bramble font-bold py-3.5 px-4 rounded-full shadow-[0_4px_14px_rgba(247,162,43,0.4)] transition-transform active:scale-[0.98] flex justify-center items-center gap-2">
+<span>Assign to 2 Hives</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</section>
+<section class="lg:col-span-2 flex flex-col h-full">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-lg font-semibold text-brown-bramble flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">pending_actions</span>
+                                Active Schedule
+                            </h3>
+<div class="flex gap-2">
+<button class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white border border-border-subtle text-xs font-semibold text-text-secondary hover:bg-background-light transition-colors">
+<span class="material-symbols-outlined text-[16px]">filter_list</span> Filter
+                                </button>
+<button class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white border border-border-subtle text-xs font-semibold text-text-secondary hover:bg-background-light transition-colors">
+<span class="material-symbols-outlined text-[16px]">sort</span> Sort
+                                </button>
+</div>
+</div>
+<div class="bg-white rounded shadow-sm border border-border-subtle overflow-hidden flex-1 flex flex-col">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-background-light border-b border-border-subtle">
+<th class="py-4 px-6 text-xs font-bold text-text-secondary uppercase tracking-wider">Hive ID</th>
+<th class="py-4 px-6 text-xs font-bold text-text-secondary uppercase tracking-wider">Task Name</th>
+<th class="py-4 px-6 text-xs font-bold text-text-secondary uppercase tracking-wider">Priority</th>
+<th class="py-4 px-6 text-xs font-bold text-text-secondary uppercase tracking-wider">Due Date</th>
+<th class="py-4 px-6 text-xs font-bold text-text-secondary uppercase tracking-wider text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border-subtle">
+<tr class="group hover:bg-background-light/50 transition-colors">
+<td class="py-4 px-6">
+<div class="flex items-center gap-2">
+<div class="h-2 w-2 rounded-full bg-green-500"></div>
+<span class="font-bold text-brown-bramble text-sm">A-04</span>
+</div>
+</td>
+<td class="py-4 px-6">
+<div class="font-medium text-brown-bramble text-sm">Mite Check</div>
+<div class="text-xs text-text-secondary">Standard Inspection</div>
+</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/20 text-orange-800 border border-primary/20">
+                                                    High
+                                                </span>
+</td>
+<td class="py-4 px-6 text-sm font-medium text-text-primary">Today</td>
+<td class="py-4 px-6 text-right">
+<button class="text-text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="group hover:bg-background-light/50 transition-colors">
+<td class="py-4 px-6">
+<div class="flex items-center gap-2">
+<div class="h-2 w-2 rounded-full bg-blue-500"></div>
+<span class="font-bold text-brown-bramble text-sm">B-09</span>
+</div>
+</td>
+<td class="py-4 px-6">
+<div class="font-medium text-brown-bramble text-sm">Add Frame</div>
+<div class="text-xs text-text-secondary">Hive Expansion</div>
+</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                                    Medium
+                                                </span>
+</td>
+<td class="py-4 px-6 text-sm font-medium text-text-primary">Tomorrow</td>
+<td class="py-4 px-6 text-right">
+<button class="text-text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="group hover:bg-background-light/50 transition-colors">
+<td class="py-4 px-6">
+<div class="flex items-center gap-2">
+<div class="h-2 w-2 rounded-full bg-green-500"></div>
+<span class="font-bold text-brown-bramble text-sm">A-12</span>
+</div>
+</td>
+<td class="py-4 px-6">
+<div class="font-medium text-brown-bramble text-sm">General Check</div>
+<div class="text-xs text-text-secondary">Routine</div>
+</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200">
+                                                    Low
+                                                </span>
+</td>
+<td class="py-4 px-6 text-sm font-medium text-text-primary">Oct 24</td>
+<td class="py-4 px-6 text-right">
+<button class="text-text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="group hover:bg-background-light/50 transition-colors">
+<td class="py-4 px-6">
+<div class="flex items-center gap-2">
+<div class="h-2 w-2 rounded-full bg-red-500"></div>
+<span class="font-bold text-brown-bramble text-sm">C-02</span>
+</div>
+</td>
+<td class="py-4 px-6">
+<div class="font-medium text-brown-bramble text-sm">Winter Prep</div>
+<div class="text-xs text-text-secondary">Insulation</div>
+</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
+                                                    Urgent
+                                                </span>
+</td>
+<td class="py-4 px-6 text-sm font-medium text-text-primary">Oct 25</td>
+<td class="py-4 px-6 text-right">
+<button class="text-text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="group hover:bg-background-light/50 transition-colors">
+<td class="py-4 px-6">
+<div class="flex items-center gap-2">
+<div class="h-2 w-2 rounded-full bg-green-500"></div>
+<span class="font-bold text-brown-bramble text-sm">A-01</span>
+</div>
+</td>
+<td class="py-4 px-6">
+<div class="font-medium text-brown-bramble text-sm">Requeen</div>
+<div class="text-xs text-text-secondary">Genetics</div>
+</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/20 text-orange-800 border border-primary/20">
+                                                    High
+                                                </span>
+</td>
+<td class="py-4 px-6 text-sm font-medium text-text-primary">Oct 26</td>
+<td class="py-4 px-6 text-right">
+<button class="text-text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 border-t border-border-subtle bg-background-light/30 flex justify-center">
+<button class="text-sm font-bold text-text-secondary hover:text-primary transition-colors">View All Tasks</button>
+</div>
+</div>
+</section>
+</div>
+</div>
+</div>
+</main>
+
+</body></html>

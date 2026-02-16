@@ -18,26 +18,26 @@ So that I can manage my storage space.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add delete button to ClipPlayerModal (AC: #1)
-  - [ ] 1.1 Add Delete button to modal footer
-  - [ ] 1.2 Show confirmation Modal.confirm() dialog
-  - [ ] 1.3 Call DELETE /api/clips/{id} on confirm
+- [x] Task 1: Add delete button to ClipPlayerModal (AC: #1)
+  - [x] 1.1 Add Delete button to modal footer
+  - [x] 1.2 Show confirmation Modal.confirm() dialog
+  - [x] 1.3 Call DELETE /api/clips/{id} on confirm
 
-- [ ] Task 2: Create backend delete endpoint (AC: #2)
-  - [ ] 2.1 Add `DELETE /api/clips/{id}` handler
-  - [ ] 2.2 Perform soft delete (set deleted_at timestamp)
-  - [ ] 2.3 Return 204 No Content on success
-  - [ ] 2.4 Wire route in main.go
+- [x] Task 2: Create backend delete endpoint (AC: #2)
+  - [x] 2.1 Add `DELETE /api/clips/{id}` handler
+  - [x] 2.2 Perform soft delete (set deleted_at timestamp)
+  - [x] 2.3 Return 204 No Content on success
+  - [x] 2.4 Wire route in main.go
 
-- [ ] Task 3: Update frontend after delete (AC: #2)
-  - [ ] 3.1 Close modal after successful delete
-  - [ ] 3.2 Trigger clips list refresh
-  - [ ] 3.3 Show success notification
+- [x] Task 3: Update frontend after delete (AC: #2)
+  - [x] 3.1 Close modal after successful delete
+  - [x] 3.2 Trigger clips list refresh
+  - [x] 3.3 Show success notification
 
-- [ ] Task 4: Testing
-  - [ ] 4.1 Test delete confirmation flow
-  - [ ] 4.2 Test soft delete in database
-  - [ ] 4.3 Test clips list excludes soft-deleted
+- [x] Task 4: Testing
+  - [x] 4.1 Test delete confirmation flow
+  - [x] 4.2 Test soft delete in database
+  - [x] 4.3 Test clips list excludes soft-deleted
 
 ## Dev Notes
 
@@ -123,10 +123,25 @@ func SoftDeleteClip(ctx context.Context, conn *pgxpool.Conn, clipID string) erro
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.5
 
 ### Debug Log References
 
+None - implementation was straightforward.
+
 ### Completion Notes List
 
+- AC1 and AC2 were already implemented in the original development
+- AC3 (cleanup function) was added during remediation: `PurgeOldSoftDeletedClips` in storage and `PurgeOldClips` handler
+- Improved error handling in frontend delete flow to show meaningful error messages
+- All tests added for delete confirmation flow, soft delete behavior, and purge functionality
+
 ### File List
+
+- `apis-dashboard/src/components/ClipPlayerModal.tsx` - Added delete button, confirmation dialog, and improved error handling
+- `apis-server/internal/handlers/clips.go` - Added DeleteClip handler and PurgeOldClips handler for AC3
+- `apis-server/internal/storage/clips.go` - SoftDeleteClip was pre-existing; added PurgeOldSoftDeletedClips for AC3
+- `apis-server/cmd/server/main.go` - Wired DELETE /api/clips/{id} and POST /api/admin/clips/purge routes
+- `apis-server/tests/handlers/clips_test.go` - Added tests for delete and purge handlers
+- `apis-server/tests/storage/clips_test.go` - Added tests for soft delete and purge storage functions
+- `apis-dashboard/tests/components/ClipPlayerModal.test.tsx` - Added tests for delete confirmation flow

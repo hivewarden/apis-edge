@@ -210,7 +210,11 @@ void coord_mapper_clear_points(void);
 
 /**
  * Calculate calibration from recorded points.
- * Requires at least 1 point for offset, 2+ for scale.
+ * Requires at least 1 point for offset computation.
+ *
+ * NOTE: Currently only offset calibration is implemented. Scale factors
+ * remain at 1.0 regardless of how many calibration points are added.
+ * Multi-point scale computation may be added in a future version.
  *
  * @return COORD_OK if calibration computed successfully
  */

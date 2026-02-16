@@ -1,5 +1,9 @@
 /**
  * Unit tests for Laser Controller.
+ *
+ * C7-INFO-005: Missing test coverage (suggested additions):
+ * TODO: Add test for state callback invocation timing (verify outside lock)
+ * TODO: Add test for concurrent on/off/arm/disarm from multiple threads
  */
 
 #include "laser_controller.h"
@@ -79,6 +83,8 @@ static void test_status_names(void) {
                 "LASER_ERROR_KILL_SWITCH has correct name");
     TEST_ASSERT(strcmp(laser_status_name(LASER_ERROR_HARDWARE), "HARDWARE") == 0,
                 "LASER_ERROR_HARDWARE has correct name");
+    TEST_ASSERT(strcmp(laser_status_name(LASER_ERROR_INVALID_PARAM), "INVALID_PARAM") == 0,
+                "LASER_ERROR_INVALID_PARAM has correct name");
     TEST_ASSERT(strcmp(laser_status_name((laser_status_t)99), "UNKNOWN") == 0,
                 "Unknown status returns UNKNOWN");
 }
@@ -374,7 +380,7 @@ static void test_statistics(void) {
 
     // Null pointer test
     status = laser_controller_get_stats(NULL);
-    TEST_ASSERT(status == LASER_ERROR_HARDWARE, "Get stats with NULL fails");
+    TEST_ASSERT(status == LASER_ERROR_INVALID_PARAM, "Get stats with NULL fails");
 
     laser_controller_cleanup();
 }
@@ -486,6 +492,50 @@ static void test_off_always_safe(void) {
 }
 
 // ============================================================================
+// Test: Timeout Callback
+// ============================================================================
+
+static void test_timeout_callback(void) {
+    TEST_SECTION("Timeout Callback");
+
+    reset_callback_tracking();
+
+    laser_controller_init();
+    laser_controller_set_timeout_callback(timeout_callback, NULL);
+    laser_controller_arm();
+    laser_controller_on();
+
+    // Simulate time passing by calling update repeatedly
+    // Note: This test takes ~10 seconds due to the safety timeout
+    // In CI, this may be skipped if timing is critical
+    printf("  (Waiting for 10s timeout - this takes a while...)\n");
+
+    for (int i = 0; i < 110; i++) {
+        apis_sleep_ms(100);
+        laser_controller_update();
+
+        // Check if timeout already occurred
+        if (timeout_callback_count > 0) {
+            break;
+        }
+    }
+
+    TEST_ASSERT(timeout_callback_count == 1, "Timeout callback invoked once");
+    TEST_ASSERT(last_timeout_duration >= 9900 && last_timeout_duration <= 11000,
+                "Duration is approximately 10s");
+    TEST_ASSERT(laser_controller_is_active() == false, "Laser off after timeout");
+    TEST_ASSERT(laser_controller_get_state() == LASER_STATE_COOLDOWN,
+                "State is COOLDOWN after timeout");
+
+    // Check statistics
+    laser_stats_t stats;
+    laser_controller_get_stats(&stats);
+    TEST_ASSERT(stats.safety_timeout_count == 1, "Safety timeout count is 1");
+
+    laser_controller_cleanup();
+}
+
+// ============================================================================
 // Test: Multiple Arm/Disarm
 // ============================================================================
 
@@ -534,6 +584,7 @@ int main(int argc, char *argv[]) {
     test_on_time_tracking();
     test_statistics();
     test_state_callback();
+    test_timeout_callback();  // Note: Takes ~10s due to safety timeout
     test_off_always_safe();
     test_multiple_arm_disarm();
     test_cleanup_safety();

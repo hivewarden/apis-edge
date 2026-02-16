@@ -49,3 +49,5 @@ and mounting geometry for optimal hornet detection.
 | Date | Author | Changes |
 |------|--------|---------|
 | 2026-01-23 | Claude | Story marked done - documentation already exists |
+| 2026-01-26 | Claude | Code review: NEEDS_WORK - 8 issues found (2 HIGH, 4 MEDIUM, 2 LOW). Missing IP rating education (AC1), cable management section (AC4), commercial sourcing, sun/shade guidance, suspended mount docs. |
+| 2026-01-26 | Claude | Remediation: Fixed 8 issues from code review - Added IP ratings, cable management (11.5), sun/shade (11.6), mounting options (11.7), camera view examples, commercial sourcing, created docs/hardware/05-enclosure-mounting.md, created hardware/enclosure/ directory |

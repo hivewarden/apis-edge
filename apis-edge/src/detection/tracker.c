@@ -82,6 +82,10 @@ static tracked_object_t *register_object(const detection_t *det, uint32_t timest
             tracked_object_t *obj = &g_state.objects[i];
 
             obj->id = g_state.next_id++;
+            // C7-MED-007: Skip ID 0 on wrap - 0 is reserved for "no track"
+            if (g_state.next_id == 0) {
+                g_state.next_id = 1;
+            }
             obj->centroid_x = det->centroid_x;
             obj->centroid_y = det->centroid_y;
             obj->history_count = 1;
@@ -295,6 +299,12 @@ int tracker_get_history(uint32_t track_id, track_position_t *history) {
     return 0;
 }
 
+// C7-MED-008: This function returns a pointer to mutable internal state.
+// Callers must NOT cache this pointer across update cycles, as the object
+// may be deregistered or reassigned. For thread-safe usage, callers should
+// copy the returned struct immediately. A future API revision could accept
+// a caller-provided output struct to eliminate this risk entirely.
+// TODO: Add tracker_get_object_copy(uint32_t track_id, tracked_object_t *out)
 const tracked_object_t *tracker_get_object(uint32_t track_id) {
     if (!g_initialized) {
         return NULL;

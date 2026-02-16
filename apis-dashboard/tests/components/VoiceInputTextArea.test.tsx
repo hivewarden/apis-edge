@@ -6,7 +6,7 @@
  * Part of Epic 7, Story 7.5: Voice Input for Notes
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 
 // Mock VoiceInputButton - inline mock to avoid hoisting issues
@@ -84,12 +84,14 @@ describe('VoiceInputTextArea', () => {
   });
 
   describe('rendering', () => {
-    it('should render textarea', () => {
+    it('should render textarea', async () => {
       renderWithProviders(
         React.createElement(VoiceInputTextArea, { value: '', onChange: mockOnChange })
       );
 
-      expect(screen.getByRole('textbox')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument();
+      });
     });
 
     it('should render with placeholder', () => {

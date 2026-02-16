@@ -782,6 +782,16 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 - Tests: Backend storage, service, and handler tests
 - Tests: Frontend hook and component tests
 
+### Change Log
+
+- [2026-01-26] Remediation: Fixed 8 issues from code review
+  - Created RecapShareModal.test.tsx with comprehensive test coverage
+  - Created HiveSeasonSummary.test.tsx with comprehensive test coverage
+  - Fixed test assertions in useSeasonRecap.test.ts to match implementation
+  - Fixed season time logic in tests to match backend (Northern: Nov+, Southern: May+)
+  - Updated SeasonRecapCard.test.tsx mock to match interface
+  - Added zerolog warning in ListSeasonRecaps for JSON unmarshal errors
+
 ### File List
 
 **Backend Files Created:**

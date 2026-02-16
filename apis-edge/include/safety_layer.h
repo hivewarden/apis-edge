@@ -241,6 +241,9 @@ void safety_enter_safe_mode(void);
 /**
  * Reset from safe mode.
  * System returns to normal, but remains disarmed.
+ * Watchdog timer is reset to full timeout.
+ * Kill switch on laser controller is reset.
+ * Emergency stop on button handler is cleared.
  *
  * @return SAFETY_OK on success
  */
@@ -342,5 +345,51 @@ const char *safety_check_name(safety_check_t check);
  * Forces laser off and enters safe mode.
  */
 void safety_cleanup(void);
+
+// ============================================================================
+// Laser Command Wrappers - Wraps ALL laser commands with safety checks
+// ============================================================================
+
+/**
+ * Safe laser activation.
+ * Wraps laser_controller_on() with full safety check.
+ * This is the ONLY function that should be used to turn the laser on.
+ *
+ * On failure: Laser remains OFF, reason is logged, no error shown to user.
+ *
+ * @return SAFETY_OK if laser activated, error code if blocked (silent)
+ */
+safety_status_t safety_laser_on(void);
+
+/**
+ * Safe laser deactivation.
+ * Turns off laser immediately - always succeeds (safe operation).
+ *
+ * @return SAFETY_OK always
+ */
+safety_status_t safety_laser_off(void);
+
+/**
+ * Safe laser activation with duration hint.
+ * Activates laser after performing all safety checks. Duration is capped at max safe time.
+ *
+ * IMPORTANT: This function only INITIATES laser activation. It does NOT automatically
+ * turn off the laser after the duration. The caller MUST:
+ * 1. Call safety_update() periodically during laser operation
+ * 2. Call safety_laser_off() when the desired duration has elapsed
+ *
+ * The duration_ms parameter is used only for logging and validation - actual timing
+ * must be managed by the caller.
+ *
+ * @param duration_ms Desired activation duration in milliseconds (for logging/capping)
+ * @return SAFETY_OK if laser activated, error code if blocked by safety checks
+ */
+safety_status_t safety_laser_activate(uint32_t duration_ms);
+
+/**
+ * @deprecated Use safety_laser_activate() instead.
+ * This alias exists for backward compatibility but will be removed in a future version.
+ */
+#define safety_laser_pulse(duration_ms) safety_laser_activate(duration_ms)
 
 #endif // APIS_SAFETY_LAYER_H

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Typography,
@@ -12,31 +12,11 @@ import {
   message,
 } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
-import axios from 'axios';
 import { apiClient } from '../providers/apiClient';
+import { useUnitDetail, useSites } from '../hooks';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-
-interface Unit {
-  id: string;
-  serial: string;
-  name: string | null;
-  site_id: string | null;
-}
-
-interface Site {
-  id: string;
-  name: string;
-}
-
-interface UnitResponse {
-  data: Unit;
-}
-
-interface SitesResponse {
-  data: Site[];
-}
 
 interface EditUnitForm {
   name?: string;
@@ -49,57 +29,27 @@ interface EditUnitForm {
  * Form for editing an existing APIS unit.
  *
  * Part of Epic 2, Story 2.2: Register APIS Units
+ * Refactored for Layered Hooks Architecture
  */
 export function UnitEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [form] = Form.useForm<EditUnitForm>();
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [unitSerial, setUnitSerial] = useState('');
-  const [sites, setSites] = useState<Site[]>([]);
-  const [loadingSites, setLoadingSites] = useState(true);
 
-  const fetchUnit = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get<UnitResponse>(`/units/${id}`);
-      const unitData = response.data.data;
-      setUnitSerial(unitData.serial);
-      form.setFieldsValue({
-        name: unitData.name || undefined,
-        site_id: unitData.site_id || undefined,
-      });
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        message.error('Unit not found');
-      } else {
-        message.error('Failed to load unit');
-      }
-      navigate('/units');
-    } finally {
-      setLoading(false);
-    }
-  }, [id, form, navigate]);
+  // Use hooks for unit and sites
+  const { unit, loading } = useUnitDetail(id || '');
+  const { sites, loading: loadingSites } = useSites();
 
-  const fetchSites = async () => {
-    try {
-      setLoadingSites(true);
-      const response = await apiClient.get<SitesResponse>('/sites');
-      setSites(response.data.data || []);
-    } catch {
-      message.warning('Failed to load sites');
-    } finally {
-      setLoadingSites(false);
-    }
-  };
-
+  // Set form values when unit loads
   useEffect(() => {
-    if (id) {
-      fetchUnit();
-      fetchSites();
+    if (unit) {
+      form.setFieldsValue({
+        name: unit.name || undefined,
+        site_id: unit.site_id || undefined,
+      });
     }
-  }, [id, fetchUnit]);
+  }, [unit, form]);
 
   const handleSubmit = async (values: EditUnitForm) => {
     try {
@@ -137,7 +87,7 @@ export function UnitEdit() {
           <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
             Back
           </Button>
-          <Title level={2} style={{ margin: 0 }}>Edit Unit: {unitSerial}</Title>
+          <Title level={2} style={{ margin: 0 }}>Edit Unit: {unit?.serial}</Title>
         </Space>
       </div>
 
@@ -149,7 +99,7 @@ export function UnitEdit() {
           style={{ maxWidth: 600 }}
         >
           <Form.Item label="Serial Number">
-            <Text strong>{unitSerial}</Text>
+            <Text strong>{unit?.serial}</Text>
             <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
               Serial number cannot be changed after registration.
             </Text>

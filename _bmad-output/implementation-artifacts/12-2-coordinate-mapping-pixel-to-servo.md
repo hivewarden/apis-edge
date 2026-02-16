@@ -48,7 +48,7 @@ So that the laser points where the camera sees the hornet.
 - [x] Implement pixel-to-angle linear mapping
 - [x] Implement calibration data structure
 - [x] Implement calibration persistence (JSON)
-- [x] Create comprehensive tests (120 tests passing)
+- [x] Create comprehensive tests (~95 assertions across 15 test functions)
 - [x] Update CMakeLists.txt
 
 ## Dev Agent Record
@@ -56,12 +56,13 @@ So that the laser points where the camera sees the hornet.
 ### Implementation Notes
 
 Files created:
-- `include/coordinate_mapper.h`
-- `src/laser/coordinate_mapper.c`
-- `tests/test_coordinate_mapper.c`
+- `apis-edge/include/coordinate_mapper.h`
+- `apis-edge/src/laser/coordinate_mapper.c`
+- `apis-edge/tests/test_coordinate_mapper.c`
 
 ## Change Log
 
 | Date | Author | Changes |
 |------|--------|---------|
 | 2026-01-23 | Claude | Story created and implementation started |
+| 2026-01-26 | Claude | Remediation: Fixed 7 issues from code review |

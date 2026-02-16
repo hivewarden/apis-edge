@@ -817,6 +817,7 @@ None - clean implementation
 - `apis-dashboard/tests/hooks/useOfflineData.test.ts` - Hook tests
 - `apis-dashboard/tests/components/SyncStatus.test.tsx` - Component tests
 - `apis-dashboard/tests/components/DataUnavailableOffline.test.tsx` - Component tests
+- `apis-dashboard/tests/pages/Settings.test.tsx` - Settings page tests (added during remediation)
 
 **Modified Files:**
 - `apis-dashboard/package.json` - Added dexie dependencies
@@ -863,3 +864,4 @@ None - clean implementation
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-01-25 | Claude Opus 4.5 | Code review: Fixed SyncStatus integration, added prune notification, improved test coverage |
+| 2026-01-25 | Claude Opus 4.5 | Remediation: Verified test timeout fixes (91/91 pass), created Settings.test.tsx (19 tests) |

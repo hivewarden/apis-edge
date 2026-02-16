@@ -83,6 +83,13 @@ func GenerateExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SECURITY FIX (S3A-M5): Limit hive selection to prevent resource exhaustion.
+	// Each hive triggers multiple DB queries (ownership check + data fetching).
+	if len(req.HiveIDs) > 200 {
+		respondError(w, "Too many hives selected (maximum 200)", http.StatusBadRequest)
+		return
+	}
+
 	// Resolve hive IDs - if "all" is specified, fetch all hives
 	var hiveIDs []string
 	if len(req.HiveIDs) == 1 && req.HiveIDs[0] == "all" {
@@ -107,7 +114,7 @@ func GenerateExport(w http.ResponseWriter, r *http.Request) {
 	for _, hiveID := range hiveIDs {
 		hive, err := storage.GetHiveByID(r.Context(), conn, hiveID)
 		if errors.Is(err, storage.ErrNotFound) {
-			respondError(w, "Hive not found: "+hiveID, http.StatusNotFound)
+			respondError(w, "Hive not found or access denied", http.StatusNotFound)
 			return
 		}
 		if err != nil {
@@ -228,6 +235,7 @@ func CreateExportPreset(w http.ResponseWriter, r *http.Request) {
 // DeleteExportPreset handles DELETE /api/export/presets/{id} - deletes a preset.
 func DeleteExportPreset(w http.ResponseWriter, r *http.Request) {
 	conn := storage.RequireConn(r.Context())
+	tenantID := middleware.GetTenantID(r.Context())
 	presetID := chi.URLParam(r, "id")
 
 	if presetID == "" {
@@ -235,19 +243,21 @@ func DeleteExportPreset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := storage.DeleteExportPreset(r.Context(), conn, presetID)
+	// Delete with tenant validation to prevent IDOR vulnerability
+	err := storage.DeleteExportPreset(r.Context(), conn, tenantID, presetID)
 	if errors.Is(err, storage.ErrNotFound) {
 		respondError(w, "Preset not found", http.StatusNotFound)
 		return
 	}
 	if err != nil {
-		log.Error().Err(err).Str("preset_id", presetID).Msg("handler: failed to delete export preset")
+		log.Error().Err(err).Str("preset_id", presetID).Str("tenant_id", tenantID).Msg("handler: failed to delete export preset")
 		respondError(w, "Failed to delete preset", http.StatusInternalServerError)
 		return
 	}
 
 	log.Info().
 		Str("preset_id", presetID).
+		Str("tenant_id", tenantID).
 		Msg("Export preset deleted")
 
 	w.WriteHeader(http.StatusNoContent)

@@ -6,7 +6,7 @@
  *
  * Part of Epic 4, Story 4.2 (Clip Archive List View)
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '../providers/apiClient';
 
 /**
@@ -57,11 +57,12 @@ interface UseClipsResult {
 }
 
 /**
- * Format date to YYYY-MM-DD for API parameter.
+ * Format date to ISO 8601 string for API parameter.
+ * Preserves time precision for accurate filtering.
  */
 function formatDateParam(date: Date | null | undefined): string | null {
   if (!date) return null;
-  return date.toISOString().split('T')[0];
+  return date.toISOString();
 }
 
 /**
@@ -91,6 +92,8 @@ export function useClips(filters: ClipFilters): UseClipsResult {
   const [perPage, setPerPage] = useState(20);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // SECURITY (S5-H1): isMountedRef prevents state updates after unmount
+  const isMountedRef = useRef(true);
 
   // Convert dates to stable strings for dependency array
   const fromStr = formatDateParam(filters.from);
@@ -141,19 +144,26 @@ export function useClips(filters: ClipFilters): UseClipsResult {
       }
 
       const response = await apiClient.get<ClipsResponse>(`/clips?${params.toString()}`);
-      setClips(response.data.data || []);
-      setTotal(response.data.meta.total);
-      setError(null);
+      if (isMountedRef.current) {
+        setClips(response.data.data || []);
+        setTotal(response.data.meta.total);
+        setError(null);
+      }
     } catch (err) {
-      setError(err as Error);
+      if (isMountedRef.current) {
+        setError(err as Error);
+      }
       // Don't clear clips on error - keep showing stale data
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [filters.siteId, filters.unitId, fromStr, toStr, currentPage, perPage]);
 
   // Combined effect: update filters tracking and reset page, then fetch
   useEffect(() => {
+    isMountedRef.current = true;
     if (filtersChanged) {
       setPrevFilters({
         siteId: filters.siteId,
@@ -164,6 +174,7 @@ export function useClips(filters: ClipFilters): UseClipsResult {
       setPageInternal(1);
     }
     fetchClips();
+    return () => { isMountedRef.current = false; };
   }, [fetchClips, filtersChanged, filters.siteId, filters.unitId, fromStr, toStr]);
 
   // Expose setPage that updates internal state

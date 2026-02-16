@@ -1,0 +1,17 @@
+# XIAO ESP32-S3 Sense - 8MB Flash Partition Table
+# APIS Edge Firmware Layout
+#
+# Flash Layout:
+#   0x0000 - 0x9000   : Bootloader (36 KB)
+#   0x9000 - 0xD000   : NVS (16 KB) - WiFi, device config
+#   0xD000 - 0xF000   : OTA data (8 KB) - OTA metadata
+#   0xF000 - 0x10000  : PHY init data (4 KB) - Calibration data
+#   0x10000 - 0x210000: Factory app (2 MB) - Main firmware binary
+#   0x210000 - 0x510000: Storage (3 MB) - Clips, events, database
+#
+# Name,      Type, SubType,  Offset,   Size,     Flags
+nvs,         data, nvs,      0x9000,   0x4000,
+otadata,     data, ota,      0xD000,   0x2000,
+phy_init,    data, phy,      0xF000,   0x1000,
+factory,     app,  factory,  0x10000,  0x200000,
+storage,     data, spiffs,   0x210000, 0x300000,

@@ -36,6 +36,9 @@
 #define GPIO_LASER_CONTROL          23      // GPIO pin for MOSFET gate
 #elif defined(APIS_PLATFORM_ESP32)
 #define GPIO_LASER_CONTROL          4       // Available GPIO on ESP32-CAM
+#else
+// Test platform - define a placeholder value (not actually used in mock GPIO)
+#define GPIO_LASER_CONTROL          0
 #endif
 
 // ============================================================================
@@ -50,6 +53,7 @@ typedef enum {
     LASER_ERROR_MAX_TIME,           // Max on-time reached
     LASER_ERROR_KILL_SWITCH,        // Kill switch engaged
     LASER_ERROR_HARDWARE,           // Hardware fault
+    LASER_ERROR_INVALID_PARAM,      // Invalid parameter (e.g., NULL pointer)
 } laser_status_t;
 
 // ============================================================================

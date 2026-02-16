@@ -389,6 +389,7 @@ N/A - Implementation completed without debugging issues.
 |------|--------|--------|
 | 2026-01-25 | Initial implementation of Story 9.1 | Claude Opus 4.5 |
 | 2026-01-25 | Remediation: Fixed 6 code review issues | Claude Opus 4.5 |
+| 2026-01-25 | Remediation: Fixed 7 bulk review issues (I1-I7) | Claude Opus 4.5 |
 
 ## Remediation Log
 
@@ -414,3 +415,32 @@ N/A - Implementation completed without debugging issues.
 - `/apis-dashboard/tests/pages/Export.test.tsx` - Added waitFor, async tests, proper mocks
 - `/apis-server/internal/services/export.go` - Added Site field, location support, TODO comments
 - `/apis-server/internal/middleware/ratelimit.go` - Added clarifying comment
+
+## Remediation Log (Round 2 - Bulk Review)
+
+**Remediated:** 2026-01-25
+**Issues Fixed:** 7 of 7
+
+### Changes Applied (Round 2)
+
+**HIGH Priority (I6):**
+- Security fix: Added tenant_id parameter to DeleteExportPreset storage function; handler now passes tenant ID from context to prevent IDOR vulnerability
+
+**MEDIUM Priority (I1, I2, I5):**
+- I1: Added integration tests using httptest for validation errors, preset request parsing, rate limit response format
+- I2: Added documentation comments explaining costs and roi_per_hive are deferred to future epic
+- I5: Added frontend tests verifying apiClient calls, include config building, "all" hive selection, preset loading
+
+**LOW Priority (I3, I4, I7):**
+- I3: Updated rate limiter comments to accurately describe that both allowed and denied requests write to the map
+- I4: Added hivesError state and Alert component for hives fetch failures; disabled Select when error occurs
+- I7: Added documentation comments explaining health_summary and season_comparison are deferred to future epic
+
+### Files Modified (Round 2)
+- `/apis-server/internal/storage/export_presets.go` - Added tenantID parameter to DeleteExportPreset
+- `/apis-server/internal/handlers/export.go` - Handler now passes tenant ID for secure delete
+- `/apis-server/tests/handlers/export_test.go` - Added httptest integration tests
+- `/apis-server/internal/services/export.go` - Added documentation for deferred fields
+- `/apis-server/internal/middleware/ratelimit.go` - Updated comments for clarity
+- `/apis-dashboard/src/pages/Export.tsx` - Added hivesError state and error Alert
+- `/apis-dashboard/tests/pages/Export.test.tsx` - Added hook integration tests

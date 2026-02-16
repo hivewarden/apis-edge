@@ -115,7 +115,7 @@ func (h *BeeBrainHandler) GetHiveAnalysis(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	result, err := h.service.AnalyzeHive(r.Context(), conn, tenantID, hiveID)
+	result, err := h.service.AnalyzeHiveWithPool(r.Context(), storage.DB, conn, tenantID, hiveID)
 	if err != nil {
 		log.Error().Err(err).
 			Str("tenant_id", tenantID).
@@ -139,7 +139,7 @@ func (h *BeeBrainHandler) RefreshAnalysis(w http.ResponseWriter, r *http.Request
 	conn := storage.RequireConn(r.Context())
 	tenantID := middleware.GetTenantID(r.Context())
 
-	result, err := h.service.AnalyzeTenant(r.Context(), conn, tenantID)
+	result, err := h.service.AnalyzeTenantWithPool(r.Context(), storage.DB, conn, tenantID)
 	if err != nil {
 		log.Error().Err(err).Str("tenant_id", tenantID).Msg("handler: failed to refresh BeeBrain analysis")
 		respondError(w, "Failed to refresh analysis", http.StatusInternalServerError)
@@ -320,8 +320,9 @@ func (h *BeeBrainHandler) SnoozeInsight(w http.ResponseWriter, r *http.Request) 
 		days = parsedDays
 	} else if r.Body != nil && r.ContentLength > 0 {
 		var req SnoozeInsightRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err == nil && req.Days > 0 {
-			if req.Days > 90 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			// Unified validation: days must be between 1 and 90 (same as query param path)
+			if req.Days < 1 || req.Days > 90 {
 				respondError(w, "Days must be between 1 and 90", http.StatusBadRequest)
 				return
 			}

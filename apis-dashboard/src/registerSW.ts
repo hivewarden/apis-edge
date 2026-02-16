@@ -9,8 +9,11 @@
  * - Update detection with user notification callback
  * - Offline-ready state tracking
  * - Manual update application
+ * - Sync-on-reconnect for offline tasks (Story 14.16)
  */
 import { registerSW } from 'virtual:pwa-register';
+import { syncPendingTasks, hasPendingTaskSync } from './services/taskSync';
+import { isSyncRunning } from './services/backgroundSync';
 
 /** Check if we're in development mode */
 const isDev = import.meta.env.DEV;
@@ -54,6 +57,15 @@ let updateSW: ((reloadPage?: boolean) => Promise<void>) | undefined;
 
 // Interval ID for the hourly update check (for cleanup)
 let updateCheckIntervalId: ReturnType<typeof setInterval> | undefined;
+
+// Debounce timer for sync-on-reconnect (Story 14.16)
+let syncDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+// SECURITY (S6-L6): Store event listener reference for cleanup
+let onlineEventHandler: (() => void) | undefined;
+
+/** Debounce delay for sync-on-reconnect in milliseconds */
+const SYNC_DEBOUNCE_MS = 1000;
 
 /**
  * Initialize the Service Worker
@@ -106,6 +118,63 @@ export function initServiceWorker(
       onError(error);
     },
   });
+
+  // Set up sync-on-reconnect handler (Story 14.16)
+  setupSyncOnReconnect();
+}
+
+/**
+ * Set up sync-on-reconnect handler for offline tasks
+ *
+ * When the browser comes back online, automatically sync any pending
+ * offline task operations (creates, completions).
+ *
+ * Uses debouncing to prevent rapid re-triggers from flaky connections.
+ *
+ * Part of Epic 14, Story 14.16: Offline Task Support
+ */
+function setupSyncOnReconnect(): void {
+  // SECURITY (S6-L6): Remove any previous handler before adding a new one
+  // (prevents duplicate handlers during HMR in development)
+  if (onlineEventHandler) {
+    window.removeEventListener('online', onlineEventHandler);
+  }
+
+  const handleOnline = async () => {
+    devLog('[SW] Network connection restored, checking for pending sync');
+
+    // Debounce to prevent rapid re-triggers
+    if (syncDebounceTimer) {
+      clearTimeout(syncDebounceTimer);
+    }
+
+    syncDebounceTimer = setTimeout(async () => {
+      try {
+        // SECURITY (S6-H3): Check if a background sync is already running
+        // (e.g., triggered by useBackgroundSync hook) to prevent race condition
+        if (isSyncRunning()) {
+          devLog('[SW] Background sync already in progress, skipping task sync');
+          return;
+        }
+
+        // Check if there are pending items before syncing
+        const hasPending = await hasPendingTaskSync();
+        if (hasPending) {
+          devLog('[SW] Pending task sync items found, starting sync');
+          await syncPendingTasks();
+        } else {
+          devLog('[SW] No pending task sync items');
+        }
+      } catch (err) {
+        devError('[SW] Error during sync-on-reconnect:', err);
+      }
+    }, SYNC_DEBOUNCE_MS);
+  };
+
+  window.addEventListener('online', handleOnline);
+  onlineEventHandler = handleOnline;
+
+  devLog('[SW] Sync-on-reconnect handler registered');
 }
 
 /**
@@ -136,10 +205,23 @@ export function applyUpdate(reload: boolean = true): void {
  * Call this when the application is being torn down to prevent memory leaks.
  * In most cases, this is not needed as the interval runs for the lifetime of the app.
  *
+ * **Use Cases:**
+ * - Micro-frontend unmounting from a parent shell
+ * - Test cleanup in integration tests
+ * - Hot module replacement during development
+ *
+ * **Note:** This is intentionally exported but rarely called in production.
+ * The hourly update check interval is typically desired for the app lifetime.
+ *
  * @example
  * ```ts
- * // In a cleanup function or when unmounting the app
- * cleanupServiceWorker();
+ * // In test cleanup
+ * afterEach(() => {
+ *   cleanupServiceWorker();
+ * });
+ *
+ * // In micro-frontend unmount
+ * window.addEventListener('beforeunload', cleanupServiceWorker);
  * ```
  */
 export function cleanupServiceWorker(): void {
@@ -147,5 +229,19 @@ export function cleanupServiceWorker(): void {
     clearInterval(updateCheckIntervalId);
     updateCheckIntervalId = undefined;
     devLog('[SW] Update check interval cleared');
+  }
+
+  // SECURITY (S6-L6): Remove the online event listener to prevent memory leaks
+  // during HMR in development or micro-frontend unmounting
+  if (onlineEventHandler) {
+    window.removeEventListener('online', onlineEventHandler);
+    onlineEventHandler = undefined;
+    devLog('[SW] Online event handler removed');
+  }
+
+  // Clear any pending sync debounce timer
+  if (syncDebounceTimer) {
+    clearTimeout(syncDebounceTimer);
+    syncDebounceTimer = undefined;
   }
 }

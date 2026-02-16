@@ -93,6 +93,9 @@ type CreateBoxChangeInput struct {
 var ErrHiveHasInspections = errors.New("hive has inspections")
 
 // CreateHive creates a new hive in the database.
+// SECURITY FIX (DL-H01): Wrapped in a transaction so hive + queen history
+// are created atomically. Previously, a failure in queen history creation
+// could leave orphaned hive records without corresponding queen history.
 func CreateHive(ctx context.Context, conn *pgxpool.Conn, tenantID string, input *CreateHiveInput) (*Hive, error) {
 	// Set defaults
 	broodBoxes := input.BroodBoxes
@@ -111,30 +114,39 @@ func CreateHive(ctx context.Context, conn *pgxpool.Conn, tenantID string, input 
 		honeySupers = 5
 	}
 
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	var hive Hive
-	err := conn.QueryRow(ctx,
+	err = tx.QueryRow(ctx,
 		`INSERT INTO hives (tenant_id, site_id, name, queen_introduced_at, queen_source, brood_boxes, honey_supers, notes)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		 RETURNING id, tenant_id, site_id, name, queen_introduced_at, queen_source, brood_boxes, honey_supers, notes, created_at, updated_at`,
+		 RETURNING id, tenant_id, site_id, name, queen_introduced_at, queen_source, brood_boxes, honey_supers, notes, status, lost_at, created_at, updated_at`,
 		tenantID, input.SiteID, input.Name, input.QueenIntroducedAt, input.QueenSource, broodBoxes, honeySupers, input.Notes,
 	).Scan(&hive.ID, &hive.TenantID, &hive.SiteID, &hive.Name, &hive.QueenIntroducedAt, &hive.QueenSource,
-		&hive.BroodBoxes, &hive.HoneySupers, &hive.Notes, &hive.CreatedAt, &hive.UpdatedAt)
+		&hive.BroodBoxes, &hive.HoneySupers, &hive.Notes, &hive.Status, &hive.LostAt, &hive.CreatedAt, &hive.UpdatedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("storage: failed to create hive: %w", err)
 	}
 
-	// If queen info provided, create initial queen history entry
+	// If queen info provided, create initial queen history entry within the same transaction
 	if input.QueenIntroducedAt != nil {
-		_, err = CreateQueenHistory(ctx, conn, &CreateQueenHistoryInput{
-			HiveID:       hive.ID,
-			IntroducedAt: *input.QueenIntroducedAt,
-			Source:       input.QueenSource,
-		})
+		_, err = tx.Exec(ctx,
+			`INSERT INTO queen_history (hive_id, introduced_at, source)
+			 VALUES ($1, $2, $3)`,
+			hive.ID, *input.QueenIntroducedAt, input.QueenSource,
+		)
 		if err != nil {
-			// Log but don't fail - hive was created successfully
-			log.Warn().Err(err).Str("hive_id", hive.ID).Msg("storage: failed to create initial queen history")
+			return nil, fmt.Errorf("storage: failed to create initial queen history: %w", err)
 		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("storage: failed to commit hive creation: %w", err)
 	}
 
 	return &hive, nil
@@ -248,11 +260,30 @@ func GetHiveByID(ctx context.Context, conn *pgxpool.Conn, id string) (*Hive, err
 }
 
 // UpdateHive updates an existing hive and optionally tracks box changes.
+// SECURITY FIX (DL-H04): Uses SELECT ... FOR UPDATE to prevent TOCTOU races.
 func UpdateHive(ctx context.Context, conn *pgxpool.Conn, id string, input *UpdateHiveInput) (*Hive, error) {
-	// Get current hive to track changes
-	current, err := GetHiveByID(ctx, conn, id)
+	tx, err := conn.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("storage: failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Lock the row with FOR UPDATE to prevent concurrent modifications
+	var current Hive
+	err = tx.QueryRow(ctx,
+		`SELECT id, tenant_id, site_id, name, queen_introduced_at, queen_source, brood_boxes, honey_supers, notes, status, lost_at, created_at, updated_at
+		 FROM hives
+		 WHERE id = $1
+		 FOR UPDATE`,
+		id,
+	).Scan(&current.ID, &current.TenantID, &current.SiteID, &current.Name, &current.QueenIntroducedAt, &current.QueenSource,
+		&current.BroodBoxes, &current.HoneySupers, &current.Notes, &current.Status, &current.LostAt, &current.CreatedAt, &current.UpdatedAt)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to get hive for update: %w", err)
 	}
 
 	// Apply updates
@@ -299,15 +330,16 @@ func UpdateHive(ctx context.Context, conn *pgxpool.Conn, id string, input *Updat
 	}
 
 	// Update hive
+	// SECURITY FIX (DL-H05): Added status, lost_at to RETURNING clause
 	var hive Hive
-	err = conn.QueryRow(ctx,
+	err = tx.QueryRow(ctx,
 		`UPDATE hives
 		 SET name = $2, queen_introduced_at = $3, queen_source = $4, brood_boxes = $5, honey_supers = $6, notes = $7
 		 WHERE id = $1
-		 RETURNING id, tenant_id, site_id, name, queen_introduced_at, queen_source, brood_boxes, honey_supers, notes, created_at, updated_at`,
+		 RETURNING id, tenant_id, site_id, name, queen_introduced_at, queen_source, brood_boxes, honey_supers, notes, status, lost_at, created_at, updated_at`,
 		id, name, queenIntroducedAt, queenSource, broodBoxes, honeySupers, notes,
 	).Scan(&hive.ID, &hive.TenantID, &hive.SiteID, &hive.Name, &hive.QueenIntroducedAt, &hive.QueenSource,
-		&hive.BroodBoxes, &hive.HoneySupers, &hive.Notes, &hive.CreatedAt, &hive.UpdatedAt)
+		&hive.BroodBoxes, &hive.HoneySupers, &hive.Notes, &hive.Status, &hive.LostAt, &hive.CreatedAt, &hive.UpdatedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -316,7 +348,9 @@ func UpdateHive(ctx context.Context, conn *pgxpool.Conn, id string, input *Updat
 		return nil, fmt.Errorf("storage: failed to update hive: %w", err)
 	}
 
-	// Track box changes
+	// Track box changes within the same transaction
+	// SECURITY FIX (DL-H03): Return errors from box change tracking instead of
+	// silently swallowing them. Callers need to know if the audit trail is incomplete.
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
@@ -329,14 +363,11 @@ func UpdateHive(ctx context.Context, conn *pgxpool.Conn, id string, input *Updat
 			diff = -diff
 		}
 		for i := 0; i < diff; i++ {
-			_, err = CreateBoxChange(ctx, conn, &CreateBoxChangeInput{
-				HiveID:     id,
-				ChangeType: changeType,
-				BoxType:    "brood",
-				ChangedAt:  today,
-			})
+			_, err = tx.Exec(ctx,
+				`INSERT INTO box_changes (hive_id, change_type, box_type, changed_at) VALUES ($1, $2, $3, $4)`,
+				id, changeType, "brood", today)
 			if err != nil {
-				log.Warn().Err(err).Str("hive_id", id).Str("box_type", "brood").Msg("storage: failed to create box change")
+				return nil, fmt.Errorf("storage: failed to create brood box change record: %w", err)
 			}
 		}
 	}
@@ -350,16 +381,17 @@ func UpdateHive(ctx context.Context, conn *pgxpool.Conn, id string, input *Updat
 			diff = -diff
 		}
 		for i := 0; i < diff; i++ {
-			_, err = CreateBoxChange(ctx, conn, &CreateBoxChangeInput{
-				HiveID:     id,
-				ChangeType: changeType,
-				BoxType:    "super",
-				ChangedAt:  today,
-			})
+			_, err = tx.Exec(ctx,
+				`INSERT INTO box_changes (hive_id, change_type, box_type, changed_at) VALUES ($1, $2, $3, $4)`,
+				id, changeType, "super", today)
 			if err != nil {
-				log.Warn().Err(err).Str("hive_id", id).Str("box_type", "super").Msg("storage: failed to create box change")
+				return nil, fmt.Errorf("storage: failed to create honey super box change record: %w", err)
 			}
 		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("storage: failed to commit hive update: %w", err)
 	}
 
 	return &hive, nil
@@ -522,6 +554,255 @@ func CreateBoxChange(ctx context.Context, conn *pgxpool.Conn, input *CreateBoxCh
 		return nil, fmt.Errorf("storage: failed to create box change: %w", err)
 	}
 	return &bc, nil
+}
+
+// UpdateHiveField updates a single field on a hive and returns the old value.
+// This is used by auto-effects processing for "set" actions.
+// Allowed fields: queen_introduced_at, queen_source, brood_boxes, honey_supers.
+func UpdateHiveField(ctx context.Context, conn *pgxpool.Conn, hiveID, field string, value any) (any, error) {
+	// Get current value
+	current, err := GetHiveByID(ctx, conn, hiveID)
+	if err != nil {
+		return nil, err
+	}
+
+	var oldValue any
+
+	switch field {
+	case "queen_introduced_at":
+		if current.QueenIntroducedAt != nil {
+			oldValue = current.QueenIntroducedAt.Format("2006-01-02")
+		}
+		// Parse the new value
+		var newDate *time.Time
+		if value != nil {
+			switch v := value.(type) {
+			case string:
+				if v != "" {
+					parsed, err := time.Parse("2006-01-02", v)
+					if err != nil {
+						return nil, fmt.Errorf("storage: invalid date format for queen_introduced_at: %w", err)
+					}
+					newDate = &parsed
+				}
+			case time.Time:
+				newDate = &v
+			}
+		}
+		_, err = conn.Exec(ctx,
+			`UPDATE hives SET queen_introduced_at = $2, updated_at = NOW() WHERE id = $1`,
+			hiveID, newDate)
+
+	case "queen_source":
+		oldValue = current.QueenSource
+		var newSource *string
+		if value != nil {
+			if s, ok := value.(string); ok && s != "" {
+				newSource = &s
+			}
+		}
+		_, err = conn.Exec(ctx,
+			`UPDATE hives SET queen_source = $2, updated_at = NOW() WHERE id = $1`,
+			hiveID, newSource)
+
+	case "brood_boxes":
+		oldValue = current.BroodBoxes
+		newVal := toIntValue(value)
+		if newVal < 1 {
+			newVal = 1
+		}
+		if newVal > 3 {
+			newVal = 3
+		}
+		_, err = conn.Exec(ctx,
+			`UPDATE hives SET brood_boxes = $2, updated_at = NOW() WHERE id = $1`,
+			hiveID, newVal)
+
+	case "honey_supers":
+		oldValue = current.HoneySupers
+		newVal := toIntValue(value)
+		if newVal < 0 {
+			newVal = 0
+		}
+		if newVal > 5 {
+			newVal = 5
+		}
+		_, err = conn.Exec(ctx,
+			`UPDATE hives SET honey_supers = $2, updated_at = NOW() WHERE id = $1`,
+			hiveID, newVal)
+
+	default:
+		return nil, fmt.Errorf("storage: field %s not allowed for auto-update", field)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to update hive field %s: %w", field, err)
+	}
+
+	log.Info().
+		Str("hive_id", hiveID).
+		Str("field", field).
+		Interface("old_value", oldValue).
+		Interface("new_value", value).
+		Msg("Hive field updated via auto-effect")
+
+	return oldValue, nil
+}
+
+// IncrementHiveField increments a numeric hive field by the given amount.
+// Returns the old and new values.
+func IncrementHiveField(ctx context.Context, conn *pgxpool.Conn, hiveID, field string, amount int) (int, int, error) {
+	current, err := GetHiveByID(ctx, conn, hiveID)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var oldValue, newValue int
+
+	switch field {
+	case "brood_boxes":
+		oldValue = current.BroodBoxes
+		newValue = oldValue + amount
+		if newValue > 3 {
+			newValue = 3
+		}
+		_, err = conn.Exec(ctx,
+			`UPDATE hives SET brood_boxes = $2, updated_at = NOW() WHERE id = $1`,
+			hiveID, newValue)
+
+	case "honey_supers":
+		oldValue = current.HoneySupers
+		newValue = oldValue + amount
+		if newValue > 5 {
+			newValue = 5
+		}
+		_, err = conn.Exec(ctx,
+			`UPDATE hives SET honey_supers = $2, updated_at = NOW() WHERE id = $1`,
+			hiveID, newValue)
+
+	default:
+		return 0, 0, fmt.Errorf("storage: field %s is not numeric or not allowed for increment", field)
+	}
+
+	if err != nil {
+		return 0, 0, fmt.Errorf("storage: failed to increment hive field %s: %w", field, err)
+	}
+
+	// Track box change
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	boxType := "brood"
+	if field == "honey_supers" {
+		boxType = "super"
+	}
+	for i := 0; i < amount; i++ {
+		_, _ = CreateBoxChange(ctx, conn, &CreateBoxChangeInput{
+			HiveID:     hiveID,
+			ChangeType: "added",
+			BoxType:    boxType,
+			ChangedAt:  today,
+		})
+	}
+
+	log.Info().
+		Str("hive_id", hiveID).
+		Str("field", field).
+		Int("old_value", oldValue).
+		Int("new_value", newValue).
+		Int("amount", amount).
+		Msg("Hive field incremented via auto-effect")
+
+	return oldValue, newValue, nil
+}
+
+// DecrementHiveField decrements a numeric hive field by the given amount.
+// The result is clamped to 0 (cannot go negative).
+// Returns the old and new values.
+func DecrementHiveField(ctx context.Context, conn *pgxpool.Conn, hiveID, field string, amount int) (int, int, error) {
+	current, err := GetHiveByID(ctx, conn, hiveID)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var oldValue, newValue int
+
+	switch field {
+	case "brood_boxes":
+		oldValue = current.BroodBoxes
+		newValue = oldValue - amount
+		if newValue < 1 { // Minimum 1 brood box
+			newValue = 1
+		}
+		_, err = conn.Exec(ctx,
+			`UPDATE hives SET brood_boxes = $2, updated_at = NOW() WHERE id = $1`,
+			hiveID, newValue)
+
+	case "honey_supers":
+		oldValue = current.HoneySupers
+		newValue = oldValue - amount
+		if newValue < 0 { // Clamp to 0
+			newValue = 0
+		}
+		_, err = conn.Exec(ctx,
+			`UPDATE hives SET honey_supers = $2, updated_at = NOW() WHERE id = $1`,
+			hiveID, newValue)
+
+	default:
+		return 0, 0, fmt.Errorf("storage: field %s is not numeric or not allowed for decrement", field)
+	}
+
+	if err != nil {
+		return 0, 0, fmt.Errorf("storage: failed to decrement hive field %s: %w", field, err)
+	}
+
+	// Track box change (only if actually decremented)
+	if newValue < oldValue {
+		now := time.Now()
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		boxType := "brood"
+		if field == "honey_supers" {
+			boxType = "super"
+		}
+		actualDecrement := oldValue - newValue
+		for i := 0; i < actualDecrement; i++ {
+			_, _ = CreateBoxChange(ctx, conn, &CreateBoxChangeInput{
+				HiveID:     hiveID,
+				ChangeType: "removed",
+				BoxType:    boxType,
+				ChangedAt:  today,
+			})
+		}
+	}
+
+	log.Info().
+		Str("hive_id", hiveID).
+		Str("field", field).
+		Int("old_value", oldValue).
+		Int("new_value", newValue).
+		Int("amount", amount).
+		Msg("Hive field decremented via auto-effect")
+
+	return oldValue, newValue, nil
+}
+
+// toIntValue converts various types to int for hive field updates.
+func toIntValue(v any) int {
+	switch val := v.(type) {
+	case int:
+		return val
+	case int64:
+		return int(val)
+	case float64:
+		return int(val)
+	case string:
+		var i int
+		if _, err := fmt.Sscanf(val, "%d", &i); err != nil {
+			return 0
+		}
+		return i
+	default:
+		return 0
+	}
 }
 
 // ListBoxChanges returns all box change entries for a hive.

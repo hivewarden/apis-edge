@@ -15,11 +15,10 @@
 #include <time.h>
 
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
-#include <pthread.h>
+/* pthread.h pulled in by platform_mutex.h */
 #else
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/semphr.h"
 #include "driver/gpio.h"
 #endif
 
@@ -47,6 +46,7 @@
 #define BOOT_BREATHE_PERIOD_MS  2000    // 2 second breathing cycle
 #define OFFLINE_BLINK_PERIOD_MS 4000    // Blink every 4 seconds
 #define OFFLINE_BLINK_DURATION  100     // 100ms flash
+#define AUTH_FAIL_BLINK_MS      500     // COMM-001-6: Fast red/orange blink (2Hz)
 
 // ============================================================================
 // Global State
@@ -54,45 +54,41 @@
 
 static volatile bool g_initialized = false;
 static volatile bool g_running = false;
-static volatile uint32_t g_active_states = 0;  // Bitmask of active states
+// Bitmask of active states. Uses uint32_t so maximum 32 states supported.
+// Current LED_STATE_COUNT is 7, well within this limit.
+// If states exceed 32 in future, change to uint64_t and update shift operations.
+static volatile uint32_t g_active_states = 0;
 static volatile uint64_t g_detection_flash_end = 0;  // Timestamp when detection flash ends
 static volatile uint64_t g_pattern_start_time = 0;
 
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 static pthread_t g_pattern_thread;
-static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
-#define LED_LOCK()   pthread_mutex_lock(&g_mutex)
-#define LED_UNLOCK() pthread_mutex_unlock(&g_mutex)
 #else
-static SemaphoreHandle_t g_led_mutex = NULL;
 static TaskHandle_t g_pattern_task = NULL;
-#define LED_LOCK()   do { if (g_led_mutex) xSemaphoreTake(g_led_mutex, portMAX_DELAY); } while(0)
-#define LED_UNLOCK() do { if (g_led_mutex) xSemaphoreGive(g_led_mutex); } while(0)
 #endif
+
+#include "platform_mutex.h"
+APIS_MUTEX_DECLARE(led);
+#define LED_LOCK()   APIS_MUTEX_LOCK(led)
+#define LED_UNLOCK() APIS_MUTEX_UNLOCK(led)
 
 // Current LED color (for test platform tracking)
 static led_color_t g_current_color = {0, 0, 0};
 
-// ============================================================================
 // Utility Functions
-// ============================================================================
-
-static uint64_t get_time_ms(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
-}
+#include "time_util.h"
 
 const char *led_state_name(led_state_t state) {
     switch (state) {
-        case LED_STATE_OFF:       return "OFF";
-        case LED_STATE_BOOT:      return "BOOT";
-        case LED_STATE_DISARMED:  return "DISARMED";
-        case LED_STATE_ARMED:     return "ARMED";
-        case LED_STATE_OFFLINE:   return "OFFLINE";
-        case LED_STATE_DETECTION: return "DETECTION";
-        case LED_STATE_ERROR:     return "ERROR";
-        default:                  return "UNKNOWN";
+        case LED_STATE_OFF:         return "OFF";
+        case LED_STATE_BOOT:        return "BOOT";
+        case LED_STATE_DISARMED:    return "DISARMED";
+        case LED_STATE_ARMED:       return "ARMED";
+        case LED_STATE_OFFLINE:     return "OFFLINE";
+        case LED_STATE_AUTH_FAILED: return "AUTH_FAILED";  // COMM-001-6
+        case LED_STATE_DETECTION:   return "DETECTION";
+        case LED_STATE_ERROR:       return "ERROR";
+        default:                    return "UNKNOWN";
     }
 }
 
@@ -177,12 +173,13 @@ static led_state_t get_highest_priority_state(void) {
     }
 
     // Check states from highest to lowest priority
-    if (g_active_states & (1 << LED_STATE_ERROR))     return LED_STATE_ERROR;
-    if (g_active_states & (1 << LED_STATE_DETECTION)) return LED_STATE_DETECTION;
-    if (g_active_states & (1 << LED_STATE_OFFLINE))   return LED_STATE_OFFLINE;
-    if (g_active_states & (1 << LED_STATE_ARMED))     return LED_STATE_ARMED;
-    if (g_active_states & (1 << LED_STATE_DISARMED))  return LED_STATE_DISARMED;
-    if (g_active_states & (1 << LED_STATE_BOOT))      return LED_STATE_BOOT;
+    if (g_active_states & (1 << LED_STATE_ERROR))       return LED_STATE_ERROR;
+    if (g_active_states & (1 << LED_STATE_DETECTION))   return LED_STATE_DETECTION;
+    if (g_active_states & (1 << LED_STATE_AUTH_FAILED)) return LED_STATE_AUTH_FAILED;  // COMM-001-6
+    if (g_active_states & (1 << LED_STATE_OFFLINE))     return LED_STATE_OFFLINE;
+    if (g_active_states & (1 << LED_STATE_ARMED))       return LED_STATE_ARMED;
+    if (g_active_states & (1 << LED_STATE_DISARMED))    return LED_STATE_DISARMED;
+    if (g_active_states & (1 << LED_STATE_BOOT))        return LED_STATE_BOOT;
 
     return LED_STATE_OFF;
 }
@@ -235,6 +232,16 @@ static led_color_t calculate_current_color(void) {
                 return LED_COLOR_ORANGE;
             }
             return get_base_color();
+        }
+
+        case LED_STATE_AUTH_FAILED: {
+            // COMM-001-6: Fast red/orange blink to alert user of auth failure
+            // Alternates between red and orange at 2Hz (500ms period)
+            uint32_t cycle_pos = elapsed % AUTH_FAIL_BLINK_MS;
+            if (cycle_pos < (AUTH_FAIL_BLINK_MS / 2)) {
+                return LED_COLOR_RED;
+            }
+            return LED_COLOR_ORANGE;
         }
 
         case LED_STATE_DETECTION:
@@ -317,16 +324,8 @@ int led_controller_init(void) {
         return 0;
     }
 
-#if !defined(APIS_PLATFORM_PI) && !defined(APIS_PLATFORM_TEST)
-    // ESP32: Create mutex
-    if (g_led_mutex == NULL) {
-        g_led_mutex = xSemaphoreCreateMutex();
-        if (g_led_mutex == NULL) {
-            LOG_ERROR("Failed to create LED mutex");
-            return -1;
-        }
-    }
-#endif
+    // Initialize mutex (no-op on Pi/Test where statically initialized)
+    APIS_MUTEX_INIT(led);
 
     gpio_init_pins();
 
@@ -400,6 +399,12 @@ void led_controller_flash_detection(void) {
     if (!g_initialized) return;
 
     LED_LOCK();
+    // Note: Detection flash is time-limited and uses g_detection_flash_end timestamp
+    // rather than the g_active_states bitmask. This is intentional:
+    // - Detection is a brief event (200ms) that auto-clears
+    // - led_controller_is_state_active(LED_STATE_DETECTION) will return false
+    // - led_controller_get_state() will return LED_STATE_DETECTION during the flash
+    // This avoids needing explicit clear_state() calls for detection events.
     g_detection_flash_end = get_time_ms() + DETECTION_FLASH_MS;
     LOG_DEBUG("LED detection flash triggered");
     LED_UNLOCK();
@@ -418,12 +423,13 @@ void led_controller_cleanup(void) {
     for (int i = 0; i < 10 && g_pattern_task != NULL; i++) {
         vTaskDelay(pdMS_TO_TICKS(PATTERN_TICK_MS + 10));
     }
+    // Add safety delay after task signals completion (sets g_pattern_task = NULL)
+    // to ensure the task has fully terminated before we delete the semaphore.
+    // vTaskDelete(NULL) may still be executing even after g_pattern_task is NULL.
+    vTaskDelay(pdMS_TO_TICKS(PATTERN_TICK_MS));
     g_pattern_task = NULL;
 
-    if (g_led_mutex != NULL) {
-        vSemaphoreDelete(g_led_mutex);
-        g_led_mutex = NULL;
-    }
+    /* Mutex cleanup handled by platform_mutex lifecycle */
 #endif
 
     gpio_cleanup();

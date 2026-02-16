@@ -8,7 +8,7 @@
  *
  * @module components/SyncNotification
  */
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { notification, Progress } from 'antd';
 import {
   SyncOutlined,

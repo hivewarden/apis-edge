@@ -8,7 +8,7 @@
  * Part of Epic 3, Story 3.5: Activity Clock Visualization
  */
 import { Card, Typography, Space, Empty } from 'antd';
-import { ClockCircleOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, WarningOutlined } from '@ant-design/icons';
 import { Radar } from '@ant-design/charts';
 import { useDetectionStats } from '../hooks/useDetectionStats';
 import { useTimeRange, TimeRange } from '../context';
@@ -31,6 +31,8 @@ function formatHourLabel(hour: number): string {
 
 /**
  * Check if hour should display a label (cardinal positions only).
+ * Used by the xAxis label formatter in the Radar chart configuration
+ * to show labels only at 00:00, 06:00, 12:00, and 18:00.
  */
 function isCardinalHour(hour: number): boolean {
   return [0, 6, 12, 18].includes(hour);
@@ -66,6 +68,7 @@ function transformData(hourlyBreakdown: number[]) {
 
 /**
  * Static animation config - extracted to avoid recreation on every render.
+ * Uses 'as const' to ensure type literal preservation for the chart library.
  */
 const CHART_ANIMATION = {
   appear: {
@@ -82,7 +85,7 @@ const CHART_ANIMATION = {
  */
 export function ActivityClockCard({ siteId }: ActivityClockCardProps) {
   const { range, date } = useTimeRange();
-  const { stats, loading } = useDetectionStats(siteId, range, date);
+  const { stats, loading, error } = useDetectionStats(siteId, range, date);
 
   const title = getTitle(range);
   const totalDetections = stats?.total_detections ?? 0;
@@ -93,12 +96,15 @@ export function ActivityClockCard({ siteId }: ActivityClockCardProps) {
     return (
       <Card
         style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           height: '100%',
+          minHeight: 320,
         }}
       >
-        <Space direction="vertical" align="center" style={{ width: '100%' }}>
+        <Space direction="vertical" align="center" style={{ width: '100%', padding: '40px 0' }}>
           <ClockCircleOutlined style={{ fontSize: 32, color: colors.brownBramble, opacity: 0.5 }} />
           <Text type="secondary">Select a site to view activity patterns</Text>
         </Space>
@@ -111,9 +117,12 @@ export function ActivityClockCard({ siteId }: ActivityClockCardProps) {
     return (
       <Card
         style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           height: '100%',
+          minHeight: 320,
         }}
       >
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
@@ -126,18 +135,47 @@ export function ActivityClockCard({ siteId }: ActivityClockCardProps) {
     );
   }
 
+  // Error state - API failure
+  if (error && !stats) {
+    return (
+      <Card
+        style={{
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
+          height: '100%',
+          minHeight: 320,
+        }}
+      >
+        <Space direction="vertical" align="center" style={{ width: '100%', padding: '40px 0' }}>
+          <WarningOutlined style={{ fontSize: 32, color: colors.brownBramble }} />
+          <Text type="danger">Failed to load activity data</Text>
+        </Space>
+      </Card>
+    );
+  }
+
   // Empty state - no detections
   if (totalDetections === 0) {
     return (
       <Card
         style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           height: '100%',
+          minHeight: 320,
+        }}
+        styles={{
+          body: {
+            padding: 24,
+          },
         }}
       >
         <div style={{ marginBottom: 8 }}>
-          <Text strong style={{ color: colors.brownBramble, fontSize: 14 }}>
+          <Text strong style={{ color: colors.brownBramble, fontSize: 18 }}>
             {title}
           </Text>
         </div>
@@ -152,46 +190,33 @@ export function ActivityClockCard({ siteId }: ActivityClockCardProps) {
     );
   }
 
-  // Chart configuration
+  // Chart configuration — @ant-design/charts v2 API (G2 5.0)
   const chartData = transformData(hourlyBreakdown);
 
   const config = {
     data: chartData,
     xField: 'hour',
     yField: 'count',
-    meta: {
-      count: {
-        alias: 'Detections',
-        min: 0,
-      },
-    },
-    xAxis: {
-      line: null,
-      tickLine: null,
-      label: {
-        formatter: (text: string) => {
+    axis: {
+      x: {
+        line: false,
+        tick: false,
+        labelFormatter: (text: string) => {
           const hour = parseInt(text);
           return isCardinalHour(hour) ? text : '';
         },
-        style: {
-          fill: colors.brownBramble,
-          fontSize: 11,
-        },
+        labelFill: colors.brownBramble,
+        labelFontSize: 10,
+        grid: true,
       },
-    },
-    yAxis: {
-      line: null,
-      tickLine: null,
-      grid: {
-        line: {
-          type: 'line',
-          style: {
-            stroke: colors.seaBuckthorn,
-            strokeOpacity: 0.3,
-          },
-        },
+      y: {
+        label: false,
+        line: false,
+        tick: false,
+        grid: true,
+        gridStroke: colors.seaBuckthorn,
+        gridStrokeOpacity: 0.2,
       },
-      label: null, // Hide y-axis labels for cleaner look
     },
     area: {
       style: {
@@ -207,20 +232,22 @@ export function ActivityClockCard({ siteId }: ActivityClockCardProps) {
         lineWidth: 1,
       },
     },
-    lineStyle: {
+    style: {
       lineWidth: 2,
     },
     color: colors.seaBuckthorn,
     tooltip: {
-      formatter: (datum: { hour: string; hourIndex: number; count: number }) => {
-        const nextHourNum = (datum.hourIndex + 1) % 24;
-        const nextHour = nextHourNum.toString().padStart(2, '0');
-        const percentage = getPercentage(datum.count, totalDetections);
-        return {
-          name: `${datum.hour} - ${nextHour}:59`,
-          value: `${datum.count} detection${datum.count !== 1 ? 's' : ''} (${percentage}%)`,
-        };
-      },
+      items: [
+        (d: { hour: string; hourIndex: number; count: number }) => {
+          const nextHourNum = (d.hourIndex + 1) % 24;
+          const nextHour = nextHourNum.toString().padStart(2, '0');
+          const percentage = getPercentage(d.count, totalDetections);
+          return {
+            name: `${d.hour} - ${nextHour}:59`,
+            value: `${d.count} detection${d.count !== 1 ? 's' : ''} (${percentage}%)`,
+          };
+        },
+      ],
     },
     animation: CHART_ANIMATION,
   };
@@ -228,32 +255,34 @@ export function ActivityClockCard({ siteId }: ActivityClockCardProps) {
   return (
     <Card
       style={{
-        background: colors.salomie,
-        borderColor: colors.seaBuckthorn,
-        height: '100%',
+        background: '#ffffff',
+        borderColor: '#ece8d6',
+        borderRadius: 16,
+        boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
       }}
       styles={{
         body: {
-          padding: '16px',
+          padding: '16px 12px',
+          overflow: 'hidden',
         },
       }}
     >
-      <div style={{ marginBottom: 8 }}>
+      <div style={{ marginBottom: 4 }}>
         <Space>
           <ClockCircleOutlined style={{ color: colors.seaBuckthorn }} />
-          <Text strong style={{ color: colors.brownBramble, fontSize: 14 }}>
+          <Text strong style={{ color: colors.brownBramble, fontSize: 16 }}>
             {title}
           </Text>
         </Space>
       </div>
       <div
-        style={{ height: 220 }}
+        style={{ height: 280, overflow: 'hidden' }}
         role="img"
         aria-label={`Hourly activity chart showing ${totalDetections} total detections across 24 hours`}
       >
-        <Radar {...config} />
+        <Radar {...config} autoFit />
       </div>
-      <div style={{ textAlign: 'center', marginTop: 4 }}>
+      <div style={{ textAlign: 'center', marginTop: 2 }}>
         <Text type="secondary" style={{ fontSize: 11 }}>
           {totalDetections} total detection{totalDetections !== 1 ? 's' : ''}
         </Text>

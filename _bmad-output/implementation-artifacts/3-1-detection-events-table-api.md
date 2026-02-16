@@ -404,3 +404,10 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
   - Added confidence range validation (0-1)
   - Added range type validation in GetDetectionStats
   - Used modern min() function for pagination
+- 2026-01-25: Remediation from bulk code review - fixed 7 issues:
+  - I1/I4: Integrated weather cache temperature lookup in CreateDetection handler
+  - I2: Created comprehensive test files (storage/detections_test.go, handlers/detections_test.go)
+  - I3: Added explicit site existence validation in GetDetectionStats
+  - I5: Added validation for negative size_pixels and hover_duration_ms
+  - I6: Added proper ErrNotFound handling for pgx.ErrNoRows in storage
+  - I7: Documentation clarification - weather.go is full implementation shared with Story 3.3

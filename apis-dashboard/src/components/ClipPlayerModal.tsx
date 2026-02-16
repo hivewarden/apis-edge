@@ -7,14 +7,15 @@ import {
   DeleteOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  ExclamationCircleOutlined,
   ThunderboltOutlined,
   ClockCircleOutlined,
   EyeOutlined,
   AimOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Clip } from '../hooks/useClips';
+import { useDetection } from '../hooks/useDetection';
 import { apiClient } from '../providers/apiClient';
 import { colors } from '../theme/apisTheme';
 
@@ -26,17 +27,6 @@ export interface ClipPlayerModalProps {
   onClose: () => void;
   onNavigate: (index: number) => void;
   onDeleteSuccess?: () => void;
-}
-
-interface Detection {
-  id: string;
-  confidence?: number; // 0-1 scale (null if not available)
-  laser_activated: boolean;
-  detected_at: string;
-}
-
-interface DetectionResponse {
-  data: Detection;
 }
 
 /**
@@ -67,49 +57,43 @@ export function ClipPlayerModal({
   onDeleteSuccess,
 }: ClipPlayerModalProps) {
   const [videoError, setVideoError] = useState(false);
-  const [detection, setDetection] = useState<Detection | null>(null);
-  const [loadingDetection, setLoadingDetection] = useState(false);
+  const [videoLoading, setVideoLoading] = useState(true);
+  // S5-L7: Track autoplay failure so we can show a "tap to play" prompt on mobile
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const isClosingRef = useRef(false);
 
-  // Fetch detection details when clip changes
-  useEffect(() => {
-    if (!clip?.detection_id) {
-      setDetection(null);
-      return;
-    }
+  // Use hook for detection data
+  const { detection, loading: loadingDetection } = useDetection(clip?.detection_id);
 
-    const fetchDetection = async () => {
-      setLoadingDetection(true);
-      try {
-        const response = await apiClient.get<DetectionResponse>(
-          `/detections/${clip.detection_id}`
-        );
-        setDetection(response.data.data);
-      } catch {
-        setDetection(null);
-      } finally {
-        setLoadingDetection(false);
-      }
-    };
-
-    fetchDetection();
-  }, [clip?.detection_id]);
-
-  // Reset video error state when clip changes
+  // Reset video error and loading state when clip changes
   useEffect(() => {
     setVideoError(false);
+    setVideoLoading(true);
+    setAutoplayBlocked(false);
   }, [clip?.id]);
+
+  // Track closing state
+  useEffect(() => {
+    if (open) {
+      isClosingRef.current = false;
+    }
+  }, [open]);
 
   // Keyboard navigation
   useEffect(() => {
     if (!open) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Guard against events during close transition
+      if (isClosingRef.current) return;
+
       if (e.key === 'ArrowLeft' && currentIndex > 0) {
         onNavigate(currentIndex - 1);
       } else if (e.key === 'ArrowRight' && currentIndex < clips.length - 1) {
         onNavigate(currentIndex + 1);
       } else if (e.key === 'Escape') {
+        isClosingRef.current = true;
         onClose();
       }
     };
@@ -118,8 +102,34 @@ export function ClipPlayerModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, currentIndex, clips.length, onNavigate, onClose]);
 
+  // S5-L7: Attempt autoplay on load and handle mobile browser blocks gracefully.
+  // Mobile browsers (especially iOS Safari) block autoplay unless the user has
+  // already interacted with the page. When blocked, we show a "tap to play" overlay.
+  const handleLoadedData = useCallback(() => {
+    setVideoLoading(false);
+    if (videoRef.current) {
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Autoplay was prevented - show tap to play prompt
+          setAutoplayBlocked(true);
+        });
+      }
+    }
+  }, []);
+
+  const handleTapToPlay = useCallback(() => {
+    if (videoRef.current) {
+      videoRef.current.play().catch(() => {
+        // Still can't play - ignore
+      });
+      setAutoplayBlocked(false);
+    }
+  }, []);
+
   // Stop video when modal closes
   const handleClose = useCallback(() => {
+    isClosingRef.current = true;
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
@@ -127,29 +137,35 @@ export function ClipPlayerModal({
     onClose();
   }, [onClose]);
 
-  // Handle clip deletion
-  const handleDelete = useCallback(() => {
-    if (!clip) return;
+  // State for delete confirmation modal
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-    Modal.confirm({
-      title: 'Delete Clip',
-      icon: <ExclamationCircleOutlined style={{ color: colors.error }} />,
-      content: 'Delete this clip permanently? This action cannot be undone.',
-      okText: 'Delete',
-      okType: 'danger',
-      cancelText: 'Cancel',
-      onOk: async () => {
-        try {
-          await apiClient.delete(`/clips/${clip.id}`);
-          message.success('Clip deleted');
-          handleClose();
-          onDeleteSuccess?.();
-        } catch {
-          message.error('Failed to delete clip');
-        }
-      },
-    });
+  // Handle clip deletion with custom styled modal
+  const handleDeleteClick = useCallback(() => {
+    setDeleteModalOpen(true);
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!clip) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/clips/${clip.id}`);
+      message.success('Clip deleted');
+      setDeleteModalOpen(false);
+      handleClose();
+      onDeleteSuccess?.();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      message.error(`Failed to delete clip: ${errorMessage}. Please try again.`);
+    } finally {
+      setDeleting(false);
+    }
   }, [clip, handleClose, onDeleteSuccess]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteModalOpen(false);
+  }, []);
 
   if (!clip) return null;
 
@@ -162,6 +178,7 @@ export function ClipPlayerModal({
   const hasNext = currentIndex < clips.length - 1;
 
   return (
+    <>
     <Modal
       open={open}
       onCancel={handleClose}
@@ -173,8 +190,8 @@ export function ClipPlayerModal({
       closeIcon={null}
       styles={{
         mask: {
-          background: 'rgba(0, 0, 0, 0.85)',
-          backdropFilter: 'blur(8px)',
+          background: 'rgba(102, 38, 4, 0.3)',
+          backdropFilter: 'blur(2px)',
         },
         content: {
           background: 'transparent',
@@ -186,31 +203,81 @@ export function ClipPlayerModal({
         },
       }}
     >
-      {/* Main container with amber glow */}
+      {/* Navigation arrows - positioned OUTSIDE the modal */}
+      <Button
+        type="text"
+        icon={<LeftOutlined />}
+        onClick={() => onNavigate(currentIndex - 1)}
+        disabled={!hasPrevious}
+        aria-label="Previous clip"
+        style={{
+          position: 'fixed',
+          left: 'calc(50% - 500px)',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 48,
+          height: 48,
+          borderRadius: '50%',
+          background: hasPrevious ? `${colors.brownBramble}cc` : `${colors.brownBramble}40`,
+          color: hasPrevious ? colors.salomie : `${colors.salomie}40`,
+          fontSize: 18,
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1001,
+        }}
+      />
+      <Button
+        type="text"
+        icon={<RightOutlined />}
+        onClick={() => onNavigate(currentIndex + 1)}
+        disabled={!hasNext}
+        aria-label="Next clip"
+        style={{
+          position: 'fixed',
+          right: 'calc(50% - 500px)',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 48,
+          height: 48,
+          borderRadius: '50%',
+          background: hasNext ? `${colors.brownBramble}cc` : `${colors.brownBramble}40`,
+          color: hasNext ? colors.salomie : `${colors.salomie}40`,
+          fontSize: 18,
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1001,
+        }}
+      />
+
+      {/* Main container with Coconut Cream background */}
       <div
         style={{
-          background: `linear-gradient(145deg, ${colors.brownBramble} 0%, #1a0a02 100%)`,
-          borderRadius: 20,
+          background: colors.coconutCream,
+          borderRadius: 16,
           overflow: 'hidden',
-          boxShadow: `0 0 80px ${colors.seaBuckthorn}30, 0 20px 60px rgba(0,0,0,0.5)`,
-          border: `1px solid ${colors.seaBuckthorn}40`,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
         }}
       >
         {/* Header */}
         <div
           style={{
             padding: '16px 24px',
-            borderBottom: `1px solid ${colors.seaBuckthorn}20`,
+            borderBottom: `1px solid ${colors.brownBramble}20`,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            background: colors.coconutCream,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {/* Detection badge */}
             <div
               style={{
-                background: `linear-gradient(135deg, ${colors.seaBuckthorn} 0%, #e68a00 100%)`,
+                background: colors.seaBuckthorn,
                 padding: '6px 12px',
                 borderRadius: 8,
                 display: 'flex',
@@ -226,10 +293,10 @@ export function ClipPlayerModal({
 
             {/* Date and time */}
             <div>
-              <div style={{ color: colors.salomie, fontSize: 15, fontWeight: 600 }}>
+              <div style={{ color: colors.brownBramble, fontSize: 15, fontWeight: 600 }}>
                 {formattedDate}
               </div>
-              <div style={{ color: colors.salomie, opacity: 0.7, fontSize: 13 }}>
+              <div style={{ color: colors.brownBramble, opacity: 0.7, fontSize: 13 }}>
                 {formattedTime}
               </div>
             </div>
@@ -237,16 +304,19 @@ export function ClipPlayerModal({
 
           {/* Close button */}
           <Button
-            type="text"
+            type="default"
+            shape="circle"
+            icon={<CloseOutlined style={{ fontSize: 14 }} />}
             onClick={handleClose}
             style={{
-              color: colors.salomie,
-              opacity: 0.7,
-              fontSize: 20,
+              minWidth: 36,
+              width: 36,
+              height: 36,
+              color: colors.brownBramble,
+              borderColor: 'rgba(102, 38, 4, 0.4)',
+              backgroundColor: 'rgba(102, 38, 4, 0.1)',
             }}
-          >
-            ✕
-          </Button>
+          />
         </div>
 
         {/* Video container */}
@@ -283,74 +353,86 @@ export function ClipPlayerModal({
               </Button>
             </div>
           ) : (
-            <video
-              ref={videoRef}
-              src={videoUrl}
-              controls
-              autoPlay
-              style={{
-                width: '100%',
-                maxHeight: '500px',
-                display: 'block',
-              }}
-              onError={() => setVideoError(true)}
-            />
+            <>
+              {videoLoading && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(0, 0, 0, 0.6)',
+                    zIndex: 1,
+                  }}
+                >
+                  <Spin size="large" />
+                </div>
+              )}
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                poster={`/api/clips/${clip.id}/thumbnail`}
+                controls
+                playsInline
+                style={{
+                  width: '100%',
+                  maxHeight: '500px',
+                  display: 'block',
+                }}
+                onLoadedData={handleLoadedData}
+                onWaiting={() => setVideoLoading(true)}
+                onPlaying={() => { setVideoLoading(false); setAutoplayBlocked(false); }}
+                onError={() => setVideoError(true)}
+              />
+              {/* S5-L7: Tap to play overlay for mobile browsers that block autoplay */}
+              {autoplayBlocked && (
+                <div
+                  onClick={handleTapToPlay}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Tap to play video"
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleTapToPlay(); }}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    cursor: 'pointer',
+                    zIndex: 2,
+                  }}
+                >
+                  <div style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    background: `${colors.seaBuckthorn}cc`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <span style={{ color: 'white', fontSize: 28, marginLeft: 4 }}>&#9654;</span>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
-          {/* Navigation arrows - floating */}
-          <Button
-            type="text"
-            icon={<LeftOutlined />}
-            onClick={() => onNavigate(currentIndex - 1)}
-            disabled={!hasPrevious}
-            aria-label="Previous clip"
-            style={{
-              position: 'absolute',
-              left: 12,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: 48,
-              height: 48,
-              borderRadius: '50%',
-              background: hasPrevious ? `${colors.brownBramble}cc` : `${colors.brownBramble}40`,
-              color: hasPrevious ? colors.salomie : `${colors.salomie}40`,
-              fontSize: 18,
-              backdropFilter: 'blur(4px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          />
-          <Button
-            type="text"
-            icon={<RightOutlined />}
-            onClick={() => onNavigate(currentIndex + 1)}
-            disabled={!hasNext}
-            aria-label="Next clip"
-            style={{
-              position: 'absolute',
-              right: 12,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: 48,
-              height: 48,
-              borderRadius: '50%',
-              background: hasNext ? `${colors.brownBramble}cc` : `${colors.brownBramble}40`,
-              color: hasNext ? colors.salomie : `${colors.salomie}40`,
-              fontSize: 18,
-              backdropFilter: 'blur(4px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          />
         </div>
 
         {/* Metadata panel */}
         <div
           style={{
             padding: '20px 24px',
-            background: `linear-gradient(180deg, ${colors.brownBramble}80 0%, ${colors.brownBramble} 100%)`,
+            background: colors.coconutCream,
           }}
         >
           {/* Stats row */}
@@ -365,10 +447,10 @@ export function ClipPlayerModal({
             {/* Unit */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <EyeOutlined style={{ color: colors.seaBuckthorn, fontSize: 16 }} />
-              <span style={{ color: colors.salomie, opacity: 0.7, fontSize: 13 }}>
+              <span style={{ color: colors.brownBramble, opacity: 0.7, fontSize: 13 }}>
                 Unit:
               </span>
-              <span style={{ color: colors.salomie, fontWeight: 500 }}>
+              <span style={{ color: colors.brownBramble, fontWeight: 500 }}>
                 {clip.unit_name || 'Unknown'}
               </span>
             </div>
@@ -376,10 +458,10 @@ export function ClipPlayerModal({
             {/* Duration */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <ClockCircleOutlined style={{ color: colors.seaBuckthorn, fontSize: 16 }} />
-              <span style={{ color: colors.salomie, opacity: 0.7, fontSize: 13 }}>
+              <span style={{ color: colors.brownBramble, opacity: 0.7, fontSize: 13 }}>
                 Duration:
               </span>
-              <span style={{ color: colors.salomie, fontWeight: 500 }}>
+              <span style={{ color: colors.brownBramble, fontWeight: 500 }}>
                 {formatDuration(clip.duration_seconds)}
               </span>
             </div>
@@ -393,7 +475,7 @@ export function ClipPlayerModal({
                 {detection.confidence != null && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <AimOutlined style={{ color: colors.seaBuckthorn, fontSize: 16 }} />
-                    <span style={{ color: colors.salomie, opacity: 0.7, fontSize: 13 }}>
+                    <span style={{ color: colors.brownBramble, opacity: 0.7, fontSize: 13 }}>
                       Confidence:
                     </span>
                     <Tag
@@ -419,7 +501,7 @@ export function ClipPlayerModal({
                       fontSize: 16,
                     }}
                   />
-                  <span style={{ color: colors.salomie, opacity: 0.7, fontSize: 13 }}>
+                  <span style={{ color: colors.brownBramble, opacity: 0.7, fontSize: 13 }}>
                     Laser:
                   </span>
                   {detection.laser_activated ? (
@@ -443,13 +525,13 @@ export function ClipPlayerModal({
               justifyContent: 'space-between',
               alignItems: 'center',
               paddingTop: 16,
-              borderTop: `1px solid ${colors.seaBuckthorn}20`,
+              borderTop: `1px solid ${colors.brownBramble}20`,
             }}
           >
             {/* Navigation info */}
             <div
               style={{
-                color: colors.salomie,
+                color: colors.brownBramble,
                 opacity: 0.6,
                 fontSize: 13,
                 display: 'flex',
@@ -461,33 +543,34 @@ export function ClipPlayerModal({
                 {currentIndex + 1} / {clips.length}
               </span>
               <span style={{ opacity: 0.5 }}>•</span>
-              <span>Use ← → to navigate</span>
+              <span>Use arrow keys to navigate</span>
             </div>
 
             {/* Action buttons */}
             <Space>
               <Tooltip title="Download clip">
-                <Button
-                  icon={<DownloadOutlined />}
-                  href={downloadUrl}
-                  download
-                  style={{
-                    color: colors.salomie,
-                    borderColor: colors.seaBuckthorn + '60',
-                    background: 'transparent',
-                  }}
-                >
-                  Download
-                </Button>
+                <a href={downloadUrl} download style={{ textDecoration: 'none' }}>
+                  <Button
+                    icon={<DownloadOutlined />}
+                    style={{
+                      color: colors.brownBramble,
+                      borderColor: colors.brownBramble + '40',
+                      background: 'transparent',
+                    }}
+                  >
+                    Download
+                  </Button>
+                </a>
               </Tooltip>
               <Tooltip title="Delete clip permanently">
                 <Button
-                  danger
                   icon={<DeleteOutlined />}
-                  onClick={handleDelete}
+                  onClick={handleDeleteClick}
                   aria-label="Delete clip permanently"
                   style={{
-                    borderColor: `${colors.error}80`,
+                    color: '#c4857a',
+                    borderColor: '#c4857a',
+                    background: 'transparent',
                   }}
                 >
                   Delete
@@ -498,6 +581,82 @@ export function ClipPlayerModal({
         </div>
       </div>
     </Modal>
+
+    {/* Custom delete confirmation modal */}
+    <Modal
+      open={deleteModalOpen}
+      onCancel={handleDeleteCancel}
+      title={null}
+      footer={null}
+      centered
+      width={400}
+      styles={{
+        mask: {
+          background: 'rgba(102, 38, 4, 0.3)',
+          backdropFilter: 'blur(2px)',
+        },
+        content: {
+          borderRadius: 16,
+          overflow: 'hidden',
+        },
+        body: {
+          padding: 24,
+          background: colors.coconutCream,
+        },
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <DeleteOutlined
+          style={{
+            fontSize: 48,
+            color: '#c4857a',
+            marginBottom: 16,
+          }}
+        />
+        <h3
+          style={{
+            color: colors.brownBramble,
+            fontSize: 18,
+            fontWeight: 600,
+            marginBottom: 8,
+          }}
+        >
+          Delete Clip
+        </h3>
+        <p
+          style={{
+            color: colors.brownBramble,
+            opacity: 0.7,
+            marginBottom: 24,
+          }}
+        >
+          Delete this clip permanently? This action cannot be undone.
+        </p>
+        <Space size="middle">
+          <Button
+            onClick={handleDeleteCancel}
+            style={{
+              borderColor: colors.brownBramble + '40',
+              color: colors.brownBramble,
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteConfirm}
+            loading={deleting}
+            style={{
+              background: '#c4857a',
+              borderColor: '#c4857a',
+              color: 'white',
+            }}
+          >
+            Delete
+          </Button>
+        </Space>
+      </div>
+    </Modal>
+    </>
   );
 }
 

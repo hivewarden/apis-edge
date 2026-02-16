@@ -75,7 +75,7 @@ export function BackgroundSyncProvider({
   const syncState = useBackgroundSync();
 
   // Local UI state for modals
-  const [showErrorsModal, setShowErrorsModal] = useState(false);
+  const [, setShowErrorsModal] = useState(false);
   const [currentConflict, setCurrentConflict] = useState<ConflictItem | null>(null);
   const [isResolving, setIsResolving] = useState(false);
 

@@ -20,7 +20,7 @@ import {
 import dayjs from 'dayjs';
 import { colors, touchTargets } from '../theme/apisTheme';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 // ============================================================================
 // Types
@@ -53,6 +53,10 @@ interface Difference {
 
 // ============================================================================
 // Field Labels
+// TODO (S6-L4): FIELD_LABELS and COMPARE_FIELDS are hardcoded for inspections only.
+// If task sync ever produces 409 conflicts, these should be made configurable
+// via props or extended with task-specific field mappings (e.g., title, priority,
+// due_date, assigned_hive, status).
 // ============================================================================
 
 const FIELD_LABELS: Record<string, string> = {

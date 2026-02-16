@@ -456,3 +456,11 @@ None - implementation completed without debugging issues.
   3. LOW: Replaced custom formatLastUpdated with dayjs relativeTime plugin (consistent with other components)
   4. LOW: Replaced magic number `spacing.lg + 8` with `spacing.xl` in expanded details styling
   5. LOW: Cleaned up type import style (inline type import with named import)
+- 2026-01-25: Remediation round 2 - Fixed 7 issues from code review (all now PASS):
+  1. HIGH (I1): Fixed 9 test timeouts - added async/waitFor to keyboard accessibility and relative time tests
+  2. MEDIUM (I3): Added console.error logging and improved error message in handleDismiss
+  3. MEDIUM (I5): Added focusTimeoutRef with useEffect cleanup to prevent race conditions
+  4. LOW (I2): Removed unused formatLastUpdated wrapper, inlined dayjs().fromNow() calls
+  5. LOW (I4): Replaced hard-coded spacing values with theme spacing constants
+  6. LOW (I6): Consolidated type exports in hooks/index.ts
+  7. LOW (I7): Added conditional rendering guard for empty hiveId in HiveDetail.tsx

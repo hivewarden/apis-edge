@@ -1,23 +1,20 @@
 /**
  * OfflineBanner Component
  *
- * A warm, apiary-themed banner that appears when the user loses network connectivity.
- * Features a honeycomb texture pattern and smooth slide-in animation.
+ * A storm-gray banner that appears when the user loses network connectivity.
  * Shows pending item count when offline (Epic 7, Story 7.3).
  * Shows "Syncing..." state when background sync is in progress (Epic 7, Story 7.4).
+ *
+ * Design: Storm Gray (#6b7280) background per DESIGN-KEY.md offline banner spec.
  *
  * Part of Epic 7, Story 7.1: Service Worker & App Shell Caching
  * Enhanced in Story 7.3 to show pending sync count
  * Enhanced in Story 7.4 to show syncing state
  */
-import { CSSProperties, useEffect, useState, useContext } from 'react';
-import { WifiOutlined, SyncOutlined } from '@ant-design/icons';
+import { CSSProperties, useEffect, useState } from 'react';
+import { SyncOutlined } from '@ant-design/icons';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { usePendingSync } from '../hooks/usePendingSync';
-import { colors, spacing } from '../theme/apisTheme';
-
-/** Honeycomb SVG pattern for the banner background texture */
-const honeycombPattern = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23662604' fill-opacity='0.06'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`;
 
 /** Styles for the banner container */
 const bannerStyles: CSSProperties = {
@@ -29,38 +26,24 @@ const bannerStyles: CSSProperties = {
   overflow: 'hidden',
 };
 
-/** Content wrapper styles */
+/** Storm Gray color from design key for offline state */
+const stormGray = '#6b7280';
+
+/** Content wrapper styles - uses storm gray per DESIGN-KEY for offline banner
+ * Layout: flex items-center justify-center gap-3
+ * Padding: px-8 py-3 (32px horizontal, 12px vertical)
+ * Text: text-sm font-semibold (14px, 600 weight)
+ */
 const contentStyles: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: spacing.sm,
-  padding: `${spacing.sm}px ${spacing.md}px`,
-  background: `linear-gradient(135deg, ${colors.warning} 0%, #d97706 100%)`,
-  backgroundImage: honeycombPattern,
-  backgroundBlendMode: 'overlay',
+  gap: 12, // gap-3 per DESIGN-KEY
+  padding: '12px 32px', // py-3 px-8 per DESIGN-KEY
+  backgroundColor: stormGray,
   color: '#ffffff',
-  fontWeight: 500,
-  fontSize: 14,
-  letterSpacing: '0.02em',
-  boxShadow: `0 2px 8px rgba(230, 126, 0, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.1)`,
-};
-
-/** Icon container styles for the pulsing wifi icon */
-const iconContainerStyles: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 24,
-  height: 24,
-  borderRadius: '50%',
-  background: 'rgba(255, 255, 255, 0.2)',
-};
-
-/** Disconnected wifi icon with diagonal strike */
-const iconStyles: CSSProperties = {
-  fontSize: 14,
-  position: 'relative' as const,
+  fontWeight: 600, // font-semibold
+  fontSize: 14, // text-sm
 };
 
 // ============================================================================
@@ -81,8 +64,7 @@ export interface OfflineBannerProps {
  * goes offline or when syncing is in progress. Automatically hides
  * with a smooth transition when connectivity is restored and sync completes.
  *
- * Design: Amber/orange gradient with honeycomb texture pattern,
- * echoing the apiary theme while clearly communicating a warning state.
+ * Design: Storm Gray (#6b7280) with cloud icon per DESIGN-KEY.md.
  *
  * @example
  * ```tsx
@@ -102,6 +84,7 @@ export function OfflineBanner({ isSyncing = false, syncProgress = null }: Offlin
   // Handle visibility transitions - show when offline OR syncing
   useEffect(() => {
     const shouldShow = !isOnline || isSyncing;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
     if (shouldShow) {
       // Show banner
@@ -114,11 +97,17 @@ export function OfflineBanner({ isSyncing = false, syncProgress = null }: Offlin
       // Hide with animation first
       setIsVisible(false);
       // Wait for animation to complete before removing from DOM
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
         setShouldRender(false);
       }, 300);
-      return () => clearTimeout(timer);
     }
+
+    // Always return cleanup function for defensive coding
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
   }, [isOnline, isSyncing]);
 
   // Don't render anything if online and animation complete
@@ -138,32 +127,16 @@ export function OfflineBanner({ isSyncing = false, syncProgress = null }: Offlin
       aria-live="polite"
     >
       <div style={contentStyles}>
-        {/* Show sync icon when syncing, wifi icon when offline */}
+        {/* Show sync icon when syncing, cloud_off icon when offline */}
         {isSyncing ? (
-          <div style={iconContainerStyles}>
-            <SyncOutlined spin style={iconStyles} />
-          </div>
+          <SyncOutlined spin style={{ fontSize: 18 }} />
         ) : (
-          <div style={iconContainerStyles}>
-            <span style={{ position: 'relative', display: 'inline-flex' }}>
-              <WifiOutlined style={iconStyles} />
-              {/* Diagonal strike-through line */}
-              <span
-                style={{
-                  position: 'absolute',
-                  width: 18,
-                  height: 2,
-                  background: '#ffffff',
-                  transform: 'rotate(-45deg)',
-                  borderRadius: 1,
-                  top: '50%',
-                  left: '50%',
-                  marginTop: -1,
-                  marginLeft: -9,
-                }}
-              />
-            </span>
-          </div>
+          <span
+            className="material-symbols-outlined animate-pulse"
+            style={{ fontSize: 18 }}
+          >
+            cloud_off
+          </span>
         )}
 
         {/* Banner text based on state */}

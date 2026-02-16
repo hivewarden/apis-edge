@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Tenant Detail View</title>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;500;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        cream: "#fbf9e7",
+                        bramble: "#662604",
+                        salomie: "#fcd483",
+                        buckthorn: "#f7a42d",
+                        sage: "#7c9082",
+                        white: "#ffffff",
+                        // Dark mode legacy colors
+                        "background-dark": "#221b10",
+                        "surface-dark": "#2d2418",
+                        "text-primary-dark": "#fcfaf8",
+                        "text-secondary-dark": "#d4c5a9",
+                        // Functional assignments
+                        primary: "#f7a42d", 
+                        "text-main": "#3d2e22",
+                        "text-secondary": "#8c7662",
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"]
+                    },
+                    borderRadius: { 
+                        "DEFAULT": "0.5rem", 
+                        "lg": "0.75rem",
+                        "card": "16px",
+                        "full": "9999px" 
+                    },
+                    boxShadow: {
+                        "soft": "0 4px 20px -2px rgba(102, 38, 4, 0.06)",
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="font-display bg-cream dark:bg-background-dark text-text-main dark:text-text-primary-dark antialiased transition-colors duration-200">
+<div class="flex h-screen w-full overflow-hidden">
+<aside class="hidden w-[240px] flex-col justify-between border-r border-[#e6dbce] dark:border-[#3e3426] bg-white dark:bg-surface-dark p-6 lg:flex">
+<div class="flex flex-col gap-8">
+<div class="flex items-center gap-4">
+<div class="h-12 w-12 rounded-full bg-cover bg-center shadow-inner" data-alt="Profile picture of the admin user" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBYR8sv_NawhIAPlH9NizEMBA_XA9KY9-Fv6C6BIMaVdZ3FgpJfFwohXbjPQ2UN-tskFbCf_ZjSZbKGes7-9J9XaWnUWakZWeGrRQUU4WcRorDxNKXIoQmnrqNxwBRzIno-7CMlYfsdLHwFM9OSqYf_SYyGJX5_Me81TxS3QIXAz7rZTbeG8-UabolOXo5j0ez3sxLEEfNYC2tiBJ6Otj_GFCZCpPJCiA_Wwp3rin4HNB2z8Qz9Y4ooj8PDo_5mlYHCR92uHYwE4zc");'></div>
+<div class="flex flex-col">
+<h1 class="text-lg font-bold leading-tight text-bramble dark:text-white">APIS Admin</h1>
+<p class="text-sm font-medium text-text-secondary dark:text-text-secondary-dark">Super Admin</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 rounded-full px-4 py-3 text-text-secondary hover:bg-[#f4eee7] dark:text-text-secondary-dark dark:hover:bg-[#3e3426] transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 rounded-full bg-salomie px-4 py-3 text-bramble dark:text-primary transition-colors shadow-sm" href="#">
+<span class="material-symbols-outlined fill-1">group</span>
+<span class="text-sm font-bold">Tenants</span>
+</a>
+<a class="flex items-center gap-3 rounded-full px-4 py-3 text-text-secondary hover:bg-[#f4eee7] dark:text-text-secondary-dark dark:hover:bg-[#3e3426] transition-colors" href="#">
+<span class="material-symbols-outlined">hive</span>
+<span class="text-sm font-medium">Hives</span>
+</a>
+<a class="flex items-center gap-3 rounded-full px-4 py-3 text-text-secondary hover:bg-[#f4eee7] dark:text-text-secondary-dark dark:hover:bg-[#3e3426] transition-colors" href="#">
+<span class="material-symbols-outlined">credit_card</span>
+<span class="text-sm font-medium">Billing</span>
+</a>
+<a class="flex items-center gap-3 rounded-full px-4 py-3 text-text-secondary hover:bg-[#f4eee7] dark:text-text-secondary-dark dark:hover:bg-[#3e3426] transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+</nav>
+</div>
+<button class="flex items-center gap-3 rounded-full px-4 py-3 text-text-secondary hover:bg-[#f4eee7] dark:text-text-secondary-dark dark:hover:bg-[#3e3426] transition-colors">
+<span class="material-symbols-outlined">logout</span>
+<span class="text-sm font-medium">Log Out</span>
+</button>
+</aside>
+<main class="flex-1 overflow-y-auto bg-cream dark:bg-background-dark">
+<div class="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-8 md:px-12">
+<div class="flex items-center gap-2 text-sm">
+<a class="flex items-center gap-2 text-text-secondary hover:text-buckthorn dark:text-text-secondary-dark" href="#">
+<span class="material-symbols-outlined text-[20px]">group</span>
+<span class="font-medium">Tenants</span>
+</a>
+<span class="material-symbols-outlined text-[16px] text-text-secondary/50">chevron_right</span>
+<span class="font-bold text-bramble dark:text-text-primary-dark">Sweet Valley Apiary</span>
+</div>
+<div class="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+<div class="flex flex-col gap-2">
+<h1 class="text-4xl font-black tracking-tight text-bramble dark:text-text-primary-dark md:text-5xl">Sweet Valley Apiary</h1>
+<p class="font-mono text-sm text-text-secondary dark:text-text-secondary-dark">Tenant ID: 883-291</p>
+</div>
+<div class="flex items-center gap-4">
+<span class="inline-flex items-center rounded-full bg-sage/10 px-4 py-1.5 text-sm font-bold text-sage ring-1 ring-inset ring-sage/20">
+                            Pro Plan Badge
+                        </span>
+<div class="h-10 w-10 overflow-hidden rounded-full border-2 border-white shadow-sm dark:border-surface-dark">
+<div class="h-full w-full bg-cover bg-center" data-alt="Company logo showing a minimalist bee icon" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCjEaV_dNC8V2Ao8xkUbkFvPZ7tFRZAP8fWuiDseDzkTvr63L541_ilx6WVLRQezTJXbKdRlh2DT4PrptzxWjvQOaxnGxOWdaNGTUukgpmDBezG7wT9ExHlZEdzhDPy9HIGtuC_8ONZss3UqwKHQqiB0EjQu0SGmc3NOHThls4daX5bbkm5IfW-XND19ncETMhx1DFM4J_09ilRn-xC-aWNWpMNz5buZHDLN8MYL-2AKX-6TCEWSJRNSRc2qgG5DBNKMte5r5eziGY");'></div>
+</div>
+</div>
+</div>
+<div class="grid gap-6 lg:grid-cols-2">
+<div class="flex flex-col gap-6 rounded-card bg-white p-6 shadow-soft ring-1 ring-black/5 dark:bg-surface-dark dark:ring-white/10 lg:p-8">
+<div class="flex items-center gap-3">
+<div class="flex h-10 w-10 items-center justify-center rounded-full bg-cream text-buckthorn">
+<span class="material-symbols-outlined">equalizer</span>
+</div>
+<h2 class="text-xl font-bold leading-tight text-bramble dark:text-white">Current Consumption</h2>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex justify-between text-sm font-medium">
+<span>Hives Managed</span>
+<span class="text-text-secondary dark:text-text-secondary-dark">5 / 10</span>
+</div>
+<div class="h-3 w-full overflow-hidden rounded-full bg-[#f4eee7] dark:bg-[#3e3426]">
+<div class="h-full rounded-full bg-buckthorn shadow-[0_0_10px_rgba(247,164,45,0.4)]" style="width: 50%"></div>
+</div>
+<p class="text-xs text-text-secondary dark:text-text-secondary-dark">50% of plan limit</p>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex justify-between text-sm font-medium">
+<span>Data Storage</span>
+<span class="text-text-secondary dark:text-text-secondary-dark">2.4GB / 5GB</span>
+</div>
+<div class="h-3 w-full overflow-hidden rounded-full bg-[#f4eee7] dark:bg-[#3e3426]">
+<div class="h-full rounded-full bg-buckthorn shadow-[0_0_10px_rgba(247,164,45,0.4)]" style="width: 48%"></div>
+</div>
+<p class="text-xs text-text-secondary dark:text-text-secondary-dark">48% of plan limit</p>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex justify-between text-sm font-medium">
+<span>Team Units</span>
+<span class="text-text-secondary dark:text-text-secondary-dark">2 / 5</span>
+</div>
+<div class="h-3 w-full overflow-hidden rounded-full bg-[#f4eee7] dark:bg-[#3e3426]">
+<div class="h-full rounded-full bg-buckthorn shadow-[0_0_10px_rgba(247,164,45,0.4)]" style="width: 40%"></div>
+</div>
+<p class="text-xs text-text-secondary dark:text-text-secondary-dark">40% of plan limit</p>
+</div>
+</div>
+<div class="flex flex-col gap-6 rounded-card bg-white p-6 shadow-soft ring-1 ring-black/5 dark:bg-surface-dark dark:ring-white/10 lg:p-8">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="flex h-10 w-10 items-center justify-center rounded-full bg-cream text-buckthorn">
+<span class="material-symbols-outlined">tune</span>
+</div>
+<h2 class="text-xl font-bold leading-tight text-bramble dark:text-white">Plan Overrides</h2>
+</div>
+<button class="text-sm font-bold text-buckthorn hover:text-buckthorn/80">Reset to Default</button>
+</div>
+<form class="flex flex-col gap-5" onsubmit="event.preventDefault()">
+<div class="space-y-1">
+<label class="text-sm font-medium text-text-secondary dark:text-text-secondary-dark" for="max-hives">Max Hives</label>
+<div class="relative">
+<input class="block w-full rounded-full border-0 bg-cream px-4 py-3 text-text-main shadow-sm ring-1 ring-inset ring-transparent placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-buckthorn dark:bg-[#3e3426] dark:text-text-primary-dark sm:text-sm sm:leading-6" id="max-hives" type="number" value="10"/>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
+<span class="text-text-secondary dark:text-text-secondary-dark">units</span>
+</div>
+</div>
+</div>
+<div class="space-y-1">
+<label class="text-sm font-medium text-text-secondary dark:text-text-secondary-dark" for="max-storage">Max Storage (GB)</label>
+<div class="relative">
+<input class="block w-full rounded-full border-0 bg-cream px-4 py-3 text-text-main shadow-sm ring-1 ring-inset ring-transparent placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-buckthorn dark:bg-[#3e3426] dark:text-text-primary-dark sm:text-sm sm:leading-6" id="max-storage" type="number" value="5"/>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
+<span class="text-text-secondary dark:text-text-secondary-dark">GB</span>
+</div>
+</div>
+</div>
+<div class="space-y-1">
+<label class="text-sm font-medium text-text-secondary dark:text-text-secondary-dark" for="max-users">Max Users</label>
+<div class="relative">
+<input class="block w-full rounded-full border-0 bg-cream px-4 py-3 text-text-main shadow-sm ring-1 ring-inset ring-transparent placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-buckthorn dark:bg-[#3e3426] dark:text-text-primary-dark sm:text-sm sm:leading-6" id="max-users" type="number" value="5"/>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
+<span class="text-text-secondary dark:text-text-secondary-dark">users</span>
+</div>
+</div>
+</div>
+<div class="mt-2 flex justify-end">
+<button class="rounded-full bg-buckthorn px-6 py-2.5 text-sm font-bold text-white shadow hover:bg-buckthorn/90 dark:bg-white dark:text-surface-dark dark:hover:bg-white/90" type="submit">Save Changes</button>
+</div>
+</form>
+</div>
+<div class="col-span-1 flex flex-col gap-6 rounded-card bg-white p-6 shadow-soft ring-1 ring-black/5 dark:bg-surface-dark dark:ring-white/10 lg:col-span-2 lg:p-8">
+<div class="flex items-center gap-3">
+<div class="flex h-10 w-10 items-center justify-center rounded-full bg-cream text-buckthorn">
+<span class="material-symbols-outlined">history</span>
+</div>
+<h2 class="text-xl font-bold leading-tight text-bramble dark:text-white">Recent Activity</h2>
+</div>
+<div class="overflow-hidden rounded-2xl border border-cream dark:border-[#3e3426]">
+<table class="min-w-full divide-y divide-[#f4eee7] dark:divide-[#3e3426]">
+<thead class="bg-cream dark:bg-[#2d2418]">
+<tr>
+<th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-bramble dark:text-text-secondary-dark" scope="col">Action</th>
+<th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-bramble dark:text-text-secondary-dark" scope="col">User</th>
+<th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-bramble dark:text-text-secondary-dark" scope="col">Date</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#f4eee7] bg-white dark:divide-[#3e3426] dark:bg-surface-dark">
+<tr>
+<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-text-main dark:text-text-primary-dark">Hive #44 Inspection Logged</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-text-secondary dark:text-text-secondary-dark">Sarah J.</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-text-secondary dark:text-text-secondary-dark">Oct 24, 2023</td>
+</tr>
+<tr>
+<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-text-main dark:text-text-primary-dark">Storage Limit Alert</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-text-secondary dark:text-text-secondary-dark">System</td>
+<td class="whitespace-nowrap px-6 py-4 text-sm text-text-secondary dark:text-text-secondary-dark">Oct 22, 2023</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="sticky bottom-6 z-10 mt-4 rounded-full bg-white p-3 shadow-soft ring-1 ring-black/5 dark:bg-[#322a1e] dark:ring-white/10">
+<div class="flex flex-wrap items-center justify-between gap-4 px-2">
+<div class="flex items-center gap-3 px-2">
+<span class="material-symbols-outlined text-text-secondary dark:text-text-secondary-dark">admin_panel_settings</span>
+<span class="text-sm font-medium text-text-secondary dark:text-text-secondary-dark">Admin Actions</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+                                Delete
+                            </button>
+<button class="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-orange-600 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-900/20 transition-colors">
+<span class="material-symbols-outlined text-[20px]">block</span>
+                                Suspend
+                            </button>
+<div class="h-6 w-px bg-[#e6dbce] dark:bg-[#4a3e30]"></div>
+<button class="flex items-center gap-2 rounded-full bg-buckthorn px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-buckthorn/90 transition-colors shadow-orange-500/20">
+<span class="material-symbols-outlined text-[20px]">login</span>
+                                Impersonate User
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

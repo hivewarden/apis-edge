@@ -950,9 +950,23 @@ apis-edge/
 
 - Story 10.3 (Size Filtering & Hover Detection)
 
-## Change Log
+## Dev Agent Record
+
+### File List
+
+**Created/Modified Files:**
+- `apis-edge/include/event_logger.h` - Event logger interface header
+- `apis-edge/src/storage/event_logger.c` - SQLite event logging implementation
+- `apis-edge/src/storage/schema.c` - Database schema definition
+- `apis-edge/hal/storage/sqlite_hal.h` - SQLite HAL interface
+- `apis-edge/hal/storage/pi/sqlite_pi.c` - Pi SQLite HAL implementation
+- `apis-edge/hal/storage/esp32/sqlite_esp32.c` - ESP32 SQLite HAL with SPIFFS
+- `apis-edge/tests/test_event_logger.c` - Unit tests for event logger
+
+### Change Log
 
 | Date | Author | Changes |
 |------|--------|---------|
 | 2026-01-22 | Claude | Story created |
 | 2026-01-22 | Claude | Rewritten from Python to C with HAL abstraction |
+| 2026-01-26 | Claude | Remediation: Fixed 6 issues from code review (auto-prune, storage warning log, HAL files, test coverage)

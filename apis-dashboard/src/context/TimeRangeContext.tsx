@@ -113,15 +113,21 @@ export function TimeRangeProvider({ children }: TimeRangeProviderProps) {
       const newParams = new URLSearchParams(searchParams);
       newParams.set('range', newRange);
 
-      // Clear date if not day range
+      // Clear date if not day range, or initialize to today if switching TO day
       if (newRange !== 'day') {
         newParams.delete('date');
         setDateState(null);
+      } else if (newRange === 'day' && !date) {
+        // Initialize date to today when switching to 'day' range with no date set
+        // This ensures the DatePicker display and API call are consistent
+        const today = new Date();
+        setDateState(today);
+        newParams.set('date', formatDate(today) || '');
       }
 
       setSearchParams(newParams, { replace: true });
     },
-    [searchParams, setSearchParams]
+    [searchParams, setSearchParams, date]
   );
 
   // Set date and update URL params
@@ -158,6 +164,8 @@ export function TimeRangeProvider({ children }: TimeRangeProviderProps) {
         setDateState(parsed);
       }
     }
+    // Only sync FROM URL on searchParams change (back/forward navigation)
+    // We don't include range/date because we're syncing *from* URL *to* state, not the reverse
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const value: TimeRangeContextValue = {

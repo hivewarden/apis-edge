@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Task Assignment Form</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "coconut-cream": "#fbf9e7",
+                        "brown-bramble": "#662604",
+                        "sea-buckthorn": "#f7a42d",
+                        "salomie": "#ffe6a3", 
+                        "salomie-light": "#fff5d6",
+                        "pure-white": "#ffffff",
+                        "primary": "#f7a42d", 
+                        "text-main": "#662604", 
+                        "text-secondary": "#9d7a48",
+                        "border-light": "#e9dece",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: { 
+                        "DEFAULT": "1rem", 
+                        "lg": "2rem", 
+                        "xl": "3rem", 
+                        "full": "9999px",
+                        "card": "16px",
+                        "radio": "12px"
+                    },
+                    boxShadow: {
+                        "soft": "0 4px 20px -2px rgba(102, 38, 4, 0.05)",
+                        "card": "0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)"
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e9dece;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d4c5b0;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'wght' 300;
+        }input[type="radio"]:checked + div {
+            background-color: #fff5d6;border-color: #f7a42d;}
+        input[type="radio"]:checked + div .icon-container {
+            background-color: #ffe6a3;color: #662604;}
+        input[type="radio"]:checked + div .check-icon {
+            opacity: 1;
+            color: #f7a42d;
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream text-brown-bramble font-display min-h-screen flex overflow-hidden">
+<aside class="hidden lg:flex flex-col w-72 h-screen border-r border-border-light bg-pure-white">
+<div class="p-6 flex flex-col h-full justify-between">
+<div class="flex flex-col gap-8">
+<div class="flex gap-3 items-center">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-12 shrink-0 border-2 border-white shadow-sm" data-alt="Profile picture of a beekeeper in a suit" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCK4xqq4eV0kLm-E1XDcvEDXUf5wdpiMWN2rbvHNDfKS8D8Umdr7rbeR5AVrsy3kMbHnZ6gOYwTy_W0CkIom2p86E81N6WpmgDTX0fRavYRBCCXDGJMvY-j-GOcnK3O0d8FrR1wJa7ufYkHf-mtsBfbtV6pgEKQrFVEv00qUKUfk4xL7SXsN6HIdAfuZAVdxt8WvZX-xL5DWxd113Nr6Y1A26KQivttnLTL-qk0cbgV0piC9VNF6yVAr0VSMufBNkPCuGrWLB3Gkoc");'>
+</div>
+<div class="flex flex-col">
+<h1 class="text-brown-bramble text-lg font-bold leading-tight">APIS</h1>
+<p class="text-text-secondary text-sm font-medium">Beekeeping Platform</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-text-secondary group-hover:text-brown-bramble">dashboard</span>
+<span class="text-brown-bramble font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-text-secondary group-hover:text-brown-bramble">map</span>
+<span class="text-brown-bramble font-medium">Apiaries</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-text-secondary group-hover:text-brown-bramble">hexagon</span>
+<span class="text-brown-bramble font-medium">Hives</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full bg-salomie transition-colors shadow-sm" href="#">
+<span class="material-symbols-outlined text-brown-bramble font-fill">check_box</span>
+<span class="text-brown-bramble font-bold">Tasks</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-text-secondary group-hover:text-brown-bramble">settings</span>
+<span class="text-brown-bramble font-medium">Settings</span>
+</a>
+</nav>
+</div>
+<div class="mt-auto">
+<div class="p-4 rounded-2xl bg-coconut-cream border border-border-light">
+<div class="flex items-center gap-3 mb-1">
+<div class="p-2 bg-white rounded-full shadow-sm text-sea-buckthorn">
+<span class="material-symbols-outlined text-xl">wb_sunny</span>
+</div>
+<div>
+<p class="text-sm font-bold text-brown-bramble">Field Status</p>
+<p class="text-xs text-text-secondary">Good foraging</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-screen overflow-y-auto relative bg-coconut-cream">
+<header class="px-8 py-8 sticky top-0 bg-coconut-cream/95 backdrop-blur-sm z-10 border-b border-transparent">
+<div class="max-w-5xl mx-auto w-full">
+<nav class="flex items-center gap-2 text-sm font-medium mb-4">
+<a class="text-text-secondary hover:text-brown-bramble transition-colors" href="#">Tasks</a>
+<span class="text-text-secondary/50">/</span>
+<a class="text-text-secondary hover:text-brown-bramble transition-colors" href="#">Assignments</a>
+<span class="text-text-secondary/50">/</span>
+<span class="text-brown-bramble font-semibold">New Assignment</span>
+</nav>
+<div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+<div>
+<h2 class="text-3xl md:text-4xl font-extrabold text-brown-bramble tracking-tight">Assign Task</h2>
+<p class="text-text-secondary mt-2 text-lg">Select hives and set priority level for the team.</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="px-4 py-1.5 rounded-full bg-[#e8f5e9] text-[#1b5e20] text-xs font-bold border border-[#c8e6c9] tracking-wide uppercase">Active Season</span>
+</div>
+</div>
+</div>
+</header>
+<div class="flex-1 px-8 pb-12">
+<div class="max-w-5xl mx-auto w-full">
+<form class="bg-pure-white rounded-[16px] shadow-soft p-8 md:p-10 flex flex-col gap-10 border border-border-light/50">
+<div class="flex flex-col gap-3">
+<label class="text-brown-bramble text-base font-bold flex items-center gap-2 uppercase tracking-wide text-sm">
+<span class="material-symbols-outlined text-sea-buckthorn text-lg">hive</span>
+                            Select Hives
+                        </label>
+<div class="relative group">
+<div class="w-full min-h-[64px] rounded-2xl border border-border-light bg-[#fdfcf9] flex items-center flex-wrap gap-2 p-3 pr-10 focus-within:ring-2 focus-within:ring-sea-buckthorn/30 focus-within:border-sea-buckthorn transition-all shadow-inner">
+<div class="bg-pure-white border border-border-light rounded-full pl-3 pr-1 py-1.5 flex items-center gap-2 shadow-sm animate-fade-in">
+<span class="text-sm font-semibold text-brown-bramble">Hive #04 - Queen A</span>
+<button class="size-6 rounded-full bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors" type="button">
+<span class="material-symbols-outlined text-sm font-bold">close</span>
+</button>
+</div>
+<div class="bg-pure-white border border-border-light rounded-full pl-3 pr-1 py-1.5 flex items-center gap-2 shadow-sm animate-fade-in">
+<span class="text-sm font-semibold text-brown-bramble">Hive #12 - North Field</span>
+<button class="size-6 rounded-full bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors" type="button">
+<span class="material-symbols-outlined text-sm font-bold">close</span>
+</button>
+</div>
+<div class="bg-pure-white border border-border-light rounded-full pl-3 pr-1 py-1.5 flex items-center gap-2 shadow-sm animate-fade-in">
+<span class="text-sm font-semibold text-brown-bramble">Hive #28 - Production</span>
+<button class="size-6 rounded-full bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors" type="button">
+<span class="material-symbols-outlined text-sm font-bold">close</span>
+</button>
+</div>
+<input class="bg-transparent border-none focus:ring-0 text-brown-bramble placeholder:text-text-secondary/60 flex-1 min-w-[120px] text-sm h-full" placeholder="Search other hives..." type="text"/>
+</div>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+<p class="text-text-secondary text-sm px-2 flex items-center gap-2">
+<span class="size-1.5 rounded-full bg-sea-buckthorn"></span>
+                            3 of 500 max selected
+                        </p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+<div class="flex flex-col gap-4">
+<label class="text-brown-bramble text-base font-bold flex items-center gap-2 uppercase tracking-wide text-sm">
+<span class="material-symbols-outlined text-sea-buckthorn text-lg">flag</span>
+                                Priority Level
+                            </label>
+<div class="grid grid-cols-4 gap-3">
+<label class="cursor-pointer group relative flex-1">
+<input class="peer sr-only" name="priority" type="radio" value="low"/>
+<div class="flex flex-col items-center gap-2 p-3 rounded-[12px] border border-border-light bg-[#fdfcf9] hover:bg-gray-50 hover:border-gray-300 transition-all h-full justify-center">
+<div class="icon-container size-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 transition-colors">
+<span class="material-symbols-outlined text-xl">low_priority</span>
+</div>
+<span class="text-xs font-bold text-brown-bramble">Low</span>
+</div>
+<div class="check-icon absolute top-2 right-2 opacity-0 transition-opacity text-sea-buckthorn">
+<span class="material-symbols-outlined text-sm font-bold">check</span>
+</div>
+</label>
+<label class="cursor-pointer group relative flex-1">
+<input class="peer sr-only" name="priority" type="radio" value="medium"/>
+<div class="flex flex-col items-center gap-2 p-3 rounded-[12px] border border-border-light bg-[#fdfcf9] hover:bg-green-50 hover:border-green-300 transition-all h-full justify-center">
+<div class="icon-container size-10 rounded-full bg-green-100 flex items-center justify-center text-green-700 transition-colors">
+<span class="material-symbols-outlined text-xl">speed</span>
+</div>
+<span class="text-xs font-bold text-brown-bramble">Med</span>
+</div>
+<div class="check-icon absolute top-2 right-2 opacity-0 transition-opacity text-sea-buckthorn">
+<span class="material-symbols-outlined text-sm font-bold">check</span>
+</div>
+</label>
+<label class="cursor-pointer group relative flex-1">
+<input checked="" class="peer sr-only" name="priority" type="radio" value="high"/>
+<div class="flex flex-col items-center gap-2 p-3 rounded-[12px] border border-border-light bg-[#fdfcf9] hover:bg-orange-50 hover:border-orange-300 transition-all h-full justify-center">
+<div class="icon-container size-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 transition-colors">
+<span class="material-symbols-outlined text-xl">priority_high</span>
+</div>
+<span class="text-xs font-bold text-brown-bramble">High</span>
+</div>
+<div class="check-icon absolute top-2 right-2 opacity-0 transition-opacity text-sea-buckthorn">
+<span class="material-symbols-outlined text-sm font-bold">check</span>
+</div>
+</label>
+<label class="cursor-pointer group relative flex-1">
+<input class="peer sr-only" name="priority" type="radio" value="urgent"/>
+<div class="flex flex-col items-center gap-2 p-3 rounded-[12px] border border-border-light bg-[#fdfcf9] hover:bg-red-50 hover:border-red-300 transition-all h-full justify-center">
+<div class="icon-container size-10 rounded-full bg-red-100 flex items-center justify-center text-red-700 transition-colors">
+<span class="material-symbols-outlined text-xl">warning</span>
+</div>
+<span class="text-xs font-bold text-brown-bramble">Urgent</span>
+</div>
+<div class="check-icon absolute top-2 right-2 opacity-0 transition-opacity text-sea-buckthorn">
+<span class="material-symbols-outlined text-sm font-bold">check</span>
+</div>
+</label>
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<label class="text-brown-bramble text-base font-bold flex items-center gap-2 uppercase tracking-wide text-sm">
+<span class="material-symbols-outlined text-sea-buckthorn text-lg">event</span>
+                                Due Date
+                            </label>
+<div class="relative">
+<input class="w-full h-[88px] rounded-2xl border border-border-light bg-[#fdfcf9] text-brown-bramble p-4 pl-14 text-lg font-medium focus:ring-2 focus:ring-sea-buckthorn/30 focus:border-sea-buckthorn transition-all shadow-inner [color-scheme:light]" type="date"/>
+<div class="absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none">
+<span class="material-symbols-outlined text-2xl font-light">calendar_today</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<label class="text-brown-bramble text-base font-bold flex items-center gap-2 uppercase tracking-wide text-sm">
+<span class="material-symbols-outlined text-sea-buckthorn text-lg">description</span>
+                            Notes / Instructions
+                        </label>
+<textarea class="w-full rounded-2xl border border-border-light bg-[#fdfcf9] text-brown-bramble p-5 text-base focus:ring-2 focus:ring-sea-buckthorn/30 focus:border-sea-buckthorn transition-all resize-none shadow-inner placeholder:text-text-secondary/50" placeholder="e.g., Check for queen cells and assess honey stores..." rows="4"></textarea>
+</div>
+<div class="flex flex-col sm:flex-row items-center justify-between gap-6 pt-6 border-t border-border-light">
+<div class="flex items-center gap-4 text-sm text-text-secondary">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">info</span>
+                                Task will be visible to all assigned beekeepers.
+                            </span>
+</div>
+<div class="flex gap-4 w-full sm:w-auto">
+<button class="flex-1 sm:flex-none px-8 py-3.5 rounded-full border-2 border-transparent text-text-secondary font-bold hover:text-brown-bramble hover:bg-coconut-cream transition-colors text-sm uppercase tracking-wider" type="button">
+                                Cancel
+                            </button>
+<button class="flex-1 sm:flex-none px-10 py-3.5 rounded-full bg-sea-buckthorn hover:bg-[#e89620] text-white font-bold shadow-lg shadow-sea-buckthorn/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] text-sm uppercase tracking-wide" type="submit">
+<span class="material-symbols-outlined text-xl">send</span>
+                                Assign to 3 Hives
+                            </button>
+</div>
+</div>
+</form>
+</div>
+</div>
+</main>
+
+</body></html>

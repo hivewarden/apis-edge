@@ -59,9 +59,17 @@ export function useWeather(siteId: string | null): UseWeatherResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // SECURITY (S5-H1): isMountedRef prevents state updates after unmount
+  const isMountedRef = useRef(true);
+  // Track initial load state with ref to avoid stale closure issues
+  const isInitialLoadRef = useRef(true);
+  // Store siteId in ref to avoid stale closures in interval
+  const siteIdRef = useRef(siteId);
+  siteIdRef.current = siteId;
 
   const fetchWeather = useCallback(async () => {
-    if (!siteId) {
+    const currentSiteId = siteIdRef.current;
+    if (!currentSiteId) {
       setWeather(null);
       setLoading(false);
       return;
@@ -69,28 +77,38 @@ export function useWeather(siteId: string | null): UseWeatherResult {
 
     try {
       // Only show loading spinner on initial load, not refreshes
-      if (!weather) {
+      if (isInitialLoadRef.current) {
         setLoading(true);
       }
       const response = await apiClient.get<WeatherResponse>(
-        `/sites/${siteId}/weather`
+        `/sites/${currentSiteId}/weather`
       );
-      setWeather(response.data.data);
-      setError(null);
+      if (isMountedRef.current) {
+        setWeather(response.data.data);
+        setError(null);
+        isInitialLoadRef.current = false;
+      }
     } catch (err) {
-      setError(err as Error);
+      if (isMountedRef.current) {
+        setError(err as Error);
+      }
       // Don't clear weather on error - keep showing stale data if available
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  }, [siteId, weather]);
+  }, []); // No deps needed - uses refs
 
   // Initial fetch and auto-refresh setup
   useEffect(() => {
+    isMountedRef.current = true;
+
     // Reset state when site changes
     setWeather(null);
     setLoading(true);
     setError(null);
+    isInitialLoadRef.current = true;
 
     // Clear any existing interval
     if (intervalRef.current) {
@@ -104,33 +122,20 @@ export function useWeather(siteId: string | null): UseWeatherResult {
     }
 
     // Fetch immediately
-    const doFetch = async () => {
-      try {
-        const response = await apiClient.get<WeatherResponse>(
-          `/sites/${siteId}/weather`
-        );
-        setWeather(response.data.data);
-        setError(null);
-      } catch (err) {
-        setError(err as Error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    doFetch();
+    fetchWeather();
 
     // Set up auto-refresh interval
-    intervalRef.current = setInterval(doFetch, WEATHER_REFRESH_INTERVAL_MS);
+    intervalRef.current = setInterval(fetchWeather, WEATHER_REFRESH_INTERVAL_MS);
 
     // Cleanup on unmount or site change
     return () => {
+      isMountedRef.current = false;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [siteId]);
+  }, [siteId, fetchWeather]);
 
   return { weather, loading, error, refetch: fetchWeather };
 }

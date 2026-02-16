@@ -14,7 +14,7 @@ import (
 func TestGetMe_Authenticated(t *testing.T) {
 	// Create request with claims and user in context
 	claims := &middleware.Claims{
-		UserID: "zitadel-user-123",
+		UserID: "keycloak-user-123",
 		OrgID:  "org456",
 		Email:  "test@example.com",
 		Name:   "Test User",
@@ -24,7 +24,7 @@ func TestGetMe_Authenticated(t *testing.T) {
 	user := &storage.User{
 		ID:            "internal-id-789",
 		TenantID:      "org456",
-		ZitadelUserID: "zitadel-user-123",
+		ExternalUserID: "keycloak-user-123",
 		Email:         "test@example.com",
 		Name:          "Test User",
 	}
@@ -40,7 +40,7 @@ func TestGetMe_Authenticated(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 	assert.Contains(t, w.Body.String(), `"id":"internal-id-789"`)
-	assert.Contains(t, w.Body.String(), `"user_id":"zitadel-user-123"`)
+	assert.Contains(t, w.Body.String(), `"user_id":"keycloak-user-123"`)
 	assert.Contains(t, w.Body.String(), `"tenant_id":"org456"`)
 	assert.Contains(t, w.Body.String(), `"email":"test@example.com"`)
 	assert.Contains(t, w.Body.String(), `"name":"Test User"`)
@@ -60,7 +60,7 @@ func TestGetMe_NotAuthenticated(t *testing.T) {
 func TestGetMe_NoUserInContext(t *testing.T) {
 	// Create request with claims but no user (simulates middleware failure)
 	claims := &middleware.Claims{
-		UserID: "zitadel-user-123",
+		UserID: "keycloak-user-123",
 		OrgID:  "org456",
 		Email:  "test@example.com",
 		Name:   "Test User",

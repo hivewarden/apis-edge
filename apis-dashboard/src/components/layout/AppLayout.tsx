@@ -1,24 +1,92 @@
-import { useState, useEffect } from 'react';
-import { Layout, Menu, Button, Drawer, Grid, Avatar, Typography, Space, Tooltip } from 'antd';
-import { MenuOutlined, MenuFoldOutlined, MenuUnfoldOutlined, LogoutOutlined, UserOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { useState, useEffect, Suspense, useMemo } from 'react';
+import { Layout, Menu, Button, Drawer, Grid, Avatar, Typography, Space, Tooltip, Alert } from 'antd';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { Logo } from './Logo';
-import { navItems } from './navItems';
+import { getNavItemsWithBadges } from './navItems';
 import { colors } from '../../theme/apisTheme';
-import { useAuth, useQRScanner, useOnlineStatus } from '../../hooks';
+import { useAuth, useQRScanner, useOnlineStatus, useImpersonation, useTaskStats } from '../../hooks';
 import { useBackgroundSyncContext } from '../../context';
 import { OfflineBanner } from '../OfflineBanner';
-import { QRScannerModal } from '../QRScannerModal';
+import { LazyQRScannerModal } from '../lazy';
+import { ImpersonationBanner } from '../admin/ImpersonationBanner';
+import { DEV_MODE } from '../../config';
+import { getSafeImageUrl } from '../../utils/urlValidation';
 
 const { Sider, Content, Header } = Layout;
 const { useBreakpoint } = Grid;
 const { Text } = Typography;
 
+/**
+ * Material Symbols Icon Component
+ *
+ * Renders Material Symbols Outlined icons with DESIGN-KEY specifications:
+ * - Icon size: 20-22px
+ * - Style: FILL 0, wght 300 (outlined, light weight)
+ */
+interface MaterialIconProps {
+  name: string;
+  size?: number;
+  style?: React.CSSProperties;
+}
+
+function MaterialIcon({ name, size = 22, style }: MaterialIconProps) {
+  return (
+    <span
+      className="material-symbols-outlined"
+      style={{
+        fontSize: size,
+        fontVariationSettings: "'FILL' 0, 'wght' 300",
+        lineHeight: 1,
+        ...style,
+      }}
+    >
+      {name}
+    </span>
+  );
+}
+
+/**
+ * Sidebar menu styles per DESIGN-KEY:
+ * - Active nav item: bg-salomie (#fcd483), rounded-full
+ * - Sidebar background: white (#ffffff)
+ * - Sidebar border: border-r border-orange-100 (#ece8d6)
+ */
+const sidebarMenuStyles = `
+  /* Active menu item - bg-salomie rounded-full per DESIGN-KEY */
+  .ant-menu-light .ant-menu-item-selected {
+    background-color: #fcd483 !important;
+    border-radius: 9999px !important;
+    color: #1c160d !important;
+  }
+  .ant-menu-light .ant-menu-item-selected::after {
+    display: none !important;
+  }
+  /* Hover state */
+  .ant-menu-light .ant-menu-item:hover:not(.ant-menu-item-selected) {
+    background-color: rgba(252, 212, 131, 0.3) !important;
+    border-radius: 9999px !important;
+  }
+  /* Menu item padding and spacing */
+  .ant-menu-light .ant-menu-item {
+    margin: 4px 12px !important;
+    padding: 0 16px !important;
+    height: 44px !important;
+    line-height: 44px !important;
+    border-radius: 9999px !important;
+  }
+  /* Icon alignment */
+  .ant-menu-light .ant-menu-item .ant-menu-item-icon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+`;
+
 /** localStorage key for sidebar collapse state persistence */
 const COLLAPSE_KEY = 'apis-sidebar-collapsed';
 
-/** Layout dimension constants */
-const SIDEBAR_WIDTH_EXPANDED = 200;
+/** Layout dimension constants per DESIGN-KEY */
+const SIDEBAR_WIDTH_EXPANDED = 240; // 240px per mockups
 const SIDEBAR_WIDTH_COLLAPSED = 80;
 const COLLAPSE_BUTTON_LEFT_COLLAPSED = 24;
 const COLLAPSE_BUTTON_LEFT_EXPANDED = 80;
@@ -47,6 +115,20 @@ export function AppLayout() {
   const { isSupported: qrSupported, isOpen: qrScannerOpen, openScanner, closeScanner } = useQRScanner();
   const isOnline = useOnlineStatus();
 
+  // Impersonation state - Epic 13, Story 13.14
+  const { isImpersonating, tenantId: impersonatedTenantId, tenantName: impersonatedTenantName } = useImpersonation();
+
+  // Task stats for navigation badge - Epic 14, Story 14.14
+  const { stats: taskStats, loading: taskStatsLoading } = useTaskStats();
+
+  // Generate nav items with dynamic badge counts
+  // Memoize to avoid unnecessary re-renders
+  const navItemsWithBadges = useMemo(() => {
+    // Don't show badge while loading to avoid flickering
+    const overdueCount = taskStatsLoading ? 0 : (taskStats?.overdue ?? 0);
+    return getNavItemsWithBadges({ tasks: overdueCount });
+  }, [taskStats?.overdue, taskStatsLoading]);
+
   // Initialize collapse state from localStorage
   const [collapsed, setCollapsed] = useState(() => {
     const stored = localStorage.getItem(COLLAPSE_KEY);
@@ -60,6 +142,10 @@ export function AppLayout() {
   }, [collapsed]);
 
   // Close drawer on route change (handles browser back/forward navigation)
+  // Intentionally excludes isMobile and drawerOpen from deps:
+  // We only want to react to route changes, not state changes.
+  // This ensures drawer closes on navigation without causing extra closes
+  // when isMobile or drawerOpen change independently.
   useEffect(() => {
     if (isMobile && drawerOpen) {
       setDrawerOpen(false);
@@ -79,18 +165,33 @@ export function AppLayout() {
     await logout();
   };
 
-  // Shared menu content for desktop sidebar and mobile drawer
+  // Shared menu content for desktop sidebar (light theme per mockups)
   const menuContent = (
+    <Menu
+      theme="light"
+      mode="inline"
+      selectedKeys={[location.pathname]}
+      items={navItemsWithBadges}
+      onClick={handleMenuClick}
+      style={{
+        background: 'transparent',
+        border: 'none',
+      }}
+    />
+  );
+
+  // Mobile drawer menu (dark theme for contrast)
+  const mobileMenuContent = (
     <Menu
       theme="dark"
       mode="inline"
       selectedKeys={[location.pathname]}
-      items={navItems}
+      items={navItemsWithBadges}
       onClick={handleMenuClick}
     />
   );
 
-  // User profile section for sidebar footer
+  // User profile section for sidebar footer - per mockups (white sidebar, dark text)
   const userSection = (
     <div
       style={{
@@ -98,50 +199,67 @@ export function AppLayout() {
         bottom: 0,
         left: 0,
         right: 0,
-        padding: collapsed ? '12px 8px' : '12px 16px',
-        borderTop: `1px solid rgba(251, 249, 231, 0.2)`, // coconutCream with opacity
-        background: colors.brownBramble,
+        padding: collapsed ? '16px 8px' : '16px 20px',
+        borderTop: '1px solid #ece8d6', // border-[#ece8d6] per mockups
+        background: '#ffffff',
       }}
     >
       {collapsed ? (
         // Collapsed: Show only avatar with logout on click
         <div style={{ textAlign: 'center' }}>
           <Avatar
-            size="small"
-            icon={<UserOutlined />}
-            src={user?.avatar}
-            style={{ backgroundColor: colors.coconutCream, color: colors.brownBramble }}
+            size={40}
+            icon={<MaterialIcon name="person" size={20} />}
+            src={getSafeImageUrl(user?.avatar)}
+            style={{
+              backgroundColor: '#f3f4f6',
+              border: '2px solid #fbf9e7',
+            }}
           />
           <Button
             type="text"
-            icon={<LogoutOutlined />}
+            icon={<MaterialIcon name="logout" size={20} />}
             onClick={handleLogout}
-            style={{ color: colors.coconutCream, marginTop: 8, display: 'block', margin: '8px auto 0' }}
+            style={{ color: '#8c7e72', marginTop: 8, display: 'block', margin: '8px auto 0' }}
             aria-label="Logout"
             size="small"
           />
         </div>
       ) : (
-        // Expanded: Show avatar, name, and logout button
+        // Expanded: Show avatar, name, email, and logout per mockups
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Space>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '8px',
+              borderRadius: 9999,
+              cursor: 'pointer',
+              transition: 'background-color 0.2s',
+            }}
+            className="hover:bg-coconut-cream"
+          >
             <Avatar
-              size="small"
-              icon={<UserOutlined />}
-              src={user?.avatar}
-              style={{ backgroundColor: colors.coconutCream, color: colors.brownBramble }}
+              size={40}
+              icon={<MaterialIcon name="person" size={20} />}
+              src={getSafeImageUrl(user?.avatar)}
+              style={{
+                backgroundColor: '#f3f4f6',
+                border: '2px solid #fbf9e7',
+                flexShrink: 0,
+              }}
             />
-            <div style={{ overflow: 'hidden' }}>
+            <div style={{ overflow: 'hidden', flex: 1 }}>
               <Text
                 style={{
-                  color: colors.coconutCream,
+                  color: colors.brownBramble,
                   display: 'block',
-                  fontSize: 13,
-                  fontWeight: 500,
+                  fontSize: 14,
+                  fontWeight: 600,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  maxWidth: 110,
                 }}
               >
                 {user?.name || 'User'}
@@ -149,29 +267,30 @@ export function AppLayout() {
               {user?.email && (
                 <Text
                   style={{
-                    color: 'rgba(251, 249, 231, 0.7)',
+                    color: '#8c7e72',
                     display: 'block',
-                    fontSize: 11,
+                    fontSize: 12,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    maxWidth: 110,
                   }}
                 >
                   {user.email}
                 </Text>
               )}
             </div>
-          </Space>
+          </div>
           <Button
             type="text"
-            icon={<LogoutOutlined />}
+            icon={<MaterialIcon name="logout" size={20} />}
             onClick={handleLogout}
             style={{
-              color: colors.coconutCream,
+              color: '#8c7e72',
               width: '100%',
               textAlign: 'left',
-              paddingLeft: 0,
+              paddingLeft: 16,
+              borderRadius: 9999,
+              height: 40,
             }}
             aria-label="Logout"
           >
@@ -184,7 +303,9 @@ export function AppLayout() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      {/* Desktop Sidebar */}
+      {/* Inject sidebar menu styles per DESIGN-KEY */}
+      <style>{sidebarMenuStyles}</style>
+      {/* Desktop Sidebar - White bg per mockups */}
       {!isMobile && (
         <Sider
           collapsible
@@ -192,15 +313,20 @@ export function AppLayout() {
           onCollapse={setCollapsed}
           width={SIDEBAR_WIDTH_EXPANDED}
           collapsedWidth={SIDEBAR_WIDTH_COLLAPSED}
-          theme="dark"
+          theme="light"
           trigger={null}
-          style={{ paddingBottom: collapsed ? 100 : 120 }} // Make room for user section
+          style={{
+            paddingBottom: collapsed ? 100 : 120,
+            background: '#ffffff',
+            borderRight: '1px solid #ece8d6', // border-[#ece8d6] per mockups
+            boxShadow: '4px 0 24px -4px rgba(0,0,0,0.02)', // subtle shadow per mockups
+          }}
         >
-          <Logo collapsed={collapsed} />
+          <Logo collapsed={collapsed} variant="light" />
           {menuContent}
           <Button
             type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            icon={<MaterialIcon name={collapsed ? 'menu_open' : 'menu'} size={20} />}
             onClick={() => setCollapsed(!collapsed)}
             style={{
               position: 'absolute',
@@ -220,19 +346,19 @@ export function AppLayout() {
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <Button
               type="text"
-              icon={<MenuOutlined />}
+              icon={<MaterialIcon name="menu" size={24} />}
               onClick={() => setDrawerOpen(true)}
               style={{ color: colors.coconutCream }}
               aria-label="Open navigation menu"
             />
-            <Logo collapsed={false} style={{ marginLeft: 16 }} />
+            <Logo collapsed={false} variant="light" style={{ marginLeft: 16, padding: 0 }} />
           </div>
           {/* QR Scan button in header - Epic 7, Story 7.6 */}
           {qrSupported && isOnline && (
             <Tooltip title="Scan QR Code">
               <Button
                 type="text"
-                icon={<QrcodeOutlined />}
+                icon={<MaterialIcon name="qr_code_scanner" size={24} />}
                 onClick={openScanner}
                 style={{ color: colors.coconutCream, minHeight: 64, minWidth: 64 }}
                 aria-label="Scan QR Code"
@@ -251,8 +377,8 @@ export function AppLayout() {
         styles={{ body: { padding: 0, background: colors.brownBramble, position: 'relative', minHeight: '100%' } }}
       >
         <div style={{ paddingBottom: 120 }}>
-          <Logo collapsed={false} />
-          {menuContent}
+          <Logo collapsed={false} variant="dark" />
+          {mobileMenuContent}
         </div>
         {/* User section at bottom of drawer */}
         <div
@@ -270,8 +396,8 @@ export function AppLayout() {
             <Space>
               <Avatar
                 size="small"
-                icon={<UserOutlined />}
-                src={user?.avatar}
+                icon={<MaterialIcon name="person" size={16} />}
+                src={getSafeImageUrl(user?.avatar)}
                 style={{ backgroundColor: colors.coconutCream, color: colors.brownBramble }}
               />
               <div>
@@ -287,7 +413,7 @@ export function AppLayout() {
             </Space>
             <Button
               type="text"
-              icon={<LogoutOutlined />}
+              icon={<MaterialIcon name="logout" size={20} />}
               onClick={handleLogout}
               style={{ color: colors.coconutCream, width: '100%', textAlign: 'left', paddingLeft: 0 }}
               aria-label="Logout"
@@ -299,6 +425,27 @@ export function AppLayout() {
       </Drawer>
 
       <Layout style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+        {/* IMPERSONATION BANNER: Shows when super-admin is impersonating a tenant - Epic 13, Story 13.14 */}
+        {isImpersonating && impersonatedTenantId && (
+          <ImpersonationBanner
+            tenantName={impersonatedTenantName || ''}
+            tenantId={impersonatedTenantId}
+          />
+        )}
+        {/* DEV MODE BANNER: Shows when VITE_DEV_MODE=true (matches DISABLE_AUTH on server) */}
+        {DEV_MODE && (
+          <Alert
+            message={
+              <span>
+                <MaterialIcon name="warning" size={16} style={{ marginRight: 8, verticalAlign: 'middle' }} />
+                <strong>DEV MODE</strong> - Authentication disabled (DISABLE_AUTH=true)
+              </span>
+            }
+            type="warning"
+            banner
+            style={{ textAlign: 'center' }}
+          />
+        )}
         <OfflineBanner
           isSyncing={isSyncing}
           syncProgress={progress ? { completed: progress.completed, total: progress.total } : null}
@@ -308,8 +455,10 @@ export function AppLayout() {
         </Content>
       </Layout>
 
-      {/* QR Scanner Modal - Epic 7, Story 7.6 */}
-      <QRScannerModal open={qrScannerOpen} onClose={closeScanner} />
+      {/* QR Scanner Modal - Epic 7, Story 7.6 (lazy loaded) */}
+      <Suspense fallback={null}>
+        <LazyQRScannerModal open={qrScannerOpen} onClose={closeScanner} />
+      </Suspense>
     </Layout>
   );
 }

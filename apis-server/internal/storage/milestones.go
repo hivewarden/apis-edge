@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -126,11 +125,20 @@ func GetMilestoneFlags(ctx context.Context, conn *pgxpool.Conn, tenantID string)
 	var firstHarvestSeen *bool
 	var hiveFirstHarvests []string
 
+	// FIX (DL-L02): Use COALESCE and CASE to handle NULL settings/milestones in SQL
+	// instead of relying on fragile Go-side error string matching.
 	err := conn.QueryRow(ctx,
 		`SELECT
-			(settings->'milestones'->>'first_harvest_seen')::boolean,
+			COALESCE((settings->'milestones'->>'first_harvest_seen')::boolean, false),
 			COALESCE(
-				(SELECT array_agg(elem) FROM jsonb_array_elements_text(settings->'milestones'->'hive_first_harvests') elem),
+				(SELECT array_agg(elem)
+				 FROM jsonb_array_elements_text(
+					 CASE WHEN settings->'milestones'->'hive_first_harvests' IS NOT NULL
+					      AND jsonb_typeof(settings->'milestones'->'hive_first_harvests') = 'array'
+					 THEN settings->'milestones'->'hive_first_harvests'
+					 ELSE '[]'::jsonb
+					 END
+				 ) elem),
 				ARRAY[]::text[]
 			)
 		 FROM tenants
@@ -142,18 +150,6 @@ func GetMilestoneFlags(ctx context.Context, conn *pgxpool.Conn, tenantID string)
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		// Check if error is due to NULL settings or missing milestones key (common case)
-		// This happens when tenant exists but settings is NULL or doesn't have milestones
-		errStr := err.Error()
-		if strings.Contains(errStr, "cannot cast jsonb null") ||
-			strings.Contains(errStr, "cannot extract") {
-			// Settings JSONB is NULL or milestones key doesn't exist - return defaults
-			return &MilestoneFlags{
-				FirstHarvestSeen:  false,
-				HiveFirstHarvests: []string{},
-			}, nil
-		}
-		// Actual database error - return it
 		return nil, fmt.Errorf("storage: failed to get milestone flags: %w", err)
 	}
 

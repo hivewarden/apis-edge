@@ -1,6 +1,6 @@
 # Story 8.1: BeeBrain Rule Engine (MVP)
 
-Status: review
+Status: done
 
 ## Story
 
@@ -68,7 +68,8 @@ So that BeeBrain can generate insights without ML models.
 - [x] 5.4 Implement `POST /api/beebrain/refresh` - triggers new analysis
 - [x] 5.5 Implement `POST /api/beebrain/insights/{id}/dismiss` - dismisses an insight
 - [x] 5.6 Implement `POST /api/beebrain/insights/{id}/snooze` - snoozes an insight
-- [x] 5.7 Register routes in main.go
+- [x] 5.7 Implement `GET /api/beebrain/maintenance` - returns hives needing attention with priority scores
+- [x] 5.8 Register routes in main.go
 
 ### Task 6: Testing (AC: #1, #2, #3, #4, #5)
 - [x] 6.1 Create `apis-server/tests/services/beebrain_test.go` - unit tests for rule engine
@@ -487,3 +488,11 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
   - Storage layer for insights CRUD
   - REST API handlers for dashboard, hive analysis, refresh, dismiss, snooze
   - Comprehensive unit tests
+- 2026-01-25: Remediation: Fixed 7 issues from code review
+  - I1: Updated queen aging rule to MVP scope (age-only), removed N/A placeholders
+  - I2: Added 5 rule evaluation logic tests
+  - I3: Fixed GetDetectionSpikeData to query by hive_id via unit_hives
+  - I4: Fixed race condition in hot-reload by re-statting file after acquiring lock
+  - I5: Unified snooze days validation between query params and body
+  - I6: Added error return when all hives fail analysis
+  - I7: Documented maintenance endpoint in Task 5

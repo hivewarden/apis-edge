@@ -280,23 +280,22 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 ### File List
 
-**New Files:**
-- apis-server/cmd/server/main.go
-- apis-server/internal/handlers/health.go
-- apis-server/internal/secrets/secrets.go (OpenBao client - foundation for Story 1-5+)
+**Story 1-1 Core Files (Foundation Only):**
+- apis-server/cmd/server/main.go (entry point)
+- apis-server/internal/handlers/health.go (health endpoint)
 - apis-server/go.mod
 - apis-server/go.sum
 - apis-server/Dockerfile
 - apis-server/.dockerignore
 - apis-dashboard/package.json
-- apis-dashboard/package-lock.json (added in review round 2)
+- apis-dashboard/package-lock.json
 - apis-dashboard/tsconfig.json
 - apis-dashboard/tsconfig.node.json
 - apis-dashboard/vite.config.ts
-- apis-dashboard/eslint.config.js (added in review round 2)
+- apis-dashboard/eslint.config.js
 - apis-dashboard/index.html
 - apis-dashboard/src/main.tsx
-- apis-dashboard/src/App.tsx
+- apis-dashboard/src/App.tsx (minimal initial version)
 - apis-dashboard/src/vite-env.d.ts
 - apis-dashboard/src/components/.gitkeep
 - apis-dashboard/src/pages/.gitkeep
@@ -304,16 +303,21 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 - apis-dashboard/src/hooks/.gitkeep
 - apis-dashboard/Dockerfile.dev
 - apis-dashboard/.dockerignore
-- docker-compose.yml (includes OpenBao service and zitadel-db)
+- docker-compose.yml
 - .env
 - .env.example
 - .gitignore
+- scripts/init-yugabytedb.sh (database initialization)
+
+**Supporting Files (added for infrastructure integration):**
 - .sops.yaml (SOPS configuration)
 - secrets/README.md
 - secrets/secrets.template.yaml
 - scripts/bootstrap-openbao.sh
 - docs/INFRASTRUCTURE-INTEGRATION.md
 - KICKSTART-EPIC-1.md (context resumption helper)
+
+**Note:** Later epics added additional files (handlers, auth middleware, pages, etc.) that are NOT part of Story 1-1 scope. The apis-server/internal/secrets/ package was added proactively but properly belongs to Story 1-5+.
 
 **Modified Files:**
 - CLAUDE.md (updated database from SQLite to YugabyteDB, added Secrets Management section, added shared infra reference)
@@ -399,6 +403,12 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 ## Change Log
 
+- 2026-01-25: Remediation: Fixed 8 issues from bulk code review
+  - Fixed health endpoint to return `{"data": {...}}` per CLAUDE.md format
+  - Changed Go version from 1.24 to 1.23 in go.mod and Dockerfile
+  - Cleaned up story File List to reflect only Story 1-1 scope
+  - Verified init-yugabytedb.sh exists (false positive in review)
+  - Verified Zitadel/PostgreSQL deviation already documented
 - 2026-01-22: Code review round 2 - all HIGH/MEDIUM issues fixed
   - Generated package-lock.json for deterministic builds
   - Added error handling to health endpoint

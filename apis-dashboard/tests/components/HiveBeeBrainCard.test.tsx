@@ -655,7 +655,7 @@ describe('HiveBeeBrainCard', () => {
   });
 
   describe('Keyboard accessibility (AC #3, #4)', () => {
-    it('expands insight when Enter key is pressed on toggle', () => {
+    it('expands insight when Enter key is pressed on toggle', async () => {
       mockUseHiveBeeBrain.mockReturnValue(
         createMockHookResult({
           data: {
@@ -677,10 +677,12 @@ describe('HiveBeeBrainCard', () => {
       // Press Enter key
       fireEvent.keyDown(toggleButton, { key: 'Enter' });
 
-      expect(screen.getByText('What triggered this:')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('What triggered this:')).toBeInTheDocument();
+      });
     });
 
-    it('expands insight when Space key is pressed on toggle', () => {
+    it('expands insight when Space key is pressed on toggle', async () => {
       mockUseHiveBeeBrain.mockReturnValue(
         createMockHookResult({
           data: {
@@ -701,10 +703,12 @@ describe('HiveBeeBrainCard', () => {
       // Press Space key
       fireEvent.keyDown(toggleButton, { key: ' ' });
 
-      expect(screen.getByText('What triggered this:')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('What triggered this:')).toBeInTheDocument();
+      });
     });
 
-    it('toggle has proper ARIA attributes', () => {
+    it('toggle has proper ARIA attributes', async () => {
       mockUseHiveBeeBrain.mockReturnValue(
         createMockHookResult({
           data: {
@@ -720,15 +724,16 @@ describe('HiveBeeBrainCard', () => {
         </Wrapper>
       );
 
-      const toggleButton = screen.getByRole('button', { name: /tell me more/i });
-
-      expect(toggleButton).toHaveAttribute('tabindex', '0');
-      expect(toggleButton).toHaveAttribute('role', 'button');
-      expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
-      expect(toggleButton).toHaveAttribute('aria-controls');
+      await waitFor(() => {
+        const toggleButton = screen.getByRole('button', { name: /tell me more/i });
+        expect(toggleButton).toHaveAttribute('tabindex', '0');
+        expect(toggleButton).toHaveAttribute('role', 'button');
+        expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
+        expect(toggleButton).toHaveAttribute('aria-controls');
+      });
     });
 
-    it('toggle aria-expanded updates when expanded', () => {
+    it('toggle aria-expanded updates when expanded', async () => {
       mockUseHiveBeeBrain.mockReturnValue(
         createMockHookResult({
           data: {
@@ -752,11 +757,13 @@ describe('HiveBeeBrainCard', () => {
       fireEvent.click(toggleButton);
 
       // Now find the "Less" button
-      const lessButton = screen.getByRole('button', { name: /show less/i });
-      expect(lessButton).toHaveAttribute('aria-expanded', 'true');
+      await waitFor(() => {
+        const lessButton = screen.getByRole('button', { name: /show less/i });
+        expect(lessButton).toHaveAttribute('aria-expanded', 'true');
+      });
     });
 
-    it('dismiss button has proper aria-label', () => {
+    it('dismiss button has proper aria-label', async () => {
       mockUseHiveBeeBrain.mockReturnValue(
         createMockHookResult({
           data: {
@@ -772,12 +779,14 @@ describe('HiveBeeBrainCard', () => {
         </Wrapper>
       );
 
-      const dismissButton = screen.getByRole('button', { name: /dismiss insight/i });
-      expect(dismissButton).toBeInTheDocument();
-      expect(dismissButton.getAttribute('aria-label')).toContain('Dismiss insight');
+      await waitFor(() => {
+        const dismissButton = screen.getByRole('button', { name: /dismiss insight/i });
+        expect(dismissButton).toBeInTheDocument();
+        expect(dismissButton.getAttribute('aria-label')).toContain('Dismiss insight');
+      });
     });
 
-    it('severity tags have aria-label for screen readers', () => {
+    it('severity tags have aria-label for screen readers', async () => {
       mockUseHiveBeeBrain.mockReturnValue(
         createMockHookResult({
           data: {
@@ -793,13 +802,15 @@ describe('HiveBeeBrainCard', () => {
         </Wrapper>
       );
 
-      const warningTag = screen.getByText('warning');
-      expect(warningTag).toHaveAttribute('aria-label', 'Severity: Warning');
+      await waitFor(() => {
+        const warningTag = screen.getByText('warning');
+        expect(warningTag).toHaveAttribute('aria-label', 'Severity: Warning');
+      });
     });
   });
 
   describe('Relative time formatting', () => {
-    it('shows "a few seconds ago" for very recent timestamps', () => {
+    it('shows "a few seconds ago" for very recent timestamps', async () => {
       mockUseHiveBeeBrain.mockReturnValue(
         createMockHookResult({
           data: {
@@ -816,10 +827,12 @@ describe('HiveBeeBrainCard', () => {
       );
 
       // dayjs relativeTime plugin uses "a few seconds ago" for very recent timestamps
-      expect(screen.getByText('a few seconds ago')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('a few seconds ago')).toBeInTheDocument();
+      });
     });
 
-    it('shows minutes ago for recent timestamps', () => {
+    it('shows minutes ago for recent timestamps', async () => {
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       mockUseHiveBeeBrain.mockReturnValue(
         createMockHookResult({
@@ -837,10 +850,12 @@ describe('HiveBeeBrainCard', () => {
       );
 
       // dayjs relativeTime plugin uses "5 minutes ago" format
-      expect(screen.getByText('5 minutes ago')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('5 minutes ago')).toBeInTheDocument();
+      });
     });
 
-    it('shows hours ago for older timestamps', () => {
+    it('shows hours ago for older timestamps', async () => {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
       mockUseHiveBeeBrain.mockReturnValue(
         createMockHookResult({
@@ -858,7 +873,9 @@ describe('HiveBeeBrainCard', () => {
       );
 
       // dayjs relativeTime plugin uses "2 hours ago" format
-      expect(screen.getByText('2 hours ago')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('2 hours ago')).toBeInTheDocument();
+      });
     });
   });
 

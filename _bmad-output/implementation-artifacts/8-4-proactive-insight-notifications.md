@@ -597,4 +597,5 @@ N/A
 
 - 2026-01-25: Implemented Story 8.4 - Proactive Insight Notifications (all ACs satisfied, tests passing)
 - 2026-01-25: Remediation - Fixed 6 code review issues (H1, M1-M3, L1-L2)
+- 2026-01-26: Remediation - Fixed 7 code review issues from bulk-review (I1-I7); all 56 tests passing
 

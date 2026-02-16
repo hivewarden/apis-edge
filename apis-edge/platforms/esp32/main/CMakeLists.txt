@@ -1,0 +1,76 @@
+# Main component - APIS Edge source files
+# Aggregates all C source code from apis-edge/src/ and HAL layers
+
+# Get the base directory of the APIS edge project
+# CMAKE_CURRENT_LIST_DIR = platforms/esp32/main, so we go up 3 levels to apis-edge/
+get_filename_component(APIS_EDGE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../.. ABSOLUTE)
+
+set(APIS_SOURCES
+    # Core initialization and configuration
+    "${APIS_EDGE_DIR}/src/main.c"
+    "${APIS_EDGE_DIR}/src/config.c"
+    "${APIS_EDGE_DIR}/src/log.c"
+    "${APIS_EDGE_DIR}/src/config/config_manager.c"
+
+    # Motion detection pipeline
+    "${APIS_EDGE_DIR}/src/detection/motion.c"
+    "${APIS_EDGE_DIR}/src/detection/tracker.c"
+    "${APIS_EDGE_DIR}/src/detection/classifier.c"
+
+    # Storage and logging
+    "${APIS_EDGE_DIR}/src/storage/event_logger.c"
+    "${APIS_EDGE_DIR}/src/storage/schema.c"
+    "${APIS_EDGE_DIR}/src/storage/rolling_buffer.c"
+    "${APIS_EDGE_DIR}/src/storage/clip_recorder.c"
+    "${APIS_EDGE_DIR}/src/storage/storage_manager.c"
+
+    # Server communication
+    "${APIS_EDGE_DIR}/src/server/server_comm.c"
+    "${APIS_EDGE_DIR}/src/upload/clip_uploader.c"
+    "${APIS_EDGE_DIR}/src/http/http_server.c"
+    "${APIS_EDGE_DIR}/src/http/http_utils.c"
+
+    # Physical controls
+    "${APIS_EDGE_DIR}/src/button/button_handler.c"
+    "${APIS_EDGE_DIR}/src/led/led_controller.c"
+    "${APIS_EDGE_DIR}/src/servo/servo_controller.c"
+    "${APIS_EDGE_DIR}/src/laser/laser_controller.c"
+    "${APIS_EDGE_DIR}/src/laser/coordinate_mapper.c"
+    "${APIS_EDGE_DIR}/src/laser/targeting.c"
+    "${APIS_EDGE_DIR}/src/safety/safety_layer.c"
+
+    # Hardware abstraction layer (ESP32 specific)
+    # NOTE: camera_esp32.c requires esp_camera library which is handled separately
+    # "${APIS_EDGE_DIR}/hal/esp32/camera_esp32.c"
+    # "${APIS_EDGE_DIR}/hal/storage/esp32/sqlite_esp32.c"
+
+    # Third-party libraries
+    "${APIS_EDGE_DIR}/lib/cJSON/cJSON.c"
+)
+
+# Register as ESP-IDF component
+idf_component_register(
+    SRCS ${APIS_SOURCES}
+    INCLUDE_DIRS
+        "${APIS_EDGE_DIR}/include"
+        "${APIS_EDGE_DIR}/hal"
+        "${APIS_EDGE_DIR}/lib/cJSON"
+    REQUIRES
+        driver
+        nvs_flash
+        spiffs
+        esp_wifi
+        esp_http_client
+        esp_timer
+        vfs
+)
+
+# Compiler flags for APIS code
+target_compile_options(${COMPONENT_LIB} PRIVATE
+    -DAPIS_PLATFORM_ESP32
+    -Wall
+    -Wextra
+    -Wno-unused-parameter
+    -Wno-unused-variable
+    -Wno-format-truncation
+)

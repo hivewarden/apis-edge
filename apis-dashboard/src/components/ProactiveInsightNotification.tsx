@@ -161,14 +161,17 @@ export function ProactiveInsightNotification({
    * Card styling with severity-based left border.
    */
   const cardStyle: CSSProperties = {
-    background: `linear-gradient(135deg, ${colors.salomie} 0%, #fff5e6 100%)`,
+    background: '#ffffff',
     borderLeft: `4px solid ${config.color}`,
-    borderRadius: 8,
-    padding: spacing.md,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    borderRadius: 12,
+    padding: '16px 20px',
+    boxShadow: '0 1px 3px rgba(102, 38, 4, 0.08)',
     opacity: isRemoving ? 0 : 1,
     transform: isRemoving ? 'translateX(-20px)' : 'translateX(0)',
-    transition: 'opacity 0.3s ease, transform 0.3s ease',
+    transition: 'all 0.3s ease',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
   };
 
   /**
@@ -211,10 +214,10 @@ export function ProactiveInsightNotification({
           <Text
             strong
             style={{
-              color: colors.seaBuckthorn,
-              marginRight: spacing.sm,
+              color: colors.brownBramble,
+              marginRight: 8,
               cursor: 'pointer',
-              textDecoration: 'underline',
+              fontSize: 15,
             }}
             onClick={() => navigate(`/hives/${insight.hive_id}`)}
             onKeyDown={handleHiveNameKeyDown}
@@ -225,7 +228,7 @@ export function ProactiveInsightNotification({
             {insight.hive_name}:
           </Text>
         )}
-        <Text style={{ color: colors.brownBramble }}>
+        <Text style={{ color: colors.brownBramble, fontSize: 15 }}>
           {insight.message}
         </Text>
       </div>
@@ -237,7 +240,7 @@ export function ProactiveInsightNotification({
           style={{
             margin: 0,
             marginBottom: spacing.md,
-            fontSize: 13,
+            fontSize: 14,
           }}
         >
           {insight.suggested_action}
@@ -251,6 +254,7 @@ export function ProactiveInsightNotification({
           justifyContent: 'flex-end',
           gap: spacing.sm,
           flexWrap: 'wrap',
+          marginTop: 'auto',
         }}
       >
         <Button

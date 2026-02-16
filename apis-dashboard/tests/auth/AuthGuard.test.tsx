@@ -1,5 +1,8 @@
 /**
  * Tests for AuthGuard component
+ *
+ * AuthGuard now uses Refine's useIsAuthenticated hook for mode-agnostic auth checks.
+ * Tests mock the Refine hook to control authentication state.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
@@ -8,12 +11,15 @@ import { ConfigProvider } from 'antd';
 import { apisTheme } from '../../src/theme/apisTheme';
 import { AuthGuard } from '../../src/components/auth/AuthGuard';
 
-// Mock userManager
-const mockGetUser = vi.fn();
-vi.mock('../../src/providers/authProvider', () => ({
-  userManager: {
-    getUser: () => mockGetUser(),
-  },
+// Mock Refine's useIsAuthenticated hook
+const mockUseIsAuthenticated = vi.fn();
+vi.mock('@refinedev/core', () => ({
+  useIsAuthenticated: () => mockUseIsAuthenticated(),
+}));
+
+// Mock config for DEV_MODE (default to false)
+vi.mock('../../src/config', () => ({
+  DEV_MODE: false,
 }));
 
 const renderWithProviders = (
@@ -48,8 +54,11 @@ describe('AuthGuard', () => {
   });
 
   it('shows loading spinner while checking authentication', async () => {
-    // Make getUser return a pending promise
-    mockGetUser.mockImplementation(() => new Promise(() => {}));
+    // Simulate loading state
+    mockUseIsAuthenticated.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    });
 
     await act(async () => {
       renderWithProviders(
@@ -63,7 +72,10 @@ describe('AuthGuard', () => {
   });
 
   it('redirects to login when not authenticated', async () => {
-    mockGetUser.mockResolvedValue(null);
+    mockUseIsAuthenticated.mockReturnValue({
+      data: { authenticated: false },
+      isLoading: false,
+    });
 
     await act(async () => {
       renderWithProviders(
@@ -78,10 +90,10 @@ describe('AuthGuard', () => {
     });
   });
 
-  it('redirects to login when token is expired', async () => {
-    mockGetUser.mockResolvedValue({
-      expired: true,
-      profile: { sub: 'user123' },
+  it('redirects to login when authentication check fails', async () => {
+    mockUseIsAuthenticated.mockReturnValue({
+      data: { authenticated: false },
+      isLoading: false,
     });
 
     await act(async () => {
@@ -98,13 +110,9 @@ describe('AuthGuard', () => {
   });
 
   it('renders children when authenticated', async () => {
-    mockGetUser.mockResolvedValue({
-      expired: false,
-      profile: {
-        sub: 'user123',
-        name: 'Test User',
-        email: 'test@example.com',
-      },
+    mockUseIsAuthenticated.mockReturnValue({
+      data: { authenticated: true },
+      isLoading: false,
     });
 
     await act(async () => {
@@ -121,7 +129,10 @@ describe('AuthGuard', () => {
   });
 
   it('redirects to login with returnTo parameter', async () => {
-    mockGetUser.mockResolvedValue(null);
+    mockUseIsAuthenticated.mockReturnValue({
+      data: { authenticated: false },
+      isLoading: false,
+    });
 
     await act(async () => {
       renderWithProviders(

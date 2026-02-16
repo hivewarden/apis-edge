@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Typography,
@@ -10,21 +10,32 @@ import {
   Space,
   message,
 } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
 import { apiClient } from '../providers/apiClient';
 import { APIKeyModal } from '../components/APIKeyModal';
+import { useSites } from '../hooks';
+import { colors, touchTargets } from '../theme/apisTheme';
 
 const { Title } = Typography;
 const { Option } = Select;
 
-interface Site {
-  id: string;
-  name: string;
-}
+// Consistent input styling per DESIGN-KEY
+const inputStyle = {
+  height: touchTargets.inputHeight, // 52px
+  borderRadius: 12,
+};
 
-interface SitesResponse {
-  data: Site[];
-}
+// Card styling per DESIGN-KEY
+const cardStyle = {
+  borderRadius: 16, // rounded-2xl
+  boxShadow: '0 4px 20px -2px rgba(102, 38, 4, 0.05)', // shadow-soft
+};
+
+// Label styling per DESIGN-KEY
+const labelStyle = {
+  fontSize: 14,
+  fontWeight: 500,
+  color: colors.brownBramble,
+};
 
 interface RegisterUnitForm {
   serial: string;
@@ -52,31 +63,17 @@ interface UnitCreateResponse {
  * Displays the generated API key in a modal after successful registration.
  *
  * Part of Epic 2, Story 2.2: Register APIS Units
+ * Refactored for Layered Hooks Architecture
  */
 export function UnitRegister() {
   const navigate = useNavigate();
   const [form] = Form.useForm<RegisterUnitForm>();
   const [submitting, setSubmitting] = useState(false);
-  const [sites, setSites] = useState<Site[]>([]);
-  const [loadingSites, setLoadingSites] = useState(true);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [showKeyModal, setShowKeyModal] = useState(false);
 
-  useEffect(() => {
-    fetchSites();
-  }, []);
-
-  const fetchSites = async () => {
-    try {
-      setLoadingSites(true);
-      const response = await apiClient.get<SitesResponse>('/sites');
-      setSites(response.data.data || []);
-    } catch {
-      message.warning('Failed to load sites');
-    } finally {
-      setLoadingSites(false);
-    }
-  };
+  // Use hook for sites
+  const { sites, loading: loadingSites } = useSites();
 
   const handleSubmit = async (values: RegisterUnitForm) => {
     try {
@@ -115,16 +112,24 @@ export function UnitRegister() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
-        <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
-            Back
-          </Button>
-          <Title level={2} style={{ margin: 0 }}>Register Unit</Title>
-        </Space>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24, gap: 16 }}>
+        <Button
+          onClick={handleBack}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            borderRadius: 9999,
+            border: '1px solid #d6d3d1', // border-stone-300
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
+          Back
+        </Button>
+        <Title level={2} style={{ margin: 0 }}>Register Unit</Title>
       </div>
 
-      <Card>
+      <Card style={cardStyle}>
         <Form
           form={form}
           layout="vertical"
@@ -133,25 +138,36 @@ export function UnitRegister() {
         >
           <Form.Item
             name="serial"
-            label="Serial Number"
+            label={<span style={labelStyle}>Serial Number</span>}
             rules={[{ required: true, message: 'Please enter the unit serial number' }]}
-            extra="The unique identifier printed on your APIS unit (e.g., APIS-001)"
+            extra={<span style={{ color: colors.brownBramble, opacity: 0.6, fontSize: 12 }}>The unique identifier printed on your APIS unit (e.g., APIS-001)</span>}
+            style={{ marginBottom: 24 }}
           >
-            <Input placeholder="e.g., APIS-001" />
+            <Input
+              placeholder="e.g., APIS-001"
+              style={inputStyle}
+              prefix={<span className="material-symbols-outlined" style={{ fontSize: 20, color: colors.brownBramble, opacity: 0.4 }}>memory</span>}
+            />
           </Form.Item>
 
           <Form.Item
             name="name"
-            label="Unit Name"
-            extra="Optional friendly name to help identify this unit"
+            label={<span style={labelStyle}>Unit Name</span>}
+            extra={<span style={{ color: colors.brownBramble, opacity: 0.6, fontSize: 12 }}>Optional friendly name to help identify this unit</span>}
+            style={{ marginBottom: 24 }}
           >
-            <Input placeholder="e.g., Garden Unit, Hive Protector 1" />
+            <Input
+              placeholder="e.g., Garden Unit, Hive Protector 1"
+              style={inputStyle}
+              prefix={<span className="material-symbols-outlined" style={{ fontSize: 20, color: colors.brownBramble, opacity: 0.4 }}>router</span>}
+            />
           </Form.Item>
 
           <Form.Item
             name="site_id"
-            label="Assigned Site"
-            extra="Optional. You can assign to a site later."
+            label={<span style={labelStyle}>Assigned Site</span>}
+            extra={<span style={{ color: colors.brownBramble, opacity: 0.6, fontSize: 12 }}>Optional. You can assign to a site later.</span>}
+            style={{ marginBottom: 24 }}
           >
             <Select
               placeholder="Select a site (optional)"
@@ -159,6 +175,7 @@ export function UnitRegister() {
               loading={loadingSites}
               showSearch
               optionFilterProp="children"
+              style={{ height: touchTargets.inputHeight }}
             >
               {sites.map((site) => (
                 <Option key={site.id} value={site.id}>
@@ -168,17 +185,41 @@ export function UnitRegister() {
             </Select>
           </Form.Item>
 
-          <Form.Item>
-            <Space>
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Space size={16}>
               <Button
                 type="primary"
                 htmlType="submit"
-                icon={<SaveOutlined />}
                 loading={submitting}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  minHeight: 48,
+                  borderRadius: 9999,
+                  paddingLeft: 24,
+                  paddingRight: 24,
+                }}
               >
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>check</span>
                 Register Unit
               </Button>
-              <Button onClick={handleBack}>Cancel</Button>
+              <Button
+                onClick={handleBack}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  minHeight: 48,
+                  borderRadius: 9999,
+                  border: '1px solid #d6d3d1', // border-stone-300
+                  paddingLeft: 24,
+                  paddingRight: 24,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
+                Cancel
+              </Button>
             </Space>
           </Form.Item>
         </Form>

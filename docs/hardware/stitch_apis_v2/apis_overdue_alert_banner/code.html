@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS - Tasks</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "coconut-cream": "#fbf9e7",
+                        "sidebar-bg": "#ffffff",
+                        "salomie": "#fcd483",
+                        "muted-rose": "#c4857a",
+                        "brown-bramble": "#662604",
+                        "sea-buckthorn": "#f7a42d",
+                        "card-white": "#ffffff",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "2xl": "1rem", // 16px
+                    },
+                    boxShadow: {
+                        "soft": "0 4px 20px -2px rgba(102, 38, 4, 0.05)",
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-coconut-cream font-display text-brown-bramble overflow-x-hidden antialiased">
+<div class="relative flex min-h-screen w-full flex-row">
+<aside class="hidden w-[240px] flex-col bg-sidebar-bg lg:flex z-10 shadow-sm border-r border-brown-bramble/5">
+<div class="flex h-full flex-col justify-between p-4">
+<div class="flex flex-col gap-6">
+<div class="flex items-center gap-3 px-2">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 bg-sea-buckthorn/20" data-alt="APIS Brand Logo - Stylized Honeycomb" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCPi1-liA7JUPSYpuGEo5N5SuOuRSiHqsREoUxlmPICfF-A-02ghV8HztxqXhfKjiGRnFt2v5s1labzXsEC8b_85D32aGCDl2ZwCObMLZhLzTWK69PcijyZn6E2-1YE56wuqGxoqP6W599cWZQwOzTrjy_uWr1avCPOIIE23HCU7JIkfQ0B5UTcXYtUhO1Gc0qx3iWM6VOx9uTL3Wruh0s6lcVFNjYCdTLFc_KxuvZFgD7aSROamAIIv0aWp5dQBOEi73FiUSC4Mmo");'></div>
+<div class="flex flex-col">
+<h1 class="text-brown-bramble text-lg font-bold leading-normal">APIS</h1>
+<p class="text-brown-bramble/70 text-xs font-normal leading-normal">Manage your apiary</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/60 group-hover:text-brown-bramble">dashboard</span>
+<p class="text-brown-bramble text-sm font-medium leading-normal">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/60 group-hover:text-brown-bramble">grid_view</span>
+<p class="text-brown-bramble text-sm font-medium leading-normal">Hives</p>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full bg-salomie shadow-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-brown-bramble font-variation-settings-'FILL'1">task_alt</span>
+<p class="text-brown-bramble text-sm font-bold leading-normal">Tasks</p>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/60 group-hover:text-brown-bramble">spa</span>
+<p class="text-brown-bramble text-sm font-medium leading-normal">Harvest</p>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/60 group-hover:text-brown-bramble">settings</span>
+<p class="text-brown-bramble text-sm font-medium leading-normal">Settings</p>
+</a>
+</nav>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 mt-auto">
+<div class="bg-sea-buckthorn rounded-full size-8 flex items-center justify-center text-brown-bramble font-bold text-xs shadow-sm">JD</div>
+<div class="flex flex-col">
+<p class="text-sm font-medium text-brown-bramble">Jane Doe</p>
+<p class="text-xs text-brown-bramble/70">Head Beekeeper</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-screen overflow-y-auto">
+<div class="flex flex-1 justify-center py-8 px-6 lg:px-12">
+<div class="flex flex-col max-w-[960px] flex-1 w-full gap-8">
+<div class="flex flex-wrap items-end justify-between gap-4">
+<div class="flex flex-col gap-2">
+<h2 class="text-brown-bramble text-4xl font-black leading-tight tracking-[-0.033em]">Tasks</h2>
+<p class="text-brown-bramble/80 text-base font-normal leading-normal">Manage your daily beekeeping activities</p>
+</div>
+<button class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-full h-12 px-6 bg-sea-buckthorn text-brown-bramble text-sm font-bold leading-normal tracking-[0.015em] hover:bg-opacity-90 transition-opacity shadow-sm">
+<span class="material-symbols-outlined text-xl">add</span>
+<span class="truncate">New Task</span>
+</button>
+</div>
+<div class="w-full">
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl bg-muted-rose/10 p-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-brown-bramble">warning</span>
+<p class="text-brown-bramble text-base font-bold leading-tight">You have 3 overdue tasks</p>
+</div>
+<a class="text-sm font-bold leading-normal tracking-[0.015em] flex items-center gap-1 text-brown-bramble hover:underline transition-all whitespace-nowrap" href="#">
+                            View overdue
+                            <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</a>
+</div>
+</div>
+<div class="flex gap-2 overflow-x-auto pb-2">
+<button class="flex h-9 shrink-0 items-center justify-center px-4 rounded-full bg-sea-buckthorn text-brown-bramble shadow-sm transition-colors font-bold">
+<p class="text-sm leading-normal">All tasks</p>
+</button>
+<button class="flex h-9 shrink-0 items-center justify-center px-4 rounded-full bg-sidebar-bg border border-brown-bramble/10 hover:bg-white hover:border-brown-bramble/30 transition-colors">
+<p class="text-brown-bramble text-sm font-medium leading-normal">Pending</p>
+</button>
+<button class="flex h-9 shrink-0 items-center justify-center px-4 rounded-full bg-sidebar-bg border border-brown-bramble/10 hover:bg-white hover:border-brown-bramble/30 transition-colors">
+<p class="text-brown-bramble text-sm font-medium leading-normal">Completed</p>
+</button>
+<button class="flex h-9 shrink-0 items-center justify-center px-4 rounded-full bg-sidebar-bg border border-brown-bramble/10 hover:bg-white hover:border-brown-bramble/30 transition-colors">
+<p class="text-brown-bramble text-sm font-medium leading-normal">High Priority</p>
+</button>
+</div>
+<div class="flex flex-col gap-3">
+<div class="flex items-center gap-4 bg-card-white p-5 rounded-2xl shadow-soft border border-brown-bramble/5 hover:border-muted-rose/30 transition-all group cursor-pointer">
+<div class="flex items-center gap-4 flex-1">
+<div class="flex size-6 items-center justify-center shrink-0">
+<input class="h-5 w-5 rounded-md border-brown-bramble/20 text-muted-rose focus:ring-muted-rose/20 focus:ring-offset-0 cursor-pointer bg-card-white" type="checkbox"/>
+</div>
+<div class="flex flex-col justify-center gap-1">
+<p class="text-brown-bramble text-base font-semibold leading-normal line-clamp-1 group-hover:text-muted-rose transition-colors">Inspect Hive #4 for Queen cells</p>
+<div class="flex items-center gap-2 text-xs">
+<span class="text-muted-rose font-bold bg-muted-rose/10 px-2.5 py-1 rounded-md">Overdue: Yesterday</span>
+<span class="text-brown-bramble/40">•</span>
+<span class="text-brown-bramble/70 font-medium">High Priority</span>
+</div>
+</div>
+</div>
+<div class="shrink-0 hidden sm:flex">
+<button class="text-brown-bramble/40 hover:text-brown-bramble transition-colors p-2 rounded-full hover:bg-coconut-cream">
+<span class="material-symbols-outlined">edit</span>
+</button>
+</div>
+</div>
+<div class="flex items-center gap-4 bg-card-white p-5 rounded-2xl shadow-soft border border-brown-bramble/5 hover:border-sea-buckthorn/30 transition-all group cursor-pointer">
+<div class="flex items-center gap-4 flex-1">
+<div class="flex size-6 items-center justify-center shrink-0">
+<input class="h-5 w-5 rounded-md border-brown-bramble/20 text-sea-buckthorn focus:ring-sea-buckthorn/20 focus:ring-offset-0 cursor-pointer bg-card-white" type="checkbox"/>
+</div>
+<div class="flex flex-col justify-center gap-1">
+<p class="text-brown-bramble text-base font-semibold leading-normal line-clamp-1 group-hover:text-sea-buckthorn transition-colors">Refill sugar syrup feeders in Hive #2</p>
+<div class="flex items-center gap-2 text-xs">
+<span class="text-brown-bramble font-bold bg-sea-buckthorn/20 px-2.5 py-1 rounded-md">Due: Today</span>
+<span class="text-brown-bramble/40">•</span>
+<span class="text-brown-bramble/70 font-medium">Medium Priority</span>
+</div>
+</div>
+</div>
+<div class="shrink-0 hidden sm:flex">
+<button class="text-brown-bramble/40 hover:text-brown-bramble transition-colors p-2 rounded-full hover:bg-coconut-cream">
+<span class="material-symbols-outlined">edit</span>
+</button>
+</div>
+</div>
+<div class="flex items-center gap-4 bg-card-white p-5 rounded-2xl shadow-soft border border-brown-bramble/5 hover:border-sea-buckthorn/30 transition-all group cursor-pointer">
+<div class="flex items-center gap-4 flex-1">
+<div class="flex size-6 items-center justify-center shrink-0">
+<input class="h-5 w-5 rounded-md border-brown-bramble/20 text-sea-buckthorn focus:ring-sea-buckthorn/20 focus:ring-offset-0 cursor-pointer bg-card-white" type="checkbox"/>
+</div>
+<div class="flex flex-col justify-center gap-1">
+<p class="text-brown-bramble text-base font-semibold leading-normal line-clamp-1 group-hover:text-sea-buckthorn transition-colors">Clean hive tools and smoker</p>
+<div class="flex items-center gap-2 text-xs">
+<span class="text-brown-bramble/70 bg-coconut-cream px-2.5 py-1 rounded-md">Due: Tomorrow</span>
+<span class="text-brown-bramble/40">•</span>
+<span class="text-brown-bramble/70 font-medium">Low Priority</span>
+</div>
+</div>
+</div>
+<div class="shrink-0 hidden sm:flex">
+<button class="text-brown-bramble/40 hover:text-brown-bramble transition-colors p-2 rounded-full hover:bg-coconut-cream">
+<span class="material-symbols-outlined">edit</span>
+</button>
+</div>
+</div>
+<div class="flex items-center gap-4 bg-card-white p-5 rounded-2xl shadow-soft border border-brown-bramble/5 hover:border-sea-buckthorn/30 transition-all group cursor-pointer">
+<div class="flex items-center gap-4 flex-1">
+<div class="flex size-6 items-center justify-center shrink-0">
+<input class="h-5 w-5 rounded-md border-brown-bramble/20 text-sea-buckthorn focus:ring-sea-buckthorn/20 focus:ring-offset-0 cursor-pointer bg-card-white" type="checkbox"/>
+</div>
+<div class="flex flex-col justify-center gap-1">
+<p class="text-brown-bramble text-base font-semibold leading-normal line-clamp-1 group-hover:text-sea-buckthorn transition-colors">Check brood pattern in Nucleus Colony</p>
+<div class="flex items-center gap-2 text-xs">
+<span class="text-brown-bramble/70 bg-coconut-cream px-2.5 py-1 rounded-md">Due: Friday</span>
+<span class="text-brown-bramble/40">•</span>
+<span class="text-brown-bramble/70 font-medium">Medium Priority</span>
+</div>
+</div>
+</div>
+<div class="shrink-0 hidden sm:flex">
+<button class="text-brown-bramble/40 hover:text-brown-bramble transition-colors p-2 rounded-full hover:bg-coconut-cream">
+<span class="material-symbols-outlined">edit</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

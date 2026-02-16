@@ -131,6 +131,48 @@ func ListUnits(ctx context.Context, conn *pgxpool.Conn) ([]Unit, error) {
 	return units, nil
 }
 
+// UnitWithSiteName extends Unit with the site name for list responses.
+type UnitWithSiteName struct {
+	Unit
+	SiteName *string `json:"site_name,omitempty"`
+}
+
+// ListUnitsWithSiteNames returns all units for the current tenant with site names.
+// Uses a single JOIN query to avoid N+1 queries when fetching site names.
+// Results are ordered by name/serial ascending.
+func ListUnitsWithSiteNames(ctx context.Context, conn *pgxpool.Conn) ([]UnitWithSiteName, error) {
+	rows, err := conn.Query(ctx,
+		`SELECT u.id, u.tenant_id, u.site_id, u.serial, u.name, u.api_key_hash, u.api_key_prefix, u.firmware_version,
+		        u.ip_address, u.last_seen, u.status, u.uptime_seconds, u.cpu_temp, u.free_heap, u.created_at, u.updated_at,
+		        s.name as site_name
+		 FROM units u
+		 LEFT JOIN sites s ON u.site_id = s.id
+		 ORDER BY COALESCE(u.name, u.serial) ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to list units with site names: %w", err)
+	}
+	defer rows.Close()
+
+	var units []UnitWithSiteName
+	for rows.Next() {
+		var unit UnitWithSiteName
+		err := rows.Scan(&unit.ID, &unit.TenantID, &unit.SiteID, &unit.Serial, &unit.Name,
+			&unit.APIKeyHash, &unit.APIKeyPrefix, &unit.FirmwareVersion, &unit.IPAddress, &unit.LastSeen,
+			&unit.Status, &unit.UptimeSeconds, &unit.CPUTemp, &unit.FreeHeap, &unit.CreatedAt, &unit.UpdatedAt,
+			&unit.SiteName)
+		if err != nil {
+			return nil, fmt.Errorf("storage: failed to scan unit with site name: %w", err)
+		}
+		units = append(units, unit)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("storage: error iterating units: %w", err)
+	}
+
+	return units, nil
+}
+
 // GetUnitByID retrieves a unit by its ID.
 // Returns ErrNotFound if the unit does not exist or belongs to a different tenant.
 func GetUnitByID(ctx context.Context, conn *pgxpool.Conn, id string) (*Unit, error) {
@@ -204,11 +246,32 @@ func GetUnitByAPIKey(ctx context.Context, conn *pgxpool.Conn, rawKey string) (*U
 // UpdateUnit updates an existing unit with the provided fields.
 // Only non-nil fields in the input are updated.
 // Returns ErrNotFound if the unit does not exist or belongs to a different tenant.
+// SECURITY FIX (DL-H04): Uses SELECT ... FOR UPDATE to prevent TOCTOU races.
 func UpdateUnit(ctx context.Context, conn *pgxpool.Conn, id string, input *UpdateUnitInput) (*Unit, error) {
-	// First, verify the unit exists and get current values
-	current, err := GetUnitByID(ctx, conn, id)
+	tx, err := conn.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("storage: failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Lock the row with FOR UPDATE to prevent concurrent modifications
+	var current Unit
+	err = tx.QueryRow(ctx,
+		`SELECT id, tenant_id, site_id, serial, name, api_key_hash, api_key_prefix, firmware_version,
+		        ip_address, last_seen, status, uptime_seconds, cpu_temp, free_heap, created_at, updated_at
+		 FROM units
+		 WHERE id = $1
+		 FOR UPDATE`,
+		id,
+	).Scan(&current.ID, &current.TenantID, &current.SiteID, &current.Serial, &current.Name,
+		&current.APIKeyHash, &current.APIKeyPrefix, &current.FirmwareVersion, &current.IPAddress, &current.LastSeen,
+		&current.Status, &current.UptimeSeconds, &current.CPUTemp, &current.FreeHeap, &current.CreatedAt, &current.UpdatedAt)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to get unit for update: %w", err)
 	}
 
 	// Apply updates (use current values for nil fields)
@@ -223,7 +286,7 @@ func UpdateUnit(ctx context.Context, conn *pgxpool.Conn, id string, input *Updat
 	}
 
 	var unit Unit
-	err = conn.QueryRow(ctx,
+	err = tx.QueryRow(ctx,
 		`UPDATE units
 		 SET name = $2, site_id = $3
 		 WHERE id = $1
@@ -239,6 +302,10 @@ func UpdateUnit(ctx context.Context, conn *pgxpool.Conn, id string, input *Updat
 	}
 	if err != nil {
 		return nil, fmt.Errorf("storage: failed to update unit: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("storage: failed to commit unit update: %w", err)
 	}
 	return &unit, nil
 }

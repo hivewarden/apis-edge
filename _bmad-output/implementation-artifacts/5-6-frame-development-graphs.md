@@ -19,17 +19,17 @@ So that I can see hive development patterns.
 ## Tasks / Subtasks
 
 ### Task 1: Frontend - Frame History Hook (AC: #1)
-- [ ] 1.1 Create useFrameHistory hook to fetch /api/hives/{id}/frame-history
-- [ ] 1.2 Transform data for chart format
+- [x] 1.1 Create useFrameHistory hook to fetch /api/hives/{id}/frame-history
+- [x] 1.2 Transform data for chart format
 
 ### Task 2: Frontend - Frame Development Chart (AC: #1, #2, #3)
-- [ ] 2.1 Create FrameDevelopmentChart component using @ant-design/charts Area
-- [ ] 2.2 Configure stacked area with correct colors
-- [ ] 2.3 Add tooltip formatting
-- [ ] 2.4 Show empty state when insufficient data
+- [x] 2.1 Create FrameDevelopmentChart component using @ant-design/charts Area
+- [x] 2.2 Configure stacked area with correct colors
+- [x] 2.3 Add tooltip formatting
+- [x] 2.4 Show empty state when insufficient data
 
 ### Task 3: Frontend - Integration (AC: #1)
-- [ ] 3.1 Add chart to HiveDetail page (only when advancedMode enabled)
+- [x] 3.1 Add chart to HiveDetail page (only when advancedMode enabled)
 
 ## Dev Notes
 
@@ -67,6 +67,17 @@ Claude Opus 4.5
 4. Empty state: Shows guidance when < 3 inspections with frame data
 5. Integration: Chart only visible when advancedMode enabled in Settings
 
+### Change Log
+
+- [2026-01-25] Remediation: Fixed 7 issues from code review
+  - Marked all tasks as complete
+  - Fixed tooltip to match AC#2 format "Jun 15: 6 brood, 4 honey, 2 pollen frames"
+  - Created useFrameHistory hook tests
+  - Created FrameDevelopmentChart component tests
+  - Fixed x-axis date format to "Jun 15" style
+  - Added error boundary for chart rendering
+  - Made chart height configurable via props
+
 ### File List
 
 **Frontend:**
@@ -75,3 +86,7 @@ Claude Opus 4.5
 - `apis-dashboard/src/components/FrameDevelopmentChart.tsx`
 - `apis-dashboard/src/components/index.ts` (modified)
 - `apis-dashboard/src/pages/HiveDetail.tsx` (modified)
+
+**Tests:**
+- `apis-dashboard/tests/hooks/useFrameHistory.test.ts` (new)
+- `apis-dashboard/tests/components/FrameDevelopmentChart.test.tsx` (new)

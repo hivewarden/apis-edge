@@ -5,6 +5,7 @@
  * for applying the same treatment to multiple hives at once.
  *
  * Part of Epic 6, Story 6.1 (Treatment Log)
+ * Enhanced with follow-up reminder in Story 6.6 (Treatment Calendar)
  */
 import { useState, useEffect } from 'react';
 import {
@@ -21,17 +22,29 @@ import {
   Divider,
   Alert,
 } from 'antd';
+const { useWatch } = Form;
 import {
   MedicineBoxOutlined,
   ExperimentOutlined,
+  BellOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { colors } from '../theme/apisTheme';
 import {
-  TREATMENT_TYPES,
   TREATMENT_METHODS,
   type CreateTreatmentInput,
 } from '../hooks/useTreatments';
+import {
+  useCustomLabels,
+  BUILT_IN_TREATMENT_TYPES,
+  mergeTypesWithCustomLabels,
+} from '../hooks/useCustomLabels';
+import {
+  useTreatmentIntervals,
+  DEFAULT_TREATMENT_INTERVALS,
+  formatTreatmentType,
+} from '../hooks/useCalendar';
+import { apiClient } from '../providers/apiClient';
 
 const { Text } = Typography;
 
@@ -51,6 +64,8 @@ interface TreatmentFormModalProps {
   currentHiveName: string;
   /** All hives available for multi-select */
   availableHives?: Hive[];
+  /** Pre-filled treatment type (from calendar due events) */
+  prefilledTreatmentType?: string;
 }
 
 interface FormValues {
@@ -61,6 +76,7 @@ interface FormValues {
   mite_count_before?: number;
   weather?: string;
   notes?: string;
+  set_followup_reminder?: boolean;
 }
 
 /**
@@ -83,10 +99,28 @@ export function TreatmentFormModal({
   currentHiveId,
   currentHiveName,
   availableHives = [],
+  prefilledTreatmentType,
 }: TreatmentFormModalProps) {
   const [form] = Form.useForm<FormValues>();
   const [selectedHiveIds, setSelectedHiveIds] = useState<string[]>([currentHiveId]);
   const [showMultiHive, setShowMultiHive] = useState(false);
+  const [isCreatingReminder, setIsCreatingReminder] = useState(false);
+
+  // Watch form fields for reactive updates
+  const setFollowupReminder = useWatch('set_followup_reminder', form);
+  const treatmentType = useWatch('treatment_type', form);
+
+  // Fetch custom treatment labels
+  const { labels: customTreatmentLabels } = useCustomLabels('treatment');
+
+  // Fetch treatment intervals for follow-up reminder calculation
+  const { intervals } = useTreatmentIntervals();
+
+  // Merge built-in types with custom labels
+  const treatmentTypeOptions = mergeTypesWithCustomLabels(
+    BUILT_IN_TREATMENT_TYPES,
+    customTreatmentLabels
+  );
 
   // Reset form and selection when modal opens
   useEffect(() => {
@@ -94,11 +128,13 @@ export function TreatmentFormModal({
       form.resetFields();
       form.setFieldsValue({
         treated_at: dayjs(),
+        // Pre-fill treatment type if provided (from calendar due events)
+        ...(prefilledTreatmentType ? { treatment_type: prefilledTreatmentType } : {}),
       });
       setSelectedHiveIds([currentHiveId]);
       setShowMultiHive(false);
     }
-  }, [open, form, currentHiveId]);
+  }, [open, form, currentHiveId, prefilledTreatmentType]);
 
   const handleSubmit = async (values: FormValues) => {
     const input: CreateTreatmentInput = {
@@ -113,6 +149,35 @@ export function TreatmentFormModal({
     };
 
     await onSubmit(input);
+
+    // Create follow-up reminder if checkbox is checked
+    if (values.set_followup_reminder) {
+      setIsCreatingReminder(true);
+      try {
+        // Calculate due date based on treatment type interval
+        const intervalDays =
+          intervals?.[values.treatment_type] ??
+          DEFAULT_TREATMENT_INTERVALS[values.treatment_type] ??
+          30;
+        const dueDate = values.treated_at.add(intervalDays, 'day').format('YYYY-MM-DD');
+        const treatmentName = formatTreatmentType(values.treatment_type);
+
+        // Create a reminder for each selected hive
+        for (const hiveId of selectedHiveIds) {
+          await apiClient.post('/reminders', {
+            hive_id: hiveId,
+            reminder_type: 'treatment_followup',
+            title: `${treatmentName} follow-up treatment due`,
+            due_at: dueDate,
+          });
+        }
+      } catch (error) {
+        console.error('[TreatmentFormModal] Failed to create follow-up reminder:', error);
+        // Don't fail the whole submission if reminder creation fails
+      } finally {
+        setIsCreatingReminder(false);
+      }
+    }
   };
 
   const handleHiveToggle = (hiveId: string, checked: boolean) => {
@@ -232,7 +297,7 @@ export function TreatmentFormModal({
           >
             <Select
               placeholder="Select type"
-              options={TREATMENT_TYPES}
+              options={treatmentTypeOptions}
               suffixIcon={<MedicineBoxOutlined />}
             />
           </Form.Item>
@@ -287,6 +352,33 @@ export function TreatmentFormModal({
           />
         </Form.Item>
 
+        {/* Follow-up Reminder Toggle */}
+        <Form.Item
+          name="set_followup_reminder"
+          valuePropName="checked"
+        >
+          <Checkbox>
+            <Space>
+              <BellOutlined style={{ color: colors.seaBuckthorn }} />
+              <span>Set follow-up reminder</span>
+            </Space>
+          </Checkbox>
+        </Form.Item>
+
+        {setFollowupReminder && treatmentType && (
+          <Alert
+            type="info"
+            showIcon
+            icon={<BellOutlined />}
+            message={`Reminder will be set for ${
+              intervals?.[treatmentType] ??
+              DEFAULT_TREATMENT_INTERVALS[treatmentType] ??
+              30
+            } days after treatment`}
+            style={{ marginBottom: 16 }}
+          />
+        )}
+
         {/* Notes */}
         <Form.Item
           name="notes"
@@ -309,7 +401,7 @@ export function TreatmentFormModal({
             <Button
               type="primary"
               htmlType="submit"
-              loading={loading}
+              loading={loading || isCreatingReminder}
               icon={<MedicineBoxOutlined />}
             >
               Log Treatment

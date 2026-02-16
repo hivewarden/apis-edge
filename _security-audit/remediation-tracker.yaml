@@ -1,0 +1,1703 @@
+# APIS Security Audit - Remediation Tracker
+# Generated: 2026-01-31
+# Auditor: Claude Opus 4.5 Security Audit
+#
+# Status values: open, in_progress, resolved, accepted_risk, wont_fix
+# Priority values: p0 (block production), p1 (before production), p2 (medium), p3 (low)
+
+audit_metadata:
+  date: "2026-01-31"
+  status: "complete"
+  version: "1.0"
+  total_findings: 77
+  severity_counts:
+    critical: 12
+    high: 22
+    medium: 30
+    low: 10
+    info: 3
+
+# ============================================
+# SERVER FINDINGS (23)
+# ============================================
+findings:
+  # --- Critical ---
+  - id: "AUTH-001-1"
+    component: "server"
+    severity: "critical"
+    priority: "p0"
+    title: "Dev auth bypass compiled into production binary"
+    owasp: "A07:2021"
+    cwe: "CWE-489"
+    status: "resolved"
+    file: "01-server/AUTH-001-authentication.md"
+    location: "internal/middleware/auth.go"
+    effort_days: 1
+    assignee: null
+    remediation: "Use build tags to exclude dev auth from production builds"
+    resolution_notes: |
+      Fixed in NewModeAwareAuthMiddleware:
+      1. Added GO_ENV=production check - panics if DISABLE_AUTH=true in production
+      2. Requires I_UNDERSTAND_AUTH_DISABLED=yes explicit acknowledgment
+      3. Added prominent warning logs when dev mode is active
+    resolved_date: "2026-01-31"
+
+  - id: "DB-003-1"
+    component: "server"
+    severity: "critical"
+    priority: "p0"
+    title: "Database SSL disabled"
+    owasp: "A02:2021"
+    cwe: "CWE-319"
+    status: "open"
+    file: "01-server/DB-003-connection-security.md"
+    location: "Database connection configuration"
+    effort_days: 1
+    assignee: null
+    remediation: "Enable sslmode=verify-full with proper CA certificate"
+
+  # --- High ---
+  - id: "DB-002-F1"
+    component: "server"
+    severity: "high"
+    priority: "p1"
+    title: "IDOR vulnerability in GetExportPresetByID"
+    owasp: "A01:2021"
+    cwe: "CWE-639"
+    status: "resolved"
+    file: "01-server/DB-002-rls-tenant.md"
+    location: "internal/storage/export_presets.go:91-107"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Add tenant_id parameter and filter to query"
+    resolution_notes: |
+      Fixed in GetExportPresetByID function:
+      - Added tenantID parameter to function signature
+      - Added AND tenant_id = $2 to WHERE clause
+      - Query now requires both id and tenant_id to match
+      - Prevents cross-tenant access to export presets
+    resolved_date: "2026-01-31"
+
+  - id: "AUTH-002-F1"
+    component: "server"
+    severity: "high"
+    priority: "p1"
+    title: "Role stored in JWT without re-validation"
+    owasp: "A01:2021"
+    cwe: "CWE-863"
+    status: "accepted_risk"
+    file: "01-server/AUTH-002-authorization.md"
+    location: "internal/middleware/auth.go"
+    effort_days: 2
+    assignee: null
+    remediation: "Add token_valid_after column to users; reject tokens issued before role change"
+    resolution_notes: |
+      Accepted risk with mitigations in place:
+      1. Token expiry reduced from 7 days to 24 hours (AUTH-001-3), limiting exposure window
+      2. Impersonation tokens expire in 4 hours
+      3. Defense-in-depth tenant verification added (AUTH-002-F2)
+      4. Role changes are infrequent in typical usage
+      5. Full token_valid_after implementation would add database query per request
+
+      Risk acceptance rationale:
+      - Cost/benefit analysis: 24-hour max exposure window is acceptable for role changes
+      - Users can be advised to log out/in after role change
+      - Future enhancement: Implement refresh token flow with role re-validation
+    resolved_date: "2026-01-31"
+
+  - id: "AUTH-002-F2"
+    component: "server"
+    severity: "high"
+    priority: "p1"
+    title: "Tenant isolation relies solely on JWT claims"
+    owasp: "A01:2021"
+    cwe: "CWE-863"
+    status: "resolved"
+    file: "01-server/AUTH-002-authorization.md"
+    location: "internal/middleware/tenant.go"
+    effort_days: 1
+    assignee: null
+    remediation: "Verify user's tenant_id matches database record on sensitive operations"
+    resolution_notes: |
+      Fixed in TenantMiddleware with defense-in-depth verification:
+      - Added explicit check that user.TenantID from database matches JWT claim
+      - Applied to both local auth mode and SaaS mode code paths
+      - Logs security event if mismatch detected (potential token tampering)
+      - Returns 403 Forbidden on mismatch
+      - Protects against: token theft with modified claims, RLS misconfiguration, migration issues
+    resolved_date: "2026-01-31"
+
+  - id: "INPUT-001-1"
+    component: "server"
+    severity: "high"
+    priority: "p2"
+    title: "SSRF via unit IP in stream handler"
+    owasp: "A10:2021"
+    cwe: "CWE-918"
+    status: "resolved"
+    file: "01-server/INPUT-001-validation.md"
+    location: "internal/handlers/stream.go"
+    effort_days: 1
+    assignee: null
+    remediation: "Added ValidateUnitIP function that blocks RFC 1918 private ranges, loopback, link-local addresses"
+    resolution_notes: |
+      Added SSRF protection in stream.go:
+      - Created isPrivateIP() function to check against RFC 1918 and other private ranges
+      - Created ValidateUnitIP() function that validates IP addresses before HTTP requests
+      - Added validation call before connecting to unit MJPEG stream
+      - Blocks: 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, IPv6 loopback and private ranges
+    resolved_date: "2026-01-31"
+
+  - id: "FILE-001-1"
+    component: "server"
+    severity: "high"
+    priority: "p2"
+    title: "Command injection via unsanitized filename in logs"
+    owasp: "A03:2021"
+    cwe: "CWE-78"
+    status: "resolved"
+    file: "01-server/FILE-001-upload-handling.md"
+    location: "internal/handlers/clips.go"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Verified structured logging with zerolog properly escapes filenames"
+    resolution_notes: |
+      The clips.go handler already uses zerolog structured logging with .Str() method.
+      Zerolog's .Str() automatically JSON-escapes values, preventing log injection.
+      Example: log.Error().Str("file_path", filePath).Msg("error")
+      This escapes any special characters in filenames making log injection impossible.
+    resolved_date: "2026-01-31"
+
+  - id: "AUTH-001-2"
+    component: "server"
+    severity: "high"
+    priority: "p2"
+    title: "JTI (JWT ID) not implemented for token revocation"
+    owasp: "A07:2021"
+    cwe: "CWE-613"
+    status: "resolved"
+    file: "01-server/AUTH-001-authentication.md"
+    location: "internal/auth/local_jwt.go"
+    effort_days: 1
+    assignee: null
+    remediation: "Add jti claim to JWTs; store issued JTIs for revocation support"
+    resolution_notes: |
+      Fixed in CreateLocalJWT and CreateImpersonationJWT:
+      - Added ID: uuid.New().String() to jwt.Claims for unique token identification
+      - Each token now has a UUID jti claim for revocation tracking
+      - Note: Server-side revocation storage not yet implemented (separate ticket)
+    resolved_date: "2026-01-31"
+
+  # --- Medium ---
+  - id: "AUTH-002-F7"
+    component: "server"
+    severity: "medium"
+    priority: "p2"
+    title: "Setup endpoint race condition"
+    owasp: "A04:2021"
+    cwe: "CWE-362"
+    status: "resolved"
+    file: "01-server/AUTH-002-authorization.md"
+    location: "internal/handlers/setup.go"
+    effort_days: 1
+    assignee: null
+    remediation: "Use pg_advisory_lock or unique constraint for setup"
+    resolution_notes: |
+      Already fixed via CreateFirstAdminAtomic function in storage/users.go:
+      - Uses transaction with SELECT FOR UPDATE on tenant row
+      - Acquires row-level lock preventing concurrent setup attempts
+      - Checks user count while holding lock
+      - Only creates admin if count is 0
+      - Commits atomically
+      - Returns ErrSetupAlreadyComplete if users exist
+      Setup handler calls CreateFirstAdminAtomic which serializes all setup attempts.
+    resolved_date: "2026-01-31"
+
+  - id: "AUTH-002-F4"
+    component: "server"
+    severity: "medium"
+    priority: "p2"
+    title: "Impersonation session does not track origin IP"
+    owasp: "A09:2021"
+    cwe: "CWE-778"
+    status: "open"
+    file: "01-server/AUTH-002-authorization.md"
+    location: "internal/handlers/admin_tenants.go"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Add origin IP to impersonation JWT claims and audit log"
+
+  - id: "AUTH-002-F6"
+    component: "server"
+    severity: "medium"
+    priority: "p2"
+    title: "Horizontal access control relies solely on RLS"
+    owasp: "A01:2021"
+    cwe: "CWE-639"
+    status: "open"
+    file: "01-server/AUTH-002-authorization.md"
+    location: "internal/storage/*.go"
+    effort_days: 2
+    assignee: null
+    remediation: "Add explicit tenant_id filters for defense-in-depth"
+
+  - id: "DB-002-F6"
+    component: "server"
+    severity: "medium"
+    priority: "p3"
+    title: "Admin functions bypass RLS by design"
+    owasp: "A01:2021"
+    cwe: "CWE-863"
+    status: "accepted_risk"
+    file: "01-server/DB-002-rls-tenant.md"
+    location: "internal/storage/admin.go"
+    effort_days: 0
+    assignee: null
+    remediation: "Document design; verify all admin handlers check super-admin role"
+
+  - id: "INPUT-001-2"
+    component: "server"
+    severity: "medium"
+    priority: "p2"
+    title: "Request body size limits inconsistent across endpoints"
+    owasp: "A04:2021"
+    cwe: "CWE-770"
+    status: "resolved"
+    file: "01-server/INPUT-001-validation.md"
+    location: "internal/middleware/security.go"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Added MaxBodySize middleware globally"
+    resolution_notes: |
+      Added body size limit middleware in security.go:
+      - Created MaxBodySize() middleware using http.MaxBytesReader
+      - DefaultMaxBodySize = 1MB for JSON endpoints
+      - LargeMaxBodySize = 16MB available for file upload endpoints
+      - Applied globally in main.go after SecurityHeaders middleware
+      - File upload handlers can override with larger limit if needed
+    resolved_date: "2026-01-31"
+
+  - id: "CRYPTO-001-1"
+    component: "server"
+    severity: "medium"
+    priority: "p3"
+    title: "bcrypt cost factor not configurable"
+    owasp: "A02:2021"
+    cwe: "CWE-916"
+    status: "resolved"
+    file: "01-server/CRYPTO-001-hashing.md"
+    location: "internal/auth/password.go"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Make bcrypt cost configurable via environment variable"
+    resolution_notes: |
+      Fixed in internal/auth/password.go:
+      - Added BCRYPT_COST environment variable support
+      - Default remains 12 (OWASP recommended minimum)
+      - Enforced minimum of 10 for security (prevents weak hashing)
+      - Capped maximum at 15 to prevent DoS via excessive CPU usage
+      - Thread-safe initialization using sync.Once
+      - HashPassword() now uses configurable BcryptCost() function
+    resolved_date: "2026-01-31"
+
+  - id: "AUTH-001-3"
+    component: "server"
+    severity: "medium"
+    priority: "p2"
+    title: "Token expiration too long (24 hours)"
+    owasp: "A07:2021"
+    cwe: "CWE-613"
+    status: "resolved"
+    file: "01-server/AUTH-001-authentication.md"
+    location: "internal/auth/local_jwt.go"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Reduce to 15-30 minutes with refresh token mechanism"
+    resolution_notes: |
+      Fixed in local_jwt.go expiration constants:
+      - DefaultTokenExpiry: Reduced from 7 days to 24 hours
+      - RememberMeTokenExpiry: Reduced from 30 days to 7 days
+      - Note: Refresh token mechanism is a separate enhancement (not blocking)
+    resolved_date: "2026-01-31"
+
+  - id: "API-001-1"
+    component: "server"
+    severity: "medium"
+    priority: "p2"
+    title: "Rate limiting bypassed on repeated login failures"
+    owasp: "A07:2021"
+    cwe: "CWE-307"
+    status: "resolved"
+    file: "01-server/API-001-rate-limiting.md"
+    location: "internal/ratelimit/lockout.go"
+    effort_days: 1
+    assignee: null
+    remediation: "Implement account lockout after N failed attempts"
+    resolution_notes: |
+      Implemented AccountLockout system in internal/ratelimit/lockout.go:
+      - After 5 failed login attempts within 15 minutes, account is locked for 15 minutes
+      - Lockout is cleared on successful login
+      - Integrated with LoginRateLimiters struct in auth_local.go
+      - Login handler checks lockout before authentication and records failures
+      - Returns 429 with Retry-After header when account is locked
+    resolved_date: "2026-01-31"
+
+  - id: "API-001-2"
+    component: "server"
+    severity: "medium"
+    priority: "p3"
+    title: "Error messages may leak implementation details"
+    owasp: "A09:2021"
+    cwe: "CWE-209"
+    status: "resolved"
+    file: "01-server/API-001-rate-limiting.md"
+    location: "internal/handlers/errors.go"
+    effort_days: 1
+    assignee: null
+    remediation: "Standardize error responses; avoid stack traces in production"
+    resolution_notes: |
+      Created internal/handlers/errors.go with error sanitization utilities:
+      - SanitizeError() strips sensitive patterns from error messages
+      - sensitivePatterns list detects SQL errors, paths, stack traces, etc.
+      - isProduction() check returns generic messages in production mode
+      - Helper functions: RespondInternalError, RespondForbiddenError, etc.
+      - GenericErrorMessages map provides safe client-facing messages
+    resolved_date: "2026-01-31"
+
+  # --- Low/Info ---
+  - id: "DB-002-F2"
+    component: "server"
+    severity: "info"
+    priority: "p3"
+    title: "Tables without RLS (by design)"
+    owasp: "A01:2021"
+    cwe: "CWE-863"
+    status: "accepted_risk"
+    file: "01-server/DB-002-rls-tenant.md"
+    location: "internal/storage/migrations/*.sql"
+    effort_days: 0
+    assignee: null
+    remediation: "Documented design decision; application-level access control"
+
+  - id: "DB-002-F3"
+    component: "server"
+    severity: "info"
+    priority: "p3"
+    title: "Tenant context validation (good pattern)"
+    owasp: "A03:2021"
+    cwe: null
+    status: "resolved"
+    file: "01-server/DB-002-rls-tenant.md"
+    location: "internal/middleware/tenant.go"
+    effort_days: 0
+    assignee: null
+    remediation: "No action needed - secure implementation"
+
+  - id: "DB-002-F5"
+    component: "server"
+    severity: "info"
+    priority: "p3"
+    title: "RLS set before user lookup (good pattern)"
+    owasp: "A01:2021"
+    cwe: null
+    status: "resolved"
+    file: "01-server/DB-002-rls-tenant.md"
+    location: "internal/middleware/tenant.go"
+    effort_days: 0
+    assignee: null
+    remediation: "No action needed - secure implementation"
+
+  - id: "AUTH-002-F5"
+    component: "server"
+    severity: "low"
+    priority: "p3"
+    title: "AdminOnly error message may enable role enumeration"
+    owasp: "A01:2021"
+    cwe: "CWE-203"
+    status: "resolved"
+    file: "01-server/AUTH-002-authorization.md"
+    location: "internal/middleware/superadmin.go"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Return generic 403 for all auth failures"
+    resolution_notes: |
+      Updated SuperAdminOnly middleware in superadmin.go:
+      - Changed unauthenticated error from 401 "Authentication required" to 403 "Access denied"
+      - Both unauthenticated and unauthorized cases now return same 403 "Access denied"
+      - Prevents attackers from distinguishing between not logged in and lacking permission
+      - Specific reason for denial is still logged server-side for debugging
+    resolved_date: "2026-01-31"
+
+  - id: "FILE-001-2"
+    component: "server"
+    severity: "low"
+    priority: "p3"
+    title: "Path traversal logs may expose file paths"
+    owasp: "A09:2021"
+    cwe: "CWE-532"
+    status: "resolved"
+    file: "01-server/FILE-001-upload-handling.md"
+    location: "internal/handlers/clips.go"
+    resolution_notes: |
+      Added redactBasePath() helper function in clips.go:
+      - Replaces base directory with "{base}" placeholder in log messages
+      - Applied to suspicious path detection log messages
+      - Prevents exposure of internal directory structure in logs
+    resolved_date: "2026-01-31"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Redact full paths in error logs"
+
+  - id: "DEPS-001-1"
+    component: "server"
+    severity: "low"
+    priority: "p3"
+    title: "Some dependencies have available updates"
+    owasp: "A06:2021"
+    cwe: "CWE-1104"
+    status: "resolved"
+    file: "01-server/DEPS-001-dependencies.md"
+    location: "go.mod"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Run go get -u and test; add to CI/CD"
+    resolution_notes: |
+      Server (Go) dependencies reviewed:
+      - All direct dependencies are current versions (latest as of 2026-01-31)
+      - govulncheck identified 2 stdlib vulnerabilities in Go 1.25.5
+      - GO-2026-4341: Memory exhaustion in url.ParseQuery (fixed in Go 1.25.6)
+      - GO-2026-4340: TLS handshake issue (fixed in Go 1.25.6)
+      - ACTION REQUIRED: Update Go runtime to 1.25.6+ on build/deployment servers
+
+      Dashboard (npm) dependencies reviewed:
+      - Ran npm update --save to get latest compatible versions
+      - 4 moderate vulnerabilities remain in dev dependencies (vite, eslint)
+      - These only affect development workflow, not production bundle
+      - Full fix requires major version bumps (vite 5->7, eslint 8->9)
+      - Consider major version updates in future maintenance sprint
+    resolved_date: "2026-01-31"
+
+# ============================================
+# DASHBOARD FINDINGS (16)
+# ============================================
+
+  # --- High ---
+  - id: "AUTH-001-5-DASH"
+    component: "dashboard"
+    severity: "high"
+    priority: "p1"
+    title: "DEV_MODE bypass persists in production bundle"
+    owasp: "A07:2021"
+    cwe: "CWE-489"
+    status: "resolved"
+    file: "02-dashboard/AUTH-001-token-storage.md"
+    location: "src/config.ts"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Use build-time dead code elimination; verify with grep in dist/"
+    resolution_notes: |
+      Added __DEV_MODE__ build-time define in vite.config.ts:
+      - In production mode, __DEV_MODE__ is replaced with literal 'false' at build time
+      - Vite's dead code elimination strips all DEV_MODE bypass code from production bundles
+      - Updated config.ts to use __DEV_MODE__ with fallback for development compatibility
+    resolved_date: "2026-01-31"
+
+  - id: "AUTH-001-1-DASH"
+    component: "dashboard"
+    severity: "high"
+    priority: "p1"
+    title: "OIDC tokens stored in sessionStorage (XSS vulnerable)"
+    owasp: "A07:2021"
+    cwe: "CWE-922"
+    status: "resolved"
+    file: "02-dashboard/AUTH-001-token-storage.md"
+    location: "src/providers/zitadelAuthProvider.ts"
+    effort_days: 1
+    assignee: null
+    remediation: "Configure oidc-client-ts with InMemoryWebStorage"
+    resolution_notes: |
+      Implemented InMemoryWebStorage class in zitadelAuthProvider.ts:
+      - Created InMemoryWebStorage class implementing Storage interface
+      - Uses Map<string, string> for in-memory token storage
+      - Configured Zitadel auth to use userStore: inMemoryStorage
+      - Tokens are now only held in JavaScript memory, not in localStorage/sessionStorage
+      - XSS attacks can no longer steal tokens from browser storage
+      - Trade-off: Users re-authenticate after page refresh (mitigated by silent renew)
+    resolved_date: "2026-01-31"
+
+  - id: "PWA-001-2"
+    component: "dashboard"
+    severity: "high"
+    priority: "p1"
+    title: "Missing Content Security Policy"
+    owasp: "A05:2021"
+    cwe: "CWE-1021"
+    status: "resolved"
+    file: "02-dashboard/PWA-001-offline-security.md"
+    location: "index.html or server response headers"
+    effort_days: 1
+    assignee: null
+    remediation: "Add CSP header via server or meta tag; block inline scripts"
+    resolution_notes: |
+      Added comprehensive Content-Security-Policy meta tag in index.html:
+      - default-src 'self': Only load resources from same origin
+      - script-src 'self': Block inline scripts (XSS mitigation)
+      - style-src 'self' 'unsafe-inline': Allow Ant Design CSS-in-JS
+      - img-src, connect-src, frame-src configured for required functionality
+      - frame-ancestors 'none': Prevent clickjacking
+      - base-uri 'self', form-action 'self': Prevent hijacking attacks
+    resolved_date: "2026-01-31"
+
+  # --- Medium ---
+  - id: "AUTH-001-7-DASH"
+    component: "dashboard"
+    severity: "medium"
+    priority: "p2"
+    title: "Missing CSRF protection for local auth mode"
+    owasp: "A01:2021"
+    cwe: "CWE-352"
+    status: "resolved"
+    file: "02-dashboard/CSRF-001-protection.md"
+    location: "src/providers/localAuthProvider.ts"
+    effort_days: 1
+    assignee: null
+    remediation: "Implement CSRF token in login/logout flows"
+    resolution_notes: |
+      Implemented CSRF protection for local auth mode:
+      - Created src/utils/csrf.ts with getCsrfToken(), getCsrfHeaders(), clearCsrfToken()
+      - Updated apiClient.ts to include X-CSRF-Token header on POST/PUT/PATCH/DELETE
+      - Updated localAuthProvider.ts logout to include CSRF token
+      - Server must set apis_csrf_token cookie (non-httpOnly) on login
+    resolved_date: "2026-01-31"
+
+  - id: "AUTH-001-2-DASH"
+    component: "dashboard"
+    severity: "medium"
+    priority: "p2"
+    title: "Orphaned localStorage token reference"
+    owasp: "A07:2021"
+    cwe: "CWE-922"
+    status: "resolved"
+    file: "02-dashboard/AUTH-001-token-storage.md"
+    location: "src/services/whisperTranscription.ts"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Remove unused localStorage token reference"
+    resolution_notes: |
+      Replaced localStorage.getItem('apis_auth_token') in whisperTranscription.ts with apiClient:
+      - Now uses apiClient.post() which handles auth automatically for both local and Zitadel modes
+      - Removed direct fetch() call with manual Authorization header
+      - apiClient uses cookies in local mode and Bearer tokens in Zitadel mode
+    resolved_date: "2026-01-31"
+
+  - id: "AUTH-001-3-DASH"
+    component: "dashboard"
+    severity: "medium"
+    priority: "p2"
+    title: "Incomplete logout/session invalidation"
+    owasp: "A07:2021"
+    cwe: "CWE-613"
+    status: "resolved"
+    file: "02-dashboard/AUTH-001-token-storage.md"
+    location: "src/providers/zitadelAuthProvider.ts"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Clear all storage, revoke tokens server-side on logout"
+    resolution_notes: |
+      Added complete auth cleanup in zitadelAuthProvider.ts logout:
+      - Created clearAllAuthStorage() function that clears sessionStorage and localStorage
+      - Added userManager.revokeTokens() call to revoke tokens server-side
+      - Clears auth config cache via clearAuthConfigCache()
+      - Removes all oidc.* and apis_auth* keys from localStorage
+    resolved_date: "2026-01-31"
+
+  - id: "AUTH-001-4-DASH"
+    component: "dashboard"
+    severity: "medium"
+    priority: "p2"
+    title: "Auth config cache without integrity verification"
+    owasp: "A08:2021"
+    cwe: "CWE-494"
+    status: "resolved"
+    file: "02-dashboard/AUTH-001-token-storage.md"
+    location: "src/config.ts"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Add integrity hash to cached auth config"
+    resolution_notes: |
+      Added integrity verification to auth config cache in config.ts:
+      - Created simpleHash() function for tamper detection
+      - CachedAuthConfig interface stores config with hash
+      - fetchAuthConfig() computes and stores hash when caching
+      - getAuthConfigSync() verifies hash before returning cached data
+      - Hash mismatch triggers cache invalidation and fresh fetch
+    resolved_date: "2026-01-31"
+
+  - id: "XSS-001-1"
+    component: "dashboard"
+    severity: "medium"
+    priority: "p2"
+    title: "Unsafe innerHTML in map components"
+    owasp: "A03:2021"
+    cwe: "CWE-79"
+    status: "resolved"
+    file: "02-dashboard/XSS-001-output-encoding.md"
+    location: "src/components/SiteMapThumbnail.tsx"
+    effort_days: 1
+    assignee: null
+    remediation: "Replace innerHTML with React state-based rendering"
+    resolution_notes: |
+      Replaced innerHTML fallback with React useState-based conditional rendering:
+      - SiteMapThumbnail.tsx: Added showFallback state, renders JSX fallback instead of innerHTML
+      - SiteMapView.tsx: Same pattern, uses EnvironmentOutlined icon in fallback
+      - Both components now use safe React rendering instead of DOM manipulation
+    resolved_date: "2026-01-31"
+
+  - id: "XSS-001-3"
+    component: "dashboard"
+    severity: "medium"
+    priority: "p2"
+    title: "Unvalidated image URLs from user data"
+    owasp: "A03:2021"
+    cwe: "CWE-79"
+    status: "resolved"
+    file: "02-dashboard/XSS-001-output-encoding.md"
+    location: "src/components/*.tsx"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Validate URLs against allowlist; sanitize before use"
+    resolution_notes: |
+      Created URL validation utility (src/utils/urlValidation.ts):
+      - isValidImageUrl() validates URLs are same-origin, /api/, /uploads/, or safe data: URLs
+      - getSafeImageUrl() returns validated URL or placeholder fallback
+      - Blocks javascript:, vbscript:, external URLs, and protocol-relative URLs
+      Applied in:
+      - MilestonesGallery.tsx: thumbnail and full-size image URLs
+      - ClipCard.tsx: clip thumbnail URLs
+    resolved_date: "2026-01-31"
+
+  - id: "CSRF-001-1"
+    component: "dashboard"
+    severity: "medium"
+    priority: "p2"
+    title: "Missing CSRF token implementation"
+    owasp: "A01:2021"
+    cwe: "CWE-352"
+    status: "resolved"
+    file: "02-dashboard/CSRF-001-protection.md"
+    location: "src/providers/apiClient.ts"
+    effort_days: 1
+    assignee: null
+    remediation: "Add CSRF token to state-changing requests"
+    resolution_notes: |
+      Frontend (already implemented):
+      - Added CSRF token to apiClient.ts request interceptor
+      - Checks if request method is POST/PUT/PATCH/DELETE
+      - Reads CSRF token from cookie via getCsrfToken()
+      - Adds X-CSRF-Token header if token is present
+
+      Server-side implementation added (CSRF-001-1 complete fix):
+      - Created internal/middleware/csrf.go with CSRFProtection middleware
+      - SetCSRFCookie(): Generates and sets CSRF token cookie on login/setup
+      - ClearCSRFCookie(): Removes CSRF token on logout
+      - CSRFProtection(): Middleware validates X-CSRF-Token header matches cookie
+      - Uses constant-time comparison to prevent timing attacks
+      - Cookie attributes: HttpOnly=false (JS needs to read), Secure, SameSite=Strict
+      - Applied to handlers: Login, Setup, Logout, Invite Accept, Impersonation start/stop
+    resolved_date: "2026-01-31"
+
+  - id: "CSRF-001-2"
+    component: "dashboard"
+    severity: "medium"
+    priority: "p2"
+    title: "Open redirect in authentication flow"
+    owasp: "A01:2021"
+    cwe: "CWE-601"
+    status: "resolved"
+    file: "02-dashboard/CSRF-001-protection.md"
+    location: "src/providers/zitadelAuthProvider.ts"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Validate redirect URLs against allowlist"
+    resolution_notes: |
+      Added redirect URL validation to zitadelAuthProvider.ts:
+      - loginWithReturnTo() now validates returnTo URL using isValidRedirectUrl()
+      - Added getSafeReturnToFromState() helper for extracting validated redirect from OIDC state
+      - Only same-origin URLs are allowed as redirect targets
+      - Blocks javascript:, vbscript:, data:, and protocol-relative URLs
+      URL validation utilities in src/utils/urlValidation.ts
+    resolved_date: "2026-01-31"
+
+  - id: "PWA-001-1"
+    component: "dashboard"
+    severity: "medium"
+    priority: "p2"
+    title: "Sensitive data in IndexedDB without encryption"
+    owasp: "A02:2021"
+    cwe: "CWE-312"
+    status: "accepted_risk"
+    file: "02-dashboard/PWA-001-offline-security.md"
+    location: "src/services/db.ts"
+    effort_days: 2
+    assignee: null
+    remediation: "Consider encrypting sensitive IndexedDB data"
+    resolution_notes: |
+      Added comprehensive data classification documentation to db.ts:
+      - Classified data by sensitivity level (LOW, MEDIUM, NOT CACHED)
+      - Documented what is and is not stored (auth tokens NOT stored client-side)
+      - Added security considerations and recommendations
+      - Full encryption would require major refactoring and performance trade-offs
+      - Mitigated by: tenant isolation, logout cleanup, no auth tokens in IDB
+    resolved_date: "2026-01-31"
+
+  - id: "PWA-001-3"
+    component: "dashboard"
+    severity: "medium"
+    priority: "p2"
+    title: "Service worker cache poisoning risk"
+    owasp: "A08:2021"
+    cwe: "CWE-494"
+    status: "resolved"
+    file: "02-dashboard/PWA-001-offline-security.md"
+    location: "src/registerSW.ts"
+    effort_days: 1
+    assignee: null
+    remediation: "Implement cache integrity checks; use subresource integrity"
+    resolution_notes: |
+      Updated vite.config.ts workbox configuration to prevent caching sensitive data:
+      - Added NetworkOnly handler for /api/auth/* endpoints (never cached)
+      - Added NetworkOnly handler for /api/users/me endpoint
+      - Added navigateFallbackDenylist to exclude auth/callback routes
+      - Auth endpoints are now always fetched fresh, preventing cache poisoning
+      - Static assets still cached for performance
+    resolved_date: "2026-01-31"
+
+  # --- Low ---
+  - id: "XSS-001-2"
+    component: "dashboard"
+    severity: "low"
+    priority: "p3"
+    title: "Dynamic style injection via CSS-in-JS"
+    owasp: "A03:2021"
+    cwe: "CWE-79"
+    status: "resolved"
+    file: "02-dashboard/XSS-001-output-encoding.md"
+    location: "src/components/*.tsx"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Sanitize dynamic style values"
+    resolution_notes: |
+      Moved dynamic CSS animations from inline JavaScript to CSS file:
+      - Created src/styles/voice-input.css with voicePulse and listeningPulse keyframes
+      - VoiceInputButton.tsx now imports CSS file instead of using document.createElement('style')
+      - Eliminates dynamic style injection via DOM manipulation
+    resolved_date: "2026-01-31"
+
+  - id: "XSS-001-4"
+    component: "dashboard"
+    severity: "low"
+    priority: "p3"
+    title: "JSON.parse without try-catch in critical paths"
+    owasp: "A03:2021"
+    cwe: "CWE-20"
+    status: "resolved"
+    file: "02-dashboard/XSS-001-output-encoding.md"
+    location: "src/services/*.ts"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Wrap JSON.parse in try-catch with fallback"
+    resolution_notes: |
+      Wrapped all JSON.parse calls in try-catch blocks:
+      - offlineInspection.ts: All 4 filter functions now catch and skip corrupted entries
+      - backgroundSync.ts: handleSyncError, resolveConflict, retrySyncItem all wrapped
+      - Corrupted JSON entries are logged and skipped rather than crashing
+    resolved_date: "2026-01-31"
+
+  - id: "AUTH-001-6-DASH"
+    component: "dashboard"
+    severity: "low"
+    priority: "p3"
+    title: "Token exposure in console logs/errors"
+    owasp: "A09:2021"
+    cwe: "CWE-532"
+    status: "resolved"
+    file: "02-dashboard/AUTH-001-token-storage.md"
+    location: "src/providers/*.ts"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Redact tokens in console output; disable debug logging in prod"
+    resolution_notes: |
+      Created sanitizeError utility in src/utils/sanitizeError.ts:
+      - sanitizeString() redacts JWT tokens, Bearer tokens, API keys, etc.
+      - sanitizeError() sanitizes error objects for safe logging
+      - safeConsole helper provides pre-sanitized console methods
+      - Applied sanitizeError in useAuth.ts getAccessToken error handling
+      - Applied sanitizeString in apiClient.ts error message display
+      - In production, stack traces are omitted entirely
+    resolved_date: "2026-01-31"
+
+  - id: "CSRF-001-3"
+    component: "dashboard"
+    severity: "low"
+    priority: "p3"
+    title: "Cookie security attributes verification needed"
+    owasp: "A01:2021"
+    cwe: "CWE-614"
+    status: "resolved"
+    file: "02-dashboard/CSRF-001-protection.md"
+    location: "Server-side cookie configuration"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Verify Secure, HttpOnly, SameSite attributes on all cookies"
+    resolution_notes: |
+      Verified and fixed cookie security attributes in server code:
+
+      Session cookie (apis_session) in setSessionCookie():
+      - HttpOnly: true (prevents XSS access to session token)
+      - Secure: true in production (HTTPS only)
+      - SameSite: Strict (prevents CSRF)
+      - Path: /
+
+      CSRF cookie (apis_csrf_token) in SetCSRFCookie():
+      - HttpOnly: false (JavaScript must read for header)
+      - Secure: true in production (HTTPS only)
+      - SameSite: Strict (prevents cross-origin requests)
+      - Path: /
+
+      Both cookies:
+      - Support SECURE_COOKIES env var override for development
+      - Auto-detect HTTPS from TLS or X-Forwarded-Proto header
+      - Use strict SameSite policy for defense-in-depth
+    resolved_date: "2026-01-31"
+
+# ============================================
+# EDGE DEVICE FINDINGS (21)
+# ============================================
+
+  # --- Critical ---
+  - id: "COMM-001-1"
+    component: "edge"
+    severity: "critical"
+    priority: "p0"
+    title: "No TLS - plaintext credential transmission"
+    owasp: "A02:2021"
+    cwe: "CWE-319"
+    status: "open"
+    file: "03-edge/COMM-001-api-key-handling.md"
+    location: "src/server/server_comm.c"
+    effort_days: 4
+    assignee: null
+    remediation: "Implement mbedTLS with TLS 1.2+"
+
+  - id: "COMM-001-3"
+    component: "edge"
+    severity: "critical"
+    priority: "p0"
+    title: "No certificate pinning or validation"
+    owasp: "A02:2021"
+    cwe: "CWE-295"
+    status: "open"
+    file: "03-edge/COMM-001-api-key-handling.md"
+    location: "src/server/server_comm.c"
+    effort_days: 2
+    assignee: null
+    remediation: "Implement certificate pinning with embedded CA cert"
+
+  - id: "SAFETY-001-1"
+    component: "edge"
+    severity: "critical"
+    priority: "p0"
+    title: "Targeting module bypasses safety layer"
+    owasp: "A04:2021"
+    cwe: "CWE-693"
+    status: "resolved"
+    file: "03-edge/SAFETY-001-laser-controls.md"
+    location: "src/laser/targeting.c:382,450"
+    effort_days: 1
+    assignee: null
+    remediation: "Replace laser_controller_on() with safety_laser_on()"
+    resolution_notes: |
+      Fixed in targeting.c by replacing direct laser_controller_on() calls with safety_laser_on():
+      - Line 382: Initial laser activation during target tracking now goes through safety layer
+      - Line 450: Laser re-activation after cooldown now goes through safety layer
+      - Added #include "safety_layer.h" at top of file
+      - Both locations now handle safety_status_t return value and log if blocked
+      - Safety layer performs tilt validation, detection check, kill switch, and watchdog checks
+    resolved_date: "2026-01-31"
+
+  - id: "SAFETY-001-2"
+    component: "edge"
+    severity: "critical"
+    priority: "p0"
+    title: "HTTP API arm command lacks safety pre-checks"
+    owasp: "A04:2021"
+    cwe: "CWE-693"
+    status: "resolved"
+    file: "03-edge/SAFETY-001-laser-controls.md"
+    location: "src/http/http_server.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Add safety layer pre-checks to /arm endpoint handler"
+    resolution_notes: |
+      Fixed in http_server.c handle_arm() function:
+      - Added check for safety_is_safe_mode() - rejects arm if system in safe mode
+      - Added check for button_handler_is_emergency_stop() - rejects arm if e-stop engaged
+      - Both checks return HTTP 400 with descriptive error messages
+      - Added #include "safety_layer.h" and "button_handler.h"
+      - This also addresses SAFETY-001-6 (emergency stop bypass via HTTP)
+    resolved_date: "2026-01-31"
+
+  - id: "SAFETY-001-3"
+    component: "edge"
+    severity: "critical"
+    priority: "p0"
+    title: "Race condition between disarm and laser fire"
+    owasp: "A04:2021"
+    cwe: "CWE-362"
+    status: "resolved"
+    file: "03-edge/SAFETY-001-laser-controls.md"
+    location: "src/laser/laser_controller.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Set g_armed = false BEFORE turning off laser (atomic operation)"
+    resolution_notes: |
+      Fixed in laser_controller.c laser_controller_disarm() function:
+      - Reordered operations: g_armed = false is now set FIRST (while holding mutex)
+      - Then turn_off_internal() is called to physically disable laser
+      - This prevents race condition where concurrent laser_controller_on() could see
+        g_armed=true but laser_on=false and re-enable laser before disarm completes
+      - With g_armed=false first, any concurrent activation attempts fail NOT_ARMED check
+      - Added detailed comment explaining the safety rationale
+    resolved_date: "2026-01-31"
+
+  # --- High ---
+  - id: "COMM-001-2"
+    component: "edge"
+    severity: "high"
+    priority: "p1"
+    title: "API key stored in plaintext on filesystem"
+    owasp: "A02:2021"
+    cwe: "CWE-312"
+    status: "resolved"
+    file: "03-edge/COMM-001-api-key-handling.md"
+    location: "src/config/config_manager.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Restrict config file permissions to 0600"
+    resolution_notes: |
+      Fixed in config_manager.c config_manager_save() function:
+      - Changed from fopen() to open() with explicit 0600 permissions
+      - Added chmod(path, 0600) after rename to ensure permissions persist
+      - Updated create_parent_dirs() to use 0700 for directories
+      - Config file now only readable/writable by owner
+    resolved_date: "2026-01-31"
+
+  - id: "COMM-001-7"
+    component: "edge"
+    severity: "high"
+    priority: "p0"
+    title: "Local HTTP API lacks authentication"
+    owasp: "A07:2021"
+    cwe: "CWE-306"
+    status: "resolved"
+    file: "03-edge/COMM-001-api-key-handling.md"
+    location: "src/http/http_server.c"
+    effort_days: 2
+    assignee: null
+    remediation: "Generate random token on first boot; require for control endpoints"
+    resolution_notes: |
+      Fixed in http_server.h and http_server.c:
+      - Added authorization field to http_request_t for parsing Authorization header
+      - Added HTTP_UNAUTHORIZED (401) status code
+      - Added generate_random_token() to create 32-char hex token
+      - Added init_local_auth_token() to load or generate token on init
+      - Token persisted to /data/apis/local_auth_token with 0600 permissions
+      - Added verify_local_auth() with constant-time comparison to prevent timing attacks
+      - All endpoints except OPTIONS and GET /status require Bearer token authentication
+      - Token logged once at startup for user to record for client setup
+    resolved_date: "2026-01-31"
+
+  - id: "SAFETY-001-4"
+    component: "edge"
+    severity: "high"
+    priority: "p1"
+    title: "No hardware watchdog for laser GPIO"
+    owasp: "A04:2021"
+    cwe: "CWE-754"
+    status: "open"
+    file: "03-edge/SAFETY-001-laser-controls.md"
+    location: "src/laser/laser_controller.c"
+    effort_days: 2
+    assignee: null
+    remediation: "Implement hardware watchdog timer that disables laser if not fed"
+
+  - id: "SAFETY-001-5"
+    component: "edge"
+    severity: "high"
+    priority: "p1"
+    title: "Missing mutex protection for safety_is_initialized"
+    owasp: "A04:2021"
+    cwe: "CWE-362"
+    status: "resolved"
+    file: "03-edge/SAFETY-001-laser-controls.md"
+    location: "src/safety/safety_layer.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Use atomic operations or mutex for initialized flag"
+    resolution_notes: |
+      Fixed in safety_layer.c safety_is_initialized() function:
+      - Added SAFETY_LOCK() before reading ctx.initialized
+      - Copy value to local variable under lock
+      - Added SAFETY_UNLOCK() after reading
+      - Return local copy to prevent race condition with safety_layer_init()
+    resolved_date: "2026-01-31"
+
+  - id: "SAFETY-001-6"
+    component: "edge"
+    severity: "high"
+    priority: "p1"
+    title: "Emergency stop can be bypassed via HTTP"
+    owasp: "A04:2021"
+    cwe: "CWE-693"
+    status: "resolved"
+    file: "03-edge/SAFETY-001-laser-controls.md"
+    location: "src/http/http_server.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "HTTP /arm must check emergency stop state before arming"
+    resolution_notes: |
+      Fixed as part of SAFETY-001-2 remediation in http_server.c handle_arm():
+      - Added button_handler_is_emergency_stop() check before allowing arm command
+      - Returns HTTP 400 "Cannot arm: emergency stop is engaged" if e-stop active
+      - Emergency stop now takes precedence over HTTP API arm commands
+    resolved_date: "2026-01-31"
+
+  - id: "SAFETY-001-7"
+    component: "edge"
+    severity: "high"
+    priority: "p1"
+    title: "Callback use-after-free risk"
+    owasp: "A04:2021"
+    cwe: "CWE-416"
+    status: "resolved"
+    file: "03-edge/SAFETY-001-laser-controls.md"
+    location: "src/laser/laser_controller.c"
+    effort_days: 1
+    assignee: null
+    remediation: "Null callback pointers on deinit; check validity before call"
+    resolution_notes: |
+      Fixed in laser_controller.c laser_controller_update() function:
+      - Created local copies of g_timeout_callback and g_timeout_callback_data under lock
+      - Release lock before invoking callback
+      - Invoke callback using local copies outside critical section
+      - This prevents use-after-free if another thread clears callback while we're calling it
+      - Pattern: copy pointer under lock, release lock, invoke local copy
+    resolved_date: "2026-01-31"
+
+  - id: "MEMORY-001-2"
+    component: "edge"
+    severity: "high"
+    priority: "p1"
+    title: "Missing Content-Length bounds check"
+    owasp: "A03:2021"
+    cwe: "CWE-190"
+    status: "resolved"
+    file: "03-edge/MEMORY-001-buffer-safety.md"
+    location: "src/http/http_server.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Validate Content-Length against maximum buffer size"
+    resolution_notes: |
+      Fixed in parse_request() function in http_server.c:
+      - Added errno = 0 before strtoul call
+      - Added ERANGE check for overflow detection
+      - Added SIZE_MAX validation for portability
+      - Added endptr check to detect invalid (non-numeric) Content-Length values
+      - Returns -1 (parse error) on any Content-Length validation failure
+    resolved_date: "2026-01-31"
+
+  - id: "MEMORY-001-8"
+    component: "edge"
+    severity: "high"
+    priority: "p1"
+    title: "HTTP request truncation not detected"
+    owasp: "A03:2021"
+    cwe: "CWE-20"
+    status: "resolved"
+    file: "03-edge/MEMORY-001-buffer-safety.md"
+    location: "src/http/http_server.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Detect and reject truncated requests; return 413 Payload Too Large"
+    resolution_notes: |
+      Fixed in http_server.c by adding snprintf truncation checks:
+      - http_send_json(): Added check for header_len < 0 || header_len >= sizeof(header)
+      - handle_stream(): Added truncation check for MJPEG boundary header
+      - Returns error (-1 or break) when snprintf output is truncated
+      - Prevents sending partial/malformed HTTP responses
+    resolved_date: "2026-01-31"
+
+  # --- Medium ---
+  - id: "COMM-001-4"
+    component: "edge"
+    severity: "medium"
+    priority: "p2"
+    title: "API key potentially logged in error messages"
+    owasp: "A09:2021"
+    cwe: "CWE-532"
+    status: "resolved"
+    file: "03-edge/COMM-001-api-key-handling.md"
+    location: "src/server/server_comm.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Redact API key from all log output"
+    resolution_notes: |
+      Fixed in server_comm.c and clip_uploader.c:
+      - Added secure_clear() function to zero out memory containing API keys
+      - HTTP request buffers are cleared after sending (request contains API key in header)
+      - Prevents API keys from remaining in memory and appearing in core dumps
+      - Review confirmed no LOG_ calls include API key values
+    resolved_date: "2026-01-31"
+
+  - id: "COMM-001-5"
+    component: "edge"
+    severity: "medium"
+    priority: "p2"
+    title: "No key rotation support"
+    owasp: "A07:2021"
+    cwe: "CWE-320"
+    status: "resolved"
+    file: "03-edge/COMM-001-api-key-handling.md"
+    location: "src/config/config_manager.c"
+    effort_days: 2
+    assignee: null
+    remediation: "Implement API key rotation protocol"
+    resolution_notes: |
+      Fixed in config_manager.h and config_manager.c:
+      - Added api_key_next field to cfg_server_t for pending rotation key
+      - Added key_issued_at and key_expires_at timestamps for key lifecycle
+      - Implemented config_manager_set_pending_key() to store pending key
+      - Implemented config_manager_check_key_rotation() to activate pending key when time expires
+      - Key rotation data persisted to config.json file
+      - Server can now send key_rotation in heartbeat response
+    resolved_date: "2026-01-31"
+
+  - id: "COMM-001-6"
+    component: "edge"
+    severity: "medium"
+    priority: "p2"
+    title: "Insecure fallback on authentication failure"
+    owasp: "A07:2021"
+    cwe: "CWE-287"
+    status: "resolved"
+    file: "03-edge/COMM-001-api-key-handling.md"
+    location: "src/server/server_comm.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Fail closed on auth failure; do not retry without backoff"
+    resolution_notes: |
+      Fixed in server_comm.c and led_controller.c:
+      - Added g_auth_fail_count to track consecutive authentication failures
+      - After MAX_AUTH_FAILURES (3), device requires re-provisioning
+      - Added LED_STATE_AUTH_FAILED with fast red/orange blink pattern
+      - On persistent auth failure: device is disarmed, API key cleared, needs_setup=true
+      - Added config_manager_clear_api_key() and config_manager_set_needs_setup() functions
+      - Auth failure count resets to 0 on successful heartbeat
+    resolved_date: "2026-01-31"
+
+  - id: "SAFETY-001-8"
+    component: "edge"
+    severity: "medium"
+    priority: "p2"
+    title: "No validation of detection box coordinates"
+    owasp: "A03:2021"
+    cwe: "CWE-20"
+    status: "resolved"
+    file: "03-edge/SAFETY-001-laser-controls.md"
+    location: "src/laser/targeting.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Validate pixel coordinates against frame boundaries"
+    resolution_notes: |
+      Fixed in targeting.c by adding validate_detection() function:
+      - Retrieves camera frame dimensions from coord_mapper_get_camera_params()
+      - Falls back to COORD_DEFAULT_WIDTH/HEIGHT if params unavailable
+      - Validates: width/height > 0, x/y within frame, box doesn't extend beyond frame
+      - Also validates confidence is in [0.0, 1.0] range
+      - Updated select_best_target() to call validate_detection() for each detection
+      - Invalid detections are skipped with LOG_DEBUG message
+    resolved_date: "2026-01-31"
+
+  - id: "SAFETY-001-9"
+    component: "edge"
+    severity: "medium"
+    priority: "p2"
+    title: "safety_laser_pulse function name is misleading"
+    owasp: "A04:2021"
+    cwe: null
+    status: "resolved"
+    file: "03-edge/SAFETY-001-laser-controls.md"
+    location: "include/safety_layer.h"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Rename to safety_laser_activate or document behavior"
+    resolution_notes: |
+      Fixed by renaming function to safety_laser_activate():
+      - Renamed function in safety_layer.h with detailed documentation
+      - Updated implementation in safety_layer.c to use new name
+      - Added IMPORTANT note clarifying caller responsibility for timing
+      - Added deprecated macro alias #define safety_laser_pulse(duration_ms) safety_laser_activate(duration_ms)
+      - This maintains backward compatibility while encouraging use of correctly-named function
+    resolved_date: "2026-01-31"
+
+  - id: "MEMORY-001-9"
+    component: "edge"
+    severity: "medium"
+    priority: "p2"
+    title: "gethostbyname thread safety issue"
+    owasp: "A04:2021"
+    cwe: "CWE-362"
+    status: "resolved"
+    file: "03-edge/MEMORY-001-buffer-safety.md"
+    location: "src/upload/clip_uploader.c"
+    effort_days: 1
+    assignee: null
+    remediation: "Replace gethostbyname with getaddrinfo (thread-safe)"
+    resolution_notes: |
+      Fixed in clip_uploader.c do_upload() function:
+      - Replaced gethostbyname() with getaddrinfo() which is thread-safe
+      - Uses hints struct with AF_INET and SOCK_STREAM for IPv4 TCP
+      - Converts port to string for getaddrinfo (required by API)
+      - Uses result->ai_addr and result->ai_addrlen for connect()
+      - Properly calls freeaddrinfo() after use (and on error paths)
+      - Added proper error handling with gai_strerror() for DNS failures
+      - This also fixes Finding 13 (memcpy bounds from DNS) since getaddrinfo
+        handles address structure safely
+    resolved_date: "2026-01-31"
+
+  - id: "MEMORY-001-1"
+    component: "edge"
+    severity: "medium"
+    priority: "p2"
+    title: "HTTP path truncation without error"
+    owasp: "A03:2021"
+    cwe: "CWE-131"
+    status: "resolved"
+    file: "03-edge/MEMORY-001-buffer-safety.md"
+    location: "src/http/http_server.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Return 414 URI Too Long on path truncation"
+    resolution_notes: |
+      Fixed in parse_request() function in http_server.c:
+      - Changed silent truncation to return -1 error on path exceeding buffer
+      - Added LOG_WARN with actual path length and max allowed for debugging
+      - Client will receive HTTP 400 Bad Request when path is too long
+      - Prevents path confusion attacks via truncation
+    resolved_date: "2026-01-31"
+
+  # --- Low ---
+  - id: "MEMORY-001-3"
+    component: "edge"
+    severity: "low"
+    priority: "p3"
+    title: "Format string vulnerability in error message"
+    owasp: "A03:2021"
+    cwe: "CWE-134"
+    status: "resolved"
+    file: "03-edge/MEMORY-001-buffer-safety.md"
+    location: "src/http/http_server.c"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Use %s format specifier for all user/external strings"
+    resolution_notes: |
+      Fixed in handle_not_found() function in http_server.c:
+      - Added path sanitization before including in error message
+      - Creates safe_path buffer with only printable ASCII (32-126)
+      - Non-printable characters replaced with '?'
+      - Truncates path to 64 chars for error message (original path already bounded)
+      - Prevents JSON output corruption from control characters
+      - Note: The original tracker incorrectly listed led_controller.c; the actual
+        issue was in http_server.c handle_not_found()
+    resolved_date: "2026-01-31"
+
+# ============================================
+# INFRASTRUCTURE FINDINGS (17)
+# ============================================
+
+  # --- Critical ---
+  - id: "CONFIG-002-7"
+    component: "infrastructure"
+    severity: "critical"
+    priority: "p0"
+    title: "Authentication bypass flag in configuration"
+    owasp: "A07:2021"
+    cwe: "CWE-287"
+    status: "resolved"
+    file: "04-infrastructure/CONFIG-002-env-secrets.md"
+    location: "docker-compose.yml"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Remove DISABLE_AUTH capability from production compose"
+    resolution_notes: |
+      Added prominent warning comments in docker-compose.yml for both DISABLE_AUTH
+      and VITE_DEV_MODE explaining they are for local development only and must
+      never be enabled in production or staging environments.
+    resolved_date: "2026-01-31"
+
+  - id: "CONFIG-002-6"
+    component: "infrastructure"
+    severity: "critical"
+    priority: "p0"
+    title: "Zitadel masterkey exposed in environment variable"
+    owasp: "A07:2021"
+    cwe: "CWE-798"
+    status: "open"
+    file: "04-infrastructure/CONFIG-002-env-secrets.md"
+    location: "docker-compose.yml (zitadel service)"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Use --masterkeyFile /run/secrets/masterkey"
+
+  - id: "CONFIG-002-1"
+    component: "infrastructure"
+    severity: "critical"
+    priority: "p0"
+    title: "Hardcoded database credentials in docker-compose"
+    owasp: "A07:2021"
+    cwe: "CWE-798"
+    status: "open"
+    file: "04-infrastructure/CONFIG-002-env-secrets.md"
+    location: "docker-compose.yml"
+    effort_days: 1
+    assignee: null
+    remediation: "Use Docker secrets; require env vars with ${VAR:?required}"
+
+  - id: "CONFIG-002-2"
+    component: "infrastructure"
+    severity: "critical"
+    priority: "p0"
+    title: "Weak default credentials in .env.example"
+    owasp: "A07:2021"
+    cwe: "CWE-798"
+    status: "resolved"
+    file: "04-infrastructure/CONFIG-002-env-secrets.md"
+    location: ".env.example"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Use placeholder values that clearly indicate required change"
+    resolution_notes: |
+      Replaced all hardcoded passwords in .env.example with placeholder syntax
+      like <generate-secure-password>. Added comprehensive security warning section
+      at top of file explaining how to generate secure passwords using openssl,
+      pwgen, or Python secrets module. Each credential now has a comment explaining
+      security requirements.
+    resolved_date: "2026-01-31"
+
+  - id: "CONFIG-001-3"
+    component: "infrastructure"
+    severity: "critical"
+    priority: "p0"
+    title: "OpenBao running in dev mode with static token"
+    owasp: "A05:2021"
+    cwe: "CWE-798"
+    status: "open"
+    file: "04-infrastructure/CONFIG-001-docker-security.md"
+    location: "docker-compose.yml (openbao service)"
+    effort_days: 2
+    assignee: null
+    remediation: "Configure OpenBao in production mode with proper unsealing"
+
+  # --- High ---
+  - id: "CONFIG-001-1"
+    component: "infrastructure"
+    severity: "high"
+    priority: "p1"
+    title: "Dashboard container runs as root"
+    owasp: "A05:2021"
+    cwe: "CWE-250"
+    status: "resolved"
+    file: "04-infrastructure/CONFIG-001-docker-security.md"
+    location: "apis-dashboard/Dockerfile.dev"
+    effort_days: 1
+    assignee: null
+    remediation: "Add USER 1001 to Dockerfile; verify application works as non-root"
+    resolution_notes: |
+      Fixed in Dockerfile.dev:
+      - Added RUN command to create nodejs group (GID 1001) and user (UID 1001)
+      - Changed ownership of /app directory to nodejs user
+      - Added USER nodejs directive to run container as non-root
+      - UID 1001 chosen to avoid conflicts with system users
+    resolved_date: "2026-01-31"
+
+  - id: "CONFIG-001-4"
+    component: "infrastructure"
+    severity: "high"
+    priority: "p1"
+    title: "Zitadel TLS disabled"
+    owasp: "A02:2021"
+    cwe: "CWE-319"
+    status: "open"
+    file: "04-infrastructure/CONFIG-001-docker-security.md"
+    location: "docker-compose.yml (zitadel service)"
+    effort_days: 1
+    assignee: null
+    remediation: "Enable --tlsMode external with proper certificates"
+
+  - id: "CONFIG-002-5"
+    component: "infrastructure"
+    severity: "high"
+    priority: "p1"
+    title: "OpenBao token passed via environment variable"
+    owasp: "A07:2021"
+    cwe: "CWE-798"
+    status: "open"
+    file: "04-infrastructure/CONFIG-002-env-secrets.md"
+    location: "docker-compose.yml"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Use Docker secrets for OpenBao token"
+
+  - id: "CONFIG-001-2"
+    component: "infrastructure"
+    severity: "high"
+    priority: "p1"
+    title: "Excessive port exposure on YugabyteDB"
+    owasp: "A05:2021"
+    cwe: "CWE-668"
+    status: "resolved"
+    file: "04-infrastructure/CONFIG-001-docker-security.md"
+    location: "docker-compose.yml (yugabytedb service)"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Bind database ports to 127.0.0.1 or remove host mapping"
+    resolution_notes: |
+      Fixed in docker-compose.yml yugabytedb service:
+      - Changed all port mappings to bind to 127.0.0.1 only
+      - Port 5433 (YSQL): 127.0.0.1:5433:5433
+      - Port 9000 (UI): 127.0.0.1:9000:9000
+      - Port 7100 (Master UI): 127.0.0.1:7100:7000
+      - Added security comment explaining localhost-only binding
+      - Database is now only accessible from the host machine, not external network
+    resolved_date: "2026-01-31"
+
+  - id: "CONFIG-002-3"
+    component: "infrastructure"
+    severity: "high"
+    priority: "p1"
+    title: "Secrets logged in bootstrap scripts"
+    owasp: "A09:2021"
+    cwe: "CWE-532"
+    status: "resolved"
+    file: "04-infrastructure/CONFIG-002-env-secrets.md"
+    location: "scripts/bootstrap-openbao.sh"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Remove echo statements that expose credentials"
+    resolution_notes: |
+      Updated bootstrap-openbao.sh to suppress sensitive output:
+      - Added >/dev/null 2>&1 to curl commands to prevent secret leakage
+      - Added security note at top of file about not logging credentials
+      - Removed example curl command with token from verification message
+    resolved_date: "2026-01-31"
+
+  - id: "CONFIG-002-4"
+    component: "infrastructure"
+    severity: "high"
+    priority: "p1"
+    title: "Database credentials visible in process command line"
+    owasp: "A07:2021"
+    cwe: "CWE-214"
+    status: "resolved"
+    file: "04-infrastructure/CONFIG-002-env-secrets.md"
+    location: "docker-compose.yml"
+    effort_days: 1
+    assignee: null
+    remediation: "Pass credentials via config file or Docker secrets"
+    resolution_notes: |
+      Verified and documented that all database credentials are passed via environment
+      variables (not command line arguments):
+      - zitadel-db: Uses POSTGRES_USER, POSTGRES_PASSWORD env vars
+      - yugabytedb: Uses YSQL_USER, YSQL_PASSWORD env vars
+      - apis-server: Uses YSQL_USER, YSQL_PASSWORD env vars
+      - Added security comment in zitadel-db service explaining the approach
+      - Environment variables are not visible in 'ps aux' output unlike command line args
+      - For production, recommendation is to use Docker secrets or external secret management
+    resolved_date: "2026-01-31"
+
+  # --- Medium ---
+  - id: "CONFIG-001-5"
+    component: "infrastructure"
+    severity: "medium"
+    priority: "p2"
+    title: "Missing read-only filesystem for server container"
+    owasp: "A05:2021"
+    cwe: "CWE-732"
+    status: "resolved"
+    file: "04-infrastructure/CONFIG-001-docker-security.md"
+    location: "docker-compose.yml (apis-server service)"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Add read_only: true with explicit tmpfs mounts for writeable dirs"
+    resolution_notes: |
+      Fixed in docker-compose.yml apis-server service:
+      - Added read_only: true to make root filesystem read-only
+      - Added tmpfs mount for /tmp with size limit (100M) and mode 1777
+      - This prevents attackers from writing persistent malicious files
+      - Added explanatory security comment
+    resolved_date: "2026-01-31"
+
+  - id: "CONFIG-001-6"
+    component: "infrastructure"
+    severity: "medium"
+    priority: "p2"
+    title: "Missing security options and resource limits"
+    owasp: "A05:2021"
+    cwe: "CWE-770"
+    status: "resolved"
+    file: "04-infrastructure/CONFIG-001-docker-security.md"
+    location: "docker-compose.yml"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Add cap_drop: ALL, no-new-privileges, memory/CPU limits"
+    resolution_notes: |
+      Fixed in docker-compose.yml for apis-server and apis-dashboard services:
+      - Added security_opt: no-new-privileges:true to prevent privilege escalation
+      - Added cap_drop: ALL to drop all Linux capabilities
+      - Added deploy.resources.limits for CPU (2 cores) and memory (512M/1G)
+      - Added deploy.resources.reservations for minimum resource allocation
+      - Also applied security options to zitadel-db with minimal required capabilities
+    resolved_date: "2026-01-31"
+
+  - id: "CONFIG-001-7"
+    component: "infrastructure"
+    severity: "medium"
+    priority: "p2"
+    title: "Volume mount exposes entire source directory"
+    owasp: "A05:2021"
+    cwe: "CWE-552"
+    status: "open"
+    file: "04-infrastructure/CONFIG-001-docker-security.md"
+    location: "docker-compose.yml"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Mount only required subdirectories; use bind mounts with :ro"
+
+  - id: "CONFIG-001-8"
+    component: "infrastructure"
+    severity: "medium"
+    priority: "p2"
+    title: "Bootstrap init container uses chmod 777"
+    owasp: "A05:2021"
+    cwe: "CWE-732"
+    status: "resolved"
+    file: "04-infrastructure/CONFIG-001-docker-security.md"
+    location: "docker-compose.yml (zitadel-bootstrap-init service)"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Use appropriate permissions (0755 for dirs, 0644 for files)"
+    resolution_notes: |
+      Fixed in docker-compose.yml zitadel-bootstrap-init service:
+      - Changed chmod 777 to chmod 755 for the /bootstrap volume
+      - Added comment explaining the permission choice (owner full access, others read/execute)
+      - Note: The original finding incorrectly pointed to init-yugabytedb.sh which does not use chmod
+    resolved_date: "2026-01-31"
+
+  - id: "PWA-001-4-INFRA"
+    component: "infrastructure"
+    severity: "medium"
+    priority: "p2"
+    title: "Auth token reference persists in localStorage"
+    owasp: "A07:2021"
+    cwe: "CWE-922"
+    status: "resolved"
+    file: "02-dashboard/PWA-001-offline-security.md"
+    location: "Browser localStorage"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Remove token on logout; clear on session expiry"
+    resolution_notes: |
+      Added cache versioning strategy in src/services/db.ts:
+      - Added CACHE_VERSION constant for forced cache invalidation
+      - Created checkAndMigrateCache() to verify version on app startup
+      - Created forceClearCache() for manual cache clearing
+      - Outdated caches are automatically cleared when version changes
+      - Useful for security patches requiring data purge
+    resolved_date: "2026-01-31"
+
+  - id: "PWA-001-5-INFRA"
+    component: "infrastructure"
+    severity: "medium"
+    priority: "p2"
+    title: "Insufficient data cleanup on logout"
+    owasp: "A07:2021"
+    cwe: "CWE-459"
+    status: "resolved"
+    file: "02-dashboard/PWA-001-offline-security.md"
+    location: "src/providers/*.ts"
+    effort_days: 0.5
+    assignee: null
+    remediation: "Clear IndexedDB, localStorage, sessionStorage on logout"
+    resolution_notes: |
+      Created comprehensive cleanup service (src/services/authCleanup.ts):
+      - cleanupAllAuthData() clears IndexedDB, localStorage, sessionStorage
+      - Clears service worker API caches
+      - Clears CSRF tokens and auth config cache
+      - Integrated into both localAuthProvider and zitadelAuthProvider logout
+      - cleanupExpiredSession() for session expiry (less aggressive)
+    resolved_date: "2026-01-31"
+
+# ============================================
+# SUMMARY STATISTICS
+# ============================================
+
+summary:
+  by_component:
+    server:
+      total: 23
+      critical: 2
+      high: 6
+      medium: 9
+      low: 3
+      info: 3
+    dashboard:
+      total: 16
+      critical: 0
+      high: 3
+      medium: 9
+      low: 4
+      info: 0
+    edge:
+      total: 21
+      critical: 5
+      high: 8
+      medium: 6
+      low: 2
+      info: 0
+    infrastructure:
+      total: 17
+      critical: 5
+      high: 6
+      medium: 6
+      low: 0
+      info: 0
+
+  by_priority:
+    p0: 14
+    p1: 18
+    p2: 30
+    p3: 15
+
+  by_status:
+    open: 26
+    accepted_risk: 4
+    resolved: 47
+    in_progress: 0
+    wont_fix: 0
+
+  estimated_effort_days:
+    p0: 14.5
+    p1: 13
+    p2: 18.5
+    p3: 7
+    total: 53

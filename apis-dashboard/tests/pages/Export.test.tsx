@@ -236,3 +236,130 @@ describe('Export Download Behavior', () => {
     expect(extension).toBe('json');
   });
 });
+
+describe('Export Hook Integration', () => {
+  it('should call apiClient.get for hives on mount', async () => {
+    const { apiClient } = await import('../../src/providers/apiClient');
+    await renderWithProviders(<Export />);
+
+    // Verify the hives endpoint was called
+    expect(apiClient.get).toHaveBeenCalledWith('/hives');
+  });
+
+  it('should build correct include config from selections', () => {
+    // Test the buildIncludeConfig logic
+    const selectedBasics = ['hive_name', 'queen_age'];
+    const selectedDetails = ['inspection_log'];
+    const selectedAnalysis = ['beebrain_insights'];
+    const selectedFinancial: string[] = [];
+
+    interface IncludeConfig {
+      basics?: string[];
+      details?: string[];
+      analysis?: string[];
+      financial?: string[];
+    }
+    const config: IncludeConfig = {};
+    if (selectedBasics.length > 0) config.basics = selectedBasics;
+    if (selectedDetails.length > 0) config.details = selectedDetails;
+    if (selectedAnalysis.length > 0) config.analysis = selectedAnalysis;
+    if (selectedFinancial.length > 0) config.financial = selectedFinancial;
+
+    expect(config).toEqual({
+      basics: ['hive_name', 'queen_age'],
+      details: ['inspection_log'],
+      analysis: ['beebrain_insights'],
+    });
+    expect(config.financial).toBeUndefined();
+  });
+
+  it('should handle empty field selections', () => {
+    const selectedBasics: string[] = [];
+    const selectedDetails: string[] = [];
+    const selectedAnalysis: string[] = [];
+    const selectedFinancial: string[] = [];
+
+    interface IncludeConfig {
+      basics?: string[];
+      details?: string[];
+      analysis?: string[];
+      financial?: string[];
+    }
+    const config: IncludeConfig = {};
+    if (selectedBasics.length > 0) config.basics = selectedBasics;
+    if (selectedDetails.length > 0) config.details = selectedDetails;
+    if (selectedAnalysis.length > 0) config.analysis = selectedAnalysis;
+    if (selectedFinancial.length > 0) config.financial = selectedFinancial;
+
+    expect(config).toEqual({});
+  });
+
+  it('should correctly identify "all" hive selection', () => {
+    const allSelection = ['all'];
+    const specificSelection = ['hive-1', 'hive-2'];
+    const mixedSelection = ['all', 'hive-1'];
+
+    const isAllHives = (ids: string[]) => ids.length === 1 && ids[0] === 'all';
+
+    expect(isAllHives(allSelection)).toBe(true);
+    expect(isAllHives(specificSelection)).toBe(false);
+    expect(isAllHives(mixedSelection)).toBe(false);
+  });
+});
+
+describe('Export Preset Logic', () => {
+  it('should load preset config into state correctly', () => {
+    const preset = {
+      id: 'preset-1',
+      name: 'Test Preset',
+      config: {
+        basics: ['hive_name', 'boxes'],
+        details: ['hornet_data'],
+        analysis: [],
+        financial: ['harvest_revenue'],
+      },
+      created_at: '2026-01-25T00:00:00Z',
+    };
+
+    // Simulate loading preset into state
+    const loadedBasics = preset.config.basics || [];
+    const loadedDetails = preset.config.details || [];
+    const loadedAnalysis = preset.config.analysis || [];
+    const loadedFinancial = preset.config.financial || [];
+
+    expect(loadedBasics).toEqual(['hive_name', 'boxes']);
+    expect(loadedDetails).toEqual(['hornet_data']);
+    expect(loadedAnalysis).toEqual([]);
+    expect(loadedFinancial).toEqual(['harvest_revenue']);
+  });
+
+  it('should handle preset with missing config fields', () => {
+    const preset = {
+      id: 'preset-2',
+      name: 'Minimal Preset',
+      config: {
+        basics: ['hive_name'],
+        // details, analysis, financial are undefined
+      },
+      created_at: '2026-01-25T00:00:00Z',
+    };
+
+    interface ConfigWithOptional {
+      basics?: string[];
+      details?: string[];
+      analysis?: string[];
+      financial?: string[];
+    }
+    const config = preset.config as ConfigWithOptional;
+
+    const loadedBasics = config.basics || [];
+    const loadedDetails = config.details || [];
+    const loadedAnalysis = config.analysis || [];
+    const loadedFinancial = config.financial || [];
+
+    expect(loadedBasics).toEqual(['hive_name']);
+    expect(loadedDetails).toEqual([]);
+    expect(loadedAnalysis).toEqual([]);
+    expect(loadedFinancial).toEqual([]);
+  });
+});

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -16,6 +17,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// InspectionThresholdDays defines the number of days after which a hive
+// is considered to need attention if not inspected. Per AC3, this is 14 days.
+const InspectionThresholdDays = 14
+
 // HiveLossSummary represents a brief summary of a hive loss.
 type HiveLossSummary struct {
 	Cause        string `json:"cause"`
@@ -23,27 +28,34 @@ type HiveLossSummary struct {
 	DiscoveredAt string `json:"discovered_at"`
 }
 
+// TaskSummaryResponse represents the task summary for a hive.
+type TaskSummaryResponse struct {
+	Open    int `json:"open"`
+	Overdue int `json:"overdue"`
+}
+
 // HiveResponse represents a hive in API responses.
 type HiveResponse struct {
-	ID                  string                 `json:"id"`
-	SiteID              string                 `json:"site_id"`
-	Name                string                 `json:"name"`
-	QueenIntroducedAt   *string                `json:"queen_introduced_at,omitempty"`
-	QueenSource         *string                `json:"queen_source,omitempty"`
-	QueenAgeDisplay     *string                `json:"queen_age_display,omitempty"`
-	BroodBoxes          int                    `json:"brood_boxes"`
-	HoneySupers         int                    `json:"honey_supers"`
-	Notes               *string                `json:"notes,omitempty"`
-	QueenHistory        []QueenHistoryResponse `json:"queen_history,omitempty"`
-	BoxChanges          []BoxChangeResponse    `json:"box_changes,omitempty"`
-	LastInspectionAt    *string                `json:"last_inspection_at,omitempty"`
-	LastInspectionIssues []string              `json:"last_inspection_issues,omitempty"`
-	Status              string                 `json:"status"` // "healthy", "needs_attention", "unknown", or "lost"
-	HiveStatus          string                 `json:"hive_status"` // "active", "lost", "archived"
-	LostAt              *string                `json:"lost_at,omitempty"`
-	LossSummary         *HiveLossSummary       `json:"loss_summary,omitempty"`
-	CreatedAt           time.Time              `json:"created_at"`
-	UpdatedAt           time.Time              `json:"updated_at"`
+	ID                   string                 `json:"id"`
+	SiteID               string                 `json:"site_id"`
+	Name                 string                 `json:"name"`
+	QueenIntroducedAt    *string                `json:"queen_introduced_at,omitempty"`
+	QueenSource          *string                `json:"queen_source,omitempty"`
+	QueenAgeDisplay      *string                `json:"queen_age_display,omitempty"`
+	BroodBoxes           int                    `json:"brood_boxes"`
+	HoneySupers          int                    `json:"honey_supers"`
+	Notes                *string                `json:"notes,omitempty"`
+	QueenHistory         []QueenHistoryResponse `json:"queen_history,omitempty"`
+	BoxChanges           []BoxChangeResponse    `json:"box_changes,omitempty"`
+	LastInspectionAt     *string                `json:"last_inspection_at,omitempty"`
+	LastInspectionIssues []string               `json:"last_inspection_issues,omitempty"`
+	Status               string                 `json:"status"`      // "healthy", "needs_attention", "unknown", or "lost"
+	HiveStatus           string                 `json:"hive_status"` // "active", "lost", "archived"
+	LostAt               *string                `json:"lost_at,omitempty"`
+	LossSummary          *HiveLossSummary       `json:"loss_summary,omitempty"`
+	TaskSummary          *TaskSummaryResponse   `json:"task_summary,omitempty"`
+	CreatedAt            time.Time              `json:"created_at"`
+	UpdatedAt            time.Time              `json:"updated_at"`
 }
 
 // QueenHistoryResponse represents a queen history entry in API responses.
@@ -104,6 +116,7 @@ type ReplaceQueenRequest struct {
 
 // validateQueenSource checks if a queen source value is valid.
 // Valid values: breeder, swarm, split, package, other, or other:{custom description}
+// Accepts both "other:" and "other: " (with space) for custom descriptions.
 func validateQueenSource(source *string) bool {
 	if source == nil || *source == "" {
 		return true
@@ -114,9 +127,10 @@ func validateQueenSource(source *string) bool {
 			return true
 		}
 	}
-	// Also allow "other:" prefixed custom descriptions (max 200 chars for description)
+	// Also allow "other:" or "other: " prefixed custom descriptions (max 200 chars for description)
+	// Accept both formats: "other:{desc}" and "other: {desc}" (frontend sends with space)
 	if len(*source) > 6 && (*source)[:6] == "other:" {
-		return len(*source) <= 206 // "other:" + up to 200 chars
+		return len(*source) <= 207 // "other: " (7 chars) + up to 200 chars
 	}
 	return false
 }
@@ -212,21 +226,112 @@ func enrichHiveResponseWithInspection(ctx context.Context, conn *pgxpool.Conn, r
 		return
 	}
 
+	applyInspectionToResponse(resp, lastInspection)
+}
+
+// applyInspectionToResponse applies inspection data to a HiveResponse.
+// Extracted for use by both single and batch enrichment.
+func applyInspectionToResponse(resp *HiveResponse, inspection *storage.Inspection) {
 	// Set last inspection date
-	dateStr := lastInspection.InspectedAt.Format("2006-01-02")
+	dateStr := inspection.InspectedAt.Format("2006-01-02")
 	resp.LastInspectionAt = &dateStr
 
 	// Set issues
-	if len(lastInspection.Issues) > 0 {
-		resp.LastInspectionIssues = lastInspection.Issues
+	if len(inspection.Issues) > 0 {
+		resp.LastInspectionIssues = inspection.Issues
 	}
 
 	// Calculate status based on inspection
-	daysSinceInspection := int(time.Since(lastInspection.InspectedAt).Hours() / 24)
-	if daysSinceInspection > 14 || len(lastInspection.Issues) > 0 {
+	daysSinceInspection := int(time.Since(inspection.InspectedAt).Hours() / 24)
+	if daysSinceInspection > InspectionThresholdDays || len(inspection.Issues) > 0 {
 		resp.Status = "needs_attention"
 	} else {
 		resp.Status = "healthy"
+	}
+}
+
+// enrichHiveResponseWithTaskSummary adds task summary to a HiveResponse.
+func enrichHiveResponseWithTaskSummary(ctx context.Context, conn *pgxpool.Conn, tenantID string, resp *HiveResponse) {
+	summary, err := storage.GetTaskCountByHive(ctx, conn, tenantID, resp.ID)
+	if err != nil {
+		// Non-fatal - just won't have task summary
+		log.Warn().Err(err).Str("hive_id", resp.ID).Msg("handler: failed to get task summary for hive")
+		return
+	}
+	resp.TaskSummary = &TaskSummaryResponse{
+		Open:    summary.OpenCount,
+		Overdue: summary.OverdueCount,
+	}
+}
+
+// enrichHiveResponsesWithTaskSummaries batch-enriches multiple HiveResponses with task summaries.
+// This is optimized to avoid N+1 queries by fetching all task counts in a single query.
+func enrichHiveResponsesWithTaskSummaries(ctx context.Context, conn *pgxpool.Conn, tenantID string, responses []HiveResponse) {
+	if len(responses) == 0 {
+		return
+	}
+
+	// Collect hive IDs
+	hiveIDs := make([]string, 0, len(responses))
+	for i := range responses {
+		hiveIDs = append(hiveIDs, responses[i].ID)
+	}
+
+	// Batch fetch all task counts in one query
+	counts, err := storage.GetTaskCountsForHives(ctx, conn, tenantID, hiveIDs)
+	if err != nil {
+		log.Error().Err(err).Msg("handler: failed to batch fetch task counts for hives")
+		return
+	}
+
+	// Apply counts to responses
+	for i := range responses {
+		if count, ok := counts[responses[i].ID]; ok {
+			responses[i].TaskSummary = &TaskSummaryResponse{
+				Open:    count.OpenCount,
+				Overdue: count.OverdueCount,
+			}
+		} else {
+			// No tasks for this hive - set to zeros
+			responses[i].TaskSummary = &TaskSummaryResponse{
+				Open:    0,
+				Overdue: 0,
+			}
+		}
+	}
+}
+
+// enrichHiveResponsesWithInspections batch-enriches multiple HiveResponses with inspection data.
+// This is optimized to avoid N+1 queries by fetching all inspections in a single query.
+func enrichHiveResponsesWithInspections(ctx context.Context, conn *pgxpool.Conn, responses []HiveResponse) {
+	if len(responses) == 0 {
+		return
+	}
+
+	// Collect hive IDs for active hives only
+	hiveIDs := make([]string, 0, len(responses))
+	for i := range responses {
+		if responses[i].HiveStatus != "lost" {
+			hiveIDs = append(hiveIDs, responses[i].ID)
+		}
+	}
+
+	if len(hiveIDs) == 0 {
+		return
+	}
+
+	// Batch fetch all inspections in one query
+	inspections, err := storage.GetLastInspectionsForHives(ctx, conn, hiveIDs)
+	if err != nil {
+		log.Error().Err(err).Msg("handler: failed to batch fetch inspections for hives")
+		return
+	}
+
+	// Apply inspections to responses
+	for i := range responses {
+		if inspection, ok := inspections[responses[i].ID]; ok {
+			applyInspectionToResponse(&responses[i], inspection)
+		}
 	}
 }
 
@@ -259,6 +364,7 @@ func boxChangeToResponse(bc *storage.BoxChange) BoxChangeResponse {
 // ListHivesBySite handles GET /api/sites/{site_id}/hives - returns all hives for a site.
 func ListHivesBySite(w http.ResponseWriter, r *http.Request) {
 	conn := storage.RequireConn(r.Context())
+	tenantID := middleware.GetTenantID(r.Context())
 	siteID := chi.URLParam(r, "site_id")
 
 	if siteID == "" {
@@ -288,18 +394,24 @@ func ListHivesBySite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to response format and enrich with inspection data
+	// Convert to response format
 	hiveResponses := make([]HiveResponse, 0, len(hives))
 	for _, hive := range hives {
 		resp := hiveToResponse(&hive)
-		// Only enrich with inspection data for active hives
-		if hive.Status != "lost" {
-			enrichHiveResponseWithInspection(r.Context(), conn, &resp)
-		} else {
-			// For lost hives, add loss summary
-			enrichHiveResponseWithLossSummary(r.Context(), conn, &resp)
-		}
 		hiveResponses = append(hiveResponses, resp)
+	}
+
+	// Batch enrich with inspection data (optimized to avoid N+1 queries)
+	enrichHiveResponsesWithInspections(r.Context(), conn, hiveResponses)
+
+	// Batch enrich with task summaries (optimized to avoid N+1 queries)
+	enrichHiveResponsesWithTaskSummaries(r.Context(), conn, tenantID, hiveResponses)
+
+	// Enrich lost hives with loss summary (still individual - usually fewer lost hives)
+	for i := range hiveResponses {
+		if hiveResponses[i].HiveStatus == "lost" {
+			enrichHiveResponseWithLossSummary(r.Context(), conn, &hiveResponses[i])
+		}
 	}
 
 	respondJSON(w, HivesListResponse{
@@ -311,6 +423,7 @@ func ListHivesBySite(w http.ResponseWriter, r *http.Request) {
 // ListHives handles GET /api/hives - returns all hives for the tenant.
 func ListHives(w http.ResponseWriter, r *http.Request) {
 	conn := storage.RequireConn(r.Context())
+	tenantID := middleware.GetTenantID(r.Context())
 
 	// Check if filtering by site
 	siteID := r.URL.Query().Get("site_id")
@@ -332,18 +445,24 @@ func ListHives(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to response format and enrich with inspection data
+	// Convert to response format
 	hiveResponses := make([]HiveResponse, 0, len(hives))
 	for _, hive := range hives {
 		resp := hiveToResponse(&hive)
-		// Only enrich with inspection data for active hives
-		if hive.Status != "lost" {
-			enrichHiveResponseWithInspection(r.Context(), conn, &resp)
-		} else {
-			// For lost hives, add loss summary
-			enrichHiveResponseWithLossSummary(r.Context(), conn, &resp)
-		}
 		hiveResponses = append(hiveResponses, resp)
+	}
+
+	// Batch enrich with inspection data (optimized to avoid N+1 queries)
+	enrichHiveResponsesWithInspections(r.Context(), conn, hiveResponses)
+
+	// Batch enrich with task summaries (optimized to avoid N+1 queries)
+	enrichHiveResponsesWithTaskSummaries(r.Context(), conn, tenantID, hiveResponses)
+
+	// Enrich lost hives with loss summary (still individual - usually fewer lost hives)
+	for i := range hiveResponses {
+		if hiveResponses[i].HiveStatus == "lost" {
+			enrichHiveResponseWithLossSummary(r.Context(), conn, &hiveResponses[i])
+		}
 	}
 
 	respondJSON(w, HivesListResponse{
@@ -355,6 +474,7 @@ func ListHives(w http.ResponseWriter, r *http.Request) {
 // GetHive handles GET /api/hives/{id} - returns a specific hive with history.
 func GetHive(w http.ResponseWriter, r *http.Request) {
 	conn := storage.RequireConn(r.Context())
+	tenantID := middleware.GetTenantID(r.Context())
 	hiveID := chi.URLParam(r, "id")
 
 	if hiveID == "" {
@@ -402,6 +522,9 @@ func GetHive(w http.ResponseWriter, r *http.Request) {
 	// Enrich with inspection data
 	enrichHiveResponseWithInspection(r.Context(), conn, &resp)
 
+	// Enrich with task summary
+	enrichHiveResponseWithTaskSummary(r.Context(), conn, tenantID, &resp)
+
 	respondJSON(w, HiveDataResponse{Data: resp}, http.StatusOK)
 }
 
@@ -413,6 +536,17 @@ func CreateHive(w http.ResponseWriter, r *http.Request) {
 
 	if siteID == "" {
 		respondError(w, "Site ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check hive limit before proceeding
+	if err := storage.CheckHiveLimit(r.Context(), conn, tenantID); err != nil {
+		if errors.Is(err, storage.ErrLimitExceeded) {
+			respondError(w, "Hive limit reached. Contact your administrator to increase your quota.", http.StatusForbidden)
+			return
+		}
+		log.Error().Err(err).Str("tenant_id", tenantID).Msg("handler: failed to check hive limit")
+		respondError(w, "Failed to create hive", http.StatusInternalServerError)
 		return
 	}
 
@@ -437,6 +571,12 @@ func CreateHive(w http.ResponseWriter, r *http.Request) {
 	// Validate required fields
 	if req.Name == "" {
 		respondError(w, "Name is required", http.StatusBadRequest)
+		return
+	}
+
+	// FIX (S3A-L3): Validate string length for hive name.
+	if len(req.Name) > 200 {
+		respondError(w, "Name must not exceed 200 characters", http.StatusBadRequest)
 		return
 	}
 
@@ -501,6 +641,9 @@ func CreateHive(w http.ResponseWriter, r *http.Request) {
 		Str("name", hive.Name).
 		Msg("Hive created")
 
+	// Audit log: record hive creation
+	AuditCreate(r.Context(), "hives", hive.ID, hive)
+
 	respondJSON(w, HiveDataResponse{Data: hiveToResponse(hive)}, http.StatusCreated)
 }
 
@@ -511,6 +654,18 @@ func UpdateHive(w http.ResponseWriter, r *http.Request) {
 
 	if hiveID == "" {
 		respondError(w, "Hive ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get old values for audit log before update
+	oldHive, err := storage.GetHiveByID(r.Context(), conn, hiveID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Hive not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("hive_id", hiveID).Msg("handler: failed to get hive for audit")
+		respondError(w, "Failed to update hive", http.StatusInternalServerError)
 		return
 	}
 
@@ -574,6 +729,9 @@ func UpdateHive(w http.ResponseWriter, r *http.Request) {
 		Str("name", hive.Name).
 		Msg("Hive updated")
 
+	// Audit log: record hive update with old and new values
+	AuditUpdate(r.Context(), "hives", hive.ID, oldHive, hive)
+
 	respondJSON(w, HiveDataResponse{Data: hiveToResponse(hive)}, http.StatusOK)
 }
 
@@ -587,7 +745,19 @@ func DeleteHive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := storage.DeleteHive(r.Context(), conn, hiveID)
+	// Get old values for audit log before delete
+	oldHive, err := storage.GetHiveByID(r.Context(), conn, hiveID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Hive not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("hive_id", hiveID).Msg("handler: failed to get hive for audit")
+		respondError(w, "Failed to delete hive", http.StatusInternalServerError)
+		return
+	}
+
+	err = storage.DeleteHive(r.Context(), conn, hiveID)
 	if errors.Is(err, storage.ErrNotFound) {
 		respondError(w, "Hive not found", http.StatusNotFound)
 		return
@@ -605,6 +775,9 @@ func DeleteHive(w http.ResponseWriter, r *http.Request) {
 	log.Info().
 		Str("hive_id", hiveID).
 		Msg("Hive deleted")
+
+	// Audit log: record hive deletion with old values
+	AuditDelete(r.Context(), "hives", hiveID, oldHive)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -702,4 +875,95 @@ func ReplaceQueen(w http.ResponseWriter, r *http.Request) {
 	} else {
 		respondJSON(w, map[string]string{"message": "Queen replaced successfully"}, http.StatusOK)
 	}
+}
+
+// ActivityLogResponse represents an activity log entry in API responses.
+type ActivityLogResponse struct {
+	ID        string          `json:"id"`
+	HiveID    string          `json:"hive_id"`
+	Type      string          `json:"type"`
+	Content   string          `json:"content"`
+	Metadata  json.RawMessage `json:"metadata,omitempty"`
+	CreatedBy string          `json:"created_by"`
+	CreatedAt time.Time       `json:"created_at"`
+}
+
+// ActivityLogListResponse represents the list activity API response.
+type ActivityLogListResponse struct {
+	Data []ActivityLogResponse `json:"data"`
+	Meta MetaResponse          `json:"meta"`
+}
+
+// ListHiveActivity handles GET /api/hives/{id}/activity - returns activity log entries for a hive.
+// Story 14.13: Task Completion Inspection Note Logging
+// Supports pagination via page and per_page query params.
+// Supports filtering by type via type query param.
+func ListHiveActivity(w http.ResponseWriter, r *http.Request) {
+	conn := storage.RequireConn(r.Context())
+	hiveID := chi.URLParam(r, "id")
+
+	if hiveID == "" {
+		respondError(w, "Hive ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Verify hive exists
+	_, err := storage.GetHiveByID(r.Context(), conn, hiveID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Hive not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("hive_id", hiveID).Msg("handler: failed to verify hive")
+		respondError(w, "Failed to verify hive", http.StatusInternalServerError)
+		return
+	}
+
+	// Parse pagination
+	page := 1
+	perPage := 20
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+	if perPageStr := r.URL.Query().Get("per_page"); perPageStr != "" {
+		if pp, err := strconv.Atoi(perPageStr); err == nil && pp > 0 && pp <= 100 {
+			perPage = pp
+		}
+	}
+
+	// Parse type filter
+	typeFilter := r.URL.Query().Get("type")
+
+	// List activity entries
+	result, err := storage.ListActivityByHive(r.Context(), conn, hiveID, typeFilter, page, perPage)
+	if err != nil {
+		log.Error().Err(err).Str("hive_id", hiveID).Msg("handler: failed to list activity")
+		respondError(w, "Failed to list activity", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert to response format
+	entries := make([]ActivityLogResponse, len(result.Entries))
+	for i, entry := range result.Entries {
+		entries[i] = ActivityLogResponse{
+			ID:        entry.ID,
+			HiveID:    entry.HiveID,
+			Type:      entry.Type,
+			Content:   entry.Content,
+			Metadata:  entry.Metadata,
+			CreatedBy: entry.CreatedBy,
+			CreatedAt: entry.CreatedAt,
+		}
+	}
+
+	respondJSON(w, ActivityLogListResponse{
+		Data: entries,
+		Meta: MetaResponse{
+			Total:   result.Total,
+			Page:    result.Page,
+			PerPage: result.PerPage,
+		},
+	}, http.StatusOK)
 }

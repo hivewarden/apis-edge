@@ -204,6 +204,20 @@ func SnoozeInsight(ctx context.Context, conn *pgxpool.Conn, id string, until tim
 	return nil
 }
 
+// DismissAllActiveInsights marks all active (non-dismissed, non-snoozed) insights
+// for a tenant as dismissed. Called before a fresh analysis to prevent duplicates.
+func DismissAllActiveInsights(ctx context.Context, conn *pgxpool.Conn, tenantID string) (int64, error) {
+	result, err := conn.Exec(ctx,
+		`UPDATE insights SET dismissed_at = NOW()
+		 WHERE tenant_id = $1
+		   AND dismissed_at IS NULL`,
+		tenantID)
+	if err != nil {
+		return 0, fmt.Errorf("storage: failed to dismiss active insights: %w", err)
+	}
+	return result.RowsAffected(), nil
+}
+
 // DeleteOldInsights removes insights older than the specified number of days.
 // This is used for cleanup of old dismissed insights.
 func DeleteOldInsights(ctx context.Context, conn *pgxpool.Conn, tenantID string, daysOld int) (int64, error) {
@@ -278,9 +292,16 @@ type MaintenanceInsight struct {
 
 // ListMaintenanceInsights returns active insights grouped by hive with hive and site names.
 // Results are sorted by priority score (severity weight + age in days) descending.
+//
+// Business Rule: Only hives with status='active' are included in maintenance lists.
+// This excludes hives that have been marked as 'lost', 'merged', 'dead', or 'sold' since
+// those hives no longer require maintenance attention. If a hive status changes back to
+// 'active', it will automatically reappear in the maintenance list if it has active insights.
 func ListMaintenanceInsights(ctx context.Context, conn *pgxpool.Conn, tenantID, siteID string) ([]MaintenanceInsight, error) {
 	now := time.Now()
 
+	// Note: h.status = 'active' filter ensures only active hives appear in maintenance.
+	// Inactive hives (lost, merged, dead, sold) are excluded intentionally.
 	query := `SELECT i.id, i.hive_id, h.name as hive_name, h.site_id, s.name as site_name,
 	                 i.rule_id, i.severity, i.message, i.suggested_action, i.data_points, i.created_at
 	          FROM insights i

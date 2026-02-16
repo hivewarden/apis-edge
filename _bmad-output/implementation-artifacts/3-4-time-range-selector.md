@@ -278,3 +278,9 @@ None
 - 2026-01-24: Story 3.4 created with comprehensive developer context
 - 2026-01-24: Implementation completed - all tasks done, build passes
 - 2026-01-24: Code review remediation - fixed 6 issues (3 HIGH, 2 MEDIUM, 1 LOW)
+- 2026-01-25: Remediation: Fixed 7 issues from code review (1 HIGH, 4 MEDIUM, 2 LOW)
+  - Created unit tests for TimeRangeContext (17 tests) and TimeRangeSelector (14 tests)
+  - Fixed season date logic to use previous year when before Aug 1
+  - Added loading opacity indicator on range changes
+  - Added eslint-disable justification comment
+  - Fixed date initialization when switching to 'day' range

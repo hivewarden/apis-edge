@@ -6,10 +6,9 @@
  *
  * Part of Epic 3, Story 3.1 (base) and Story 3.4 (time range support)
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '../providers/apiClient';
-
-const POLL_INTERVAL_MS = 30000; // 30 seconds
+import { POLL_INTERVAL_MS } from '../constants';
 
 /**
  * Detection statistics returned by the API.
@@ -96,16 +95,28 @@ export function useDetectionStats(
     }
   }, [siteId, range, dateStr]);
 
+  // SECURITY (S5-M6): Use useRef for stable mounted check across closures
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
+    isMountedRef.current = true;
+
     // Reset loading when parameters change
     setLoading(true);
-    fetchStats();
+
+    const doFetch = async () => {
+      if (isMountedRef.current) await fetchStats();
+    };
+    doFetch();
 
     // Set up polling interval
-    const interval = setInterval(fetchStats, POLL_INTERVAL_MS);
+    const interval = setInterval(doFetch, POLL_INTERVAL_MS);
 
     // Cleanup on unmount or dependency change
-    return () => clearInterval(interval);
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(interval);
+    };
   }, [fetchStats]);
 
   return { stats, loading, error, refetch: fetchStats };

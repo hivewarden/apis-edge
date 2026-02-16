@@ -147,6 +147,13 @@ export function useMilestonePhotos(): UseMilestonePhotosResult {
         // Refetch to update the list
         await fetchPhotos();
         return response.data.data;
+      } catch (err) {
+        // Wrap error with user-friendly message
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Failed to upload photo. Please try again.';
+        throw new Error(`Photo upload failed: ${message}`);
       } finally {
         setUploading(false);
       }

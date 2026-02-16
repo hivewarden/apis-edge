@@ -25,6 +25,7 @@
 #define MIN_UPLOAD_INTERVAL_SEC 30      // Minimum seconds between uploads
 #define INITIAL_RETRY_SEC       60      // 1 minute initial retry delay
 #define MAX_RETRY_SEC           3600    // 1 hour maximum retry interval
+#define MAX_UPLOAD_RETRIES      10      // S8-M5: Maximum retry attempts before giving up
 #define UPLOAD_TIMEOUT_SEC      120     // 2 minute upload timeout
 #define QUEUE_CHECK_INTERVAL_MS 5000    // How often to check queue (5s)
 

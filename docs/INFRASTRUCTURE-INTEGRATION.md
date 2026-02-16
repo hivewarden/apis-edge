@@ -22,7 +22,7 @@ APIS runs alongside RTP on the same infrastructure:
 │  │   RTP Stack     │      │    APIS Stack       │             │
 │  │                 │      │                     │             │
 │  │  - RTP API      │      │  - APIS Server      │             │
-│  │  - Zitadel      │      │  - APIS Dashboard   │             │
+│  │  - Keycloak     │      │  - APIS Dashboard   │             │
 │  │  - BunkerWeb    │      │  - (Edge devices)   │             │
 │  └─────────────────┘      └─────────────────────┘             │
 │                                                                 │
@@ -51,12 +51,11 @@ secret/
 ├── data/
 │   ├── rtp/           # RTP application secrets
 │   │   ├── database
-│   │   ├── zitadel
 │   │   └── api
 │   │
 │   └── apis/          # APIS application secrets (THIS APP)
 │       ├── database   # APIS-specific DB credentials
-│       ├── zitadel    # Shared Zitadel? Or APIS-specific?
+│       ├── keycloak   # Keycloak OIDC config (SaaS mode)
 │       └── api        # APIS server config
 ```
 
@@ -75,11 +74,10 @@ bao kv put secret/apis/database \
   user=apis \
   password=your-secure-password
 
-# Create APIS Zitadel secrets (if separate from RTP)
-bao kv put secret/apis/zitadel \
-  issuer=http://localhost:8080 \
-  client_id=apis-dashboard \
-  client_secret=your-client-secret
+# Keycloak OIDC (non-secret config)
+# OIDC client ID is configured in the Keycloak honeybee realm.
+# - Local dev: auto-imported from keycloak/realm-honeybee.json (docker compose)
+# - Shared infra: create the client once in Keycloak and set KEYCLOAK_ISSUER + KEYCLOAK_CLIENT_ID
 
 # Create APIS API config
 bao kv put secret/apis/api \
@@ -113,31 +111,29 @@ Or for production with TLS:
 postgres://apis:password@10.0.1.31:5433/apis?sslmode=require
 ```
 
-## Shared vs Dedicated Zitadel
+## Shared vs Dedicated Keycloak
 
 Two options:
 
-### Option A: Shared Zitadel (Recommended for simplicity)
+### Option A: Shared Keycloak (Recommended for simplicity)
 
-- APIS uses the same Zitadel instance as RTP
-- Create a separate "APIS" project in Zitadel
-- Users can SSO between RTP and APIS
+- APIS uses a dedicated realm (`honeybee`) in the shared Keycloak instance
+- Users can SSO between applications via the shared Keycloak
+- Managed by Keycloak Operator in K3s (SSIK infrastructure)
 
 ```yaml
 # In APIS .env
-ZITADEL_ISSUER=http://zitadel.yourdomain.com
-ZITADEL_CLIENT_ID=apis-dashboard
+KEYCLOAK_ISSUER=https://auth.yourdomain.com/realms/honeybee
+KEYCLOAK_CLIENT_ID=apis-dashboard
 ```
 
-### Option B: Dedicated Zitadel
+### Option B: Dedicated Keycloak
 
-- APIS runs its own Zitadel instance
+- APIS runs its own Keycloak instance
 - Complete isolation
 - More infrastructure to manage
 
-## Docker Compose Profiles
-
-For local development, APIS docker-compose supports two profiles:
+## Docker Compose Modes
 
 ### Isolated Mode (Default)
 
@@ -157,8 +153,8 @@ export OPENBAO_ADDR=http://10.0.1.20:8200
 export OPENBAO_TOKEN=hvs.your-token
 export SECRETS_SOURCE=openbao
 
-# Start only APIS services (not DB or OpenBao)
-docker compose --profile integrated up
+# Start only APIS services (avoid starting local infra services)
+docker compose up apis-server apis-dashboard
 ```
 
 ## Network Configuration
@@ -171,7 +167,7 @@ APIS runs on `rtp-app-01` alongside RTP:
 10.0.1.10 (rtp-app-01)
 ├── BunkerWeb (WAF)
 ├── RTP API
-├── Zitadel
+├── Keycloak
 ├── APIS Server      ← NEW
 ├── APIS Dashboard   ← NEW
 └── Valkey (shared cache)
@@ -234,7 +230,7 @@ When deploying APIS to shared infrastructure:
 
 - [ ] OpenBao secrets created at `secret/data/apis/*`
 - [ ] YugabyteDB database and user created
-- [ ] Zitadel project/client configured (if using shared Zitadel)
+- [ ] Keycloak realm/client configured (if using shared Keycloak)
 - [ ] VyOS firewall rules added
 - [ ] VictoriaMetrics scrape target added
 - [ ] BunkerWeb upstream configured (if routing through WAF)
@@ -253,7 +249,7 @@ OPENBAO_SECRET_PATH=secret/data/apis
 EOF
 
 # 2. Remove local infrastructure services from docker-compose
-docker compose stop yugabytedb zitadel openbao
+docker compose stop yugabytedb keycloak openbao
 
 # 3. Start only APIS services
 docker compose up apis-server apis-dashboard

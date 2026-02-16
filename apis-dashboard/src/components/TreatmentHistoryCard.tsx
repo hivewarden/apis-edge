@@ -216,11 +216,18 @@ export function TreatmentHistoryCard({
           cancelText="Cancel"
         >
           <Button
-            type="text"
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
+            type="default"
+            shape="circle"
+            icon={<DeleteOutlined style={{ fontSize: 14 }} />}
             loading={deleting}
+            style={{
+              minWidth: 36,
+              width: 36,
+              height: 36,
+              color: '#c4857a',
+              borderColor: 'rgba(196, 133, 122, 0.45)',
+              backgroundColor: 'rgba(196, 133, 122, 0.1)',
+            }}
           />
         </Popconfirm>
       ),

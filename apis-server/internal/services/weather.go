@@ -40,21 +40,51 @@ type openMeteoResponse struct {
 	} `json:"current"`
 }
 
-// weatherCache stores weather data in memory with TTL and bounded size.
-type weatherCache struct {
+// WeatherCache stores weather data in memory with TTL and bounded size.
+// Exported for testing purposes.
+type WeatherCache struct {
 	data map[string]WeatherData
 	mu   sync.RWMutex
 	ttl  time.Duration
 }
 
-var cache = &weatherCache{
-	data: make(map[string]WeatherData),
-	ttl:  weatherCacheTTL,
+// NewWeatherCache creates a new weather cache with default settings.
+func NewWeatherCache() *WeatherCache {
+	return &WeatherCache{
+		data: make(map[string]WeatherData),
+		ttl:  weatherCacheTTL,
+	}
+}
+
+// NewWeatherCacheWithTTL creates a weather cache with custom TTL (for testing).
+func NewWeatherCacheWithTTL(ttl time.Duration) *WeatherCache {
+	return &WeatherCache{
+		data: make(map[string]WeatherData),
+		ttl:  ttl,
+	}
+}
+
+// Default cache instance for backward compatibility
+var cache = NewWeatherCache()
+
+// Shared HTTP client for connection pooling and efficiency
+var httpClient = &http.Client{
+	Timeout: weatherHTTPTimeout,
+	Transport: &http.Transport{
+		MaxIdleConns:        10,
+		MaxIdleConnsPerHost: 5,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
+
+// ResetCache resets the default cache (for testing purposes).
+func ResetCache() {
+	cache = NewWeatherCache()
 }
 
 // pruneCache removes stale entries when cache exceeds max size.
 // Must be called with write lock held.
-func (c *weatherCache) pruneStaleEntries() {
+func (c *WeatherCache) pruneStaleEntries() {
 	if len(c.data) <= weatherCacheMaxEntries {
 		return
 	}
@@ -169,8 +199,8 @@ func fetchFromOpenMeteo(ctx context.Context, lat, lng float64) (*WeatherData, er
 		return nil, fmt.Errorf("weather: failed to create request: %w", err)
 	}
 
-	client := &http.Client{Timeout: weatherHTTPTimeout}
-	resp, err := client.Do(req)
+	// Use shared HTTP client for connection pooling
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("weather: failed to fetch from API: %w", err)
 	}

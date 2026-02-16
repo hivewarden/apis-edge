@@ -2,9 +2,11 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -69,6 +71,9 @@ func GetDetection(ctx context.Context, conn *pgxpool.Conn, id string) (*Detectio
 		&d.ClipID, &d.ClipFilename, &d.TemperatureC, &d.CreatedAt)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("storage: failed to get detection: %w", err)
 	}
 
@@ -598,18 +603,20 @@ type DetectionSpikeData struct {
 // GetDetectionSpikeData retrieves detection data for spike analysis.
 // It returns the count of detections in the recent window (windowHours)
 // and the average daily detection count over the last 7 days.
-func GetDetectionSpikeData(ctx context.Context, conn *pgxpool.Conn, siteID string, windowHours int) (*DetectionSpikeData, error) {
+// Queries by hive using the unit_hives join table for accurate per-hive analysis.
+func GetDetectionSpikeData(ctx context.Context, conn *pgxpool.Conn, hiveID string, windowHours int) (*DetectionSpikeData, error) {
 	now := time.Now()
 	windowStart := now.Add(-time.Duration(windowHours) * time.Hour)
 	weekAgo := now.AddDate(0, 0, -7)
 
-	// Get recent count (last windowHours)
+	// Get recent count (last windowHours) for units associated with this hive
 	var recentCount int
 	err := conn.QueryRow(ctx,
 		`SELECT COUNT(*)
 		 FROM detections
-		 WHERE site_id = $1 AND detected_at >= $2`,
-		siteID, windowStart,
+		 WHERE unit_id IN (SELECT unit_id FROM unit_hives WHERE hive_id = $1)
+		 AND detected_at >= $2`,
+		hiveID, windowStart,
 	).Scan(&recentCount)
 	if err != nil {
 		return nil, fmt.Errorf("storage: failed to get recent detection count: %w", err)
@@ -620,8 +627,9 @@ func GetDetectionSpikeData(ctx context.Context, conn *pgxpool.Conn, siteID strin
 	err = conn.QueryRow(ctx,
 		`SELECT COUNT(*)
 		 FROM detections
-		 WHERE site_id = $1 AND detected_at >= $2 AND detected_at < $3`,
-		siteID, weekAgo, windowStart,
+		 WHERE unit_id IN (SELECT unit_id FROM unit_hives WHERE hive_id = $1)
+		 AND detected_at >= $2 AND detected_at < $3`,
+		hiveID, weekAgo, windowStart,
 	).Scan(&totalLastWeek)
 	if err != nil {
 		return nil, fmt.Errorf("storage: failed to get weekly detection count: %w", err)

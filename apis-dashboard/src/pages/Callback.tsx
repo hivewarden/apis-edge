@@ -1,13 +1,14 @@
 /**
  * OIDC Callback Page
  *
- * Handles the redirect back from Zitadel after authentication.
+ * Handles the redirect back from Keycloak after authentication.
  * Processes the authorization code and exchanges it for tokens.
  */
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Spin, Alert, Typography } from "antd";
 import { userManager } from "../providers";
+import { getSafeReturnToFromState } from "../providers/keycloakAuthProvider";
 
 const { Paragraph } = Typography;
 
@@ -34,9 +35,8 @@ export function Callback() {
         const user = await userManager.signinRedirectCallback();
 
         // Get the return URL from OIDC state (set during authorize)
-        // Falls back to dashboard if no state was set
-        const state = user?.state as { returnTo?: string } | undefined;
-        const returnTo = state?.returnTo || "/";
+        // SECURITY (S4-C2): Validate returnTo to prevent open redirect attacks
+        const returnTo = getSafeReturnToFromState(user?.state);
         navigate(returnTo, { replace: true });
       } catch (err) {
         // Extract error message

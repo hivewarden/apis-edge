@@ -72,6 +72,36 @@ These are the programmable pins on your microcontroller (Pi, ESP32) that you con
 | **Digital** | On or Off only. 3.3V or 0V. | Light switch |
 | **Analog** | Variable. 0V to 3.3V range. | Dimmer switch |
 
+### Pin Capability Diagram
+
+Here's a simplified view of Raspberry Pi GPIO pins showing which pins do what:
+
+```
+Raspberry Pi GPIO Header (simplified - key pins only):
+┌─────────────────────────────────────────────────────────────┐
+│  Pin 1 (3.3V Power)          Pin 2 (5V Power)               │
+│  Pin 3 (GPIO 2/I2C-SDA)      Pin 4 (5V Power)               │
+│  Pin 5 (GPIO 3/I2C-SCL)      Pin 6 (GND)                    │
+│  ...                                                         │
+│  Pin 11 (GPIO 17)            Pin 12 (GPIO 18/PWM0) ◄─ SERVO │
+│  ...                                                         │
+│  Pin 29 (GPIO 5)             Pin 30 (GND)                   │
+│  Pin 31 (GPIO 6)             Pin 32 (GPIO 12/PWM0)          │
+│  Pin 33 (GPIO 13/PWM1)       Pin 34 (GND)                   │
+│  Pin 35 (GPIO 19/PWM1)       Pin 36 (GPIO 16)               │
+│  Pin 37 (GPIO 26)            Pin 38 (GPIO 20)               │
+│  Pin 39 (GND)                Pin 40 (GPIO 21)               │
+└─────────────────────────────────────────────────────────────┘
+
+Legend:
+  PWM0/PWM1 = Hardware PWM capable (use for servos)
+  I2C-SDA/SCL = Reserved for I2C sensors
+  GND = Ground connections (0V reference)
+  3.3V/5V = Power output pins (NOT for signals!)
+```
+
+For ESP32-CAM and XIAO ESP32S3 pin diagrams, see the [hardware specification](../hardware-specification.md).
+
 ### Not All Pins Are Equal
 
 Some pins have special functions:
@@ -79,7 +109,32 @@ Some pins have special functions:
 - **I2C pins:** Reserved for sensor communication
 - **Boot pins:** Must be in certain states when power is applied
 
-**For APIS:** We carefully selected pins that are safe to use. Follow the pin assignments in the assembly guides.
+### Why We Chose GPIO 18 for the Servo
+
+On the Raspberry Pi, **GPIO 18** supports hardware PWM, which means the chip itself generates the precise timing signals. This is important because:
+
+- **Hardware PWM:** Chip handles timing, rock-solid pulses, CPU free for other tasks
+- **Software PWM:** CPU generates pulses, can jitter if CPU busy, servo may twitch
+
+GPIO 18 is one of only a few pins with hardware PWM capability. That's why we use it for servo control.
+
+On ESP32, **GPIO 13** (ESP32-CAM) and **GPIO 5** (XIAO ESP32S3) serve the same purpose — they support LEDC hardware PWM channels.
+
+### What Happens If You Connect to the Wrong Pin
+
+| Wrong Connection | What Happens |
+|------------------|--------------|
+| **Signal wire to 5V power pin** | Component receives constant 5V instead of signal. May overheat or burn out immediately. |
+| **Signal wire to GND** | Component receives no signal. Won't work but usually no damage. |
+| **Signal to boot-strapping pin (GPIO 0, 2 on ESP32)** | Device may fail to boot at all, or boot into wrong mode. |
+| **Servo to non-PWM GPIO** | Software PWM may work poorly. Servo jitters, moves erratically, or barely moves. |
+| **5V component to 3.3V output** | Component may not work (underpowered). |
+| **3.3V input receives 5V** | **PERMANENT DAMAGE.** The chip's input protection fails and fries the pin or entire chip. |
+| **Power polarity reversed (+ to -, - to +)** | **IMMEDIATE DESTRUCTION.** Component releases magic smoke. Sometimes with sparks. |
+
+**Golden rule:** Triple-check every connection against the wiring diagram before applying power.
+
+**For APIS:** We carefully selected pins that are safe to use. Follow the pin assignments in the assembly guides exactly.
 
 ---
 
@@ -166,7 +221,22 @@ Good news: The Pi, ESP32-CAM, and XIAO all have **built-in** pull-up resistors. 
 
 ### Understanding Power Consumption
 
-Each component draws a certain amount of current:
+Each component draws a certain amount of current (amps). Let's start with a simple example.
+
+### Simple Power Calculation
+
+Here's how to calculate your total power needs:
+
+1. **Servo draws:** 500mA
+2. **Laser draws:** 200mA
+3. **Microcontroller draws:** 300mA
+4. **Total:** 500 + 200 + 300 = 1000mA = 1A
+
+A 2A USB adapter provides enough headroom (double what we need). Always leave margin for safety.
+
+### Real-World Values
+
+The simple example above illustrates the concept. Here are actual peak values for our components:
 
 | Component | Typical Current | Peak Current | Notes |
 |-----------|-----------------|--------------|-------|
@@ -303,18 +373,23 @@ A standalone device that:
 
 | Term | Pronunciation | Definition |
 |------|---------------|------------|
-| **GPIO** | "G-P-I-O" or "gee-pee-eye-oh" | General Purpose Input/Output. Programmable pins on microcontroller. |
-| **PWM** | "P-W-M" | Pulse Width Modulation. Rapid on/off switching to simulate variable voltage. |
-| **Servo** | "sir-voh" | Motor that moves to a commanded angle and holds position. |
+| **650nm** | "six-fifty nanometers" | Wavelength of red laser light. nm = nanometers (billionths of a meter). |
 | **Brownout** | "brown-out" | Voltage drop causing device reset or malfunction. |
-| **Pull-up** | "pull-up" | Resistor connecting pin to power. Default state = HIGH. |
-| **FTDI** | "F-T-D-I" | Company making USB-serial adapters. Generic term for such adapters. |
 | **Class 3R** | "class three R" | Laser class. 1-5mW. Hazardous to eyes with direct exposure. |
 | **CSI** | "C-S-I" | Camera Serial Interface. Ribbon cable connection for Pi cameras. |
-| **mDNS** | "M-D-N-S" | Multicast DNS. Allows finding devices by name (e.g., `apis.local`). |
-| **Stall torque** | "stall tork" | Maximum torque servo can exert before motor stalls. |
 | **Dupont** | "doo-pont" | Standard 2.54mm pitch connectors with pins/sockets. |
 | **ESD** | "E-S-D" | Electrostatic Discharge. Static shock that can damage electronics. |
+| **FTDI** | "F-T-D-I" | Company making USB-serial adapters. Generic term for such adapters. |
+| **GPIO** | "G-P-I-O" or "gee-pee-eye-oh" | General Purpose Input/Output. Programmable pins on microcontroller. |
+| **mDNS** | "M-D-N-S" | Multicast DNS. Allows finding devices by name (e.g., `apis.local`). |
+| **OD2+** | "O-D two plus" | Optical Density 2+. Laser safety glasses rating. OD2 blocks 99% of laser light at specified wavelength. |
+| **Ohm (Ω)** | "ohm" | Unit of electrical resistance. Higher ohms = more restriction to current flow. |
+| **Pull-up** | "pull-up" | Resistor connecting pin to power. Default state = HIGH. |
+| **PWM** | "P-W-M" | Pulse Width Modulation. Rapid on/off switching to simulate variable voltage. |
+| **Servo** | "sir-voh" | Motor that moves to a commanded angle and holds position. |
+| **Stall current** | "stall current" | Maximum current a motor draws when blocked from moving. Much higher than running current. |
+| **Stall torque** | "stall tork" | Maximum torque servo can exert before motor stalls. |
+| **WiFi TX** | "why-fye tee-ex" | WiFi Transmission. When the device is actively sending data wirelessly (uses more power). |
 
 ---
 

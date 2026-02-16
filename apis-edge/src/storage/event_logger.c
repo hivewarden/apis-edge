@@ -13,25 +13,45 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <pthread.h>
 
+#if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
+#include <pthread.h>
 #ifdef APIS_PLATFORM_PI
 #include <sqlite3.h>
 #include <sys/statvfs.h>
 #include <sys/stat.h>
 #include <errno.h>
 #endif
-
-#ifdef APIS_PLATFORM_ESP32
+#elif defined(APIS_PLATFORM_ESP32)
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include <sqlite3.h>
 #include "esp_spiffs.h"
+#endif
+
+// Test platform also needs sqlite3
+#if defined(APIS_PLATFORM_TEST) && !defined(APIS_PLATFORM_PI)
+#include <sqlite3.h>
 #endif
 
 // Schema SQL defined in schema.c
 extern const char *EVENT_SCHEMA_SQL;
 
-// Module state - protected by g_mutex for thread safety
+// S8-H2 fix: HAL-style mutex wrappers instead of direct pthread usage
+#if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
+#define EVENT_LOCK()   pthread_mutex_lock(&g_mutex)
+#define EVENT_UNLOCK() pthread_mutex_unlock(&g_mutex)
+#elif defined(APIS_PLATFORM_ESP32)
+static SemaphoreHandle_t g_event_sem = NULL;
+#define EVENT_LOCK()   do { if (g_event_sem) xSemaphoreTake(g_event_sem, portMAX_DELAY); } while(0)
+#define EVENT_UNLOCK() do { if (g_event_sem) xSemaphoreGive(g_event_sem); } while(0)
+#else
+#define EVENT_LOCK()   ((void)0)
+#define EVENT_UNLOCK() ((void)0)
+#endif
+
+// Module state - protected by mutex for thread safety
 static sqlite3 *g_db = NULL;
 static event_logger_config_t g_config;
 static bool g_initialized = false;
@@ -69,14 +89,16 @@ static int ensure_parent_dir(const char *path) {
 
 /**
  * Get current timestamp in ISO 8601 format.
+ * Uses gmtime_r() for thread safety (gmtime() uses a shared static buffer).
  */
 static void get_iso_timestamp(char *buf, size_t size) {
     time_t now = time(NULL);
-    struct tm *tm = gmtime(&now);
+    struct tm tm_buf;
+    struct tm *tm = gmtime_r(&now, &tm_buf);
     if (tm) {
         strftime(buf, size, "%Y-%m-%dT%H:%M:%SZ", tm);
     } else {
-        LOG_WARN("gmtime() returned NULL, falling back to epoch timestamp");
+        LOG_WARN("gmtime_r() returned NULL, falling back to epoch timestamp");
         snprintf(buf, size, "1970-01-01T00:00:00Z");
     }
 }
@@ -94,11 +116,11 @@ static const char *confidence_to_db_string(confidence_level_t level) {
 }
 
 event_logger_status_t event_logger_init(const event_logger_config_t *config) {
-    pthread_mutex_lock(&g_mutex);
+    EVENT_LOCK();
 
     if (g_initialized) {
         LOG_WARN("Event logger already initialized");
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return EVENT_LOGGER_OK;
     }
 
@@ -131,7 +153,7 @@ event_logger_status_t event_logger_init(const event_logger_config_t *config) {
             sqlite3_close(g_db);
             g_db = NULL;
         }
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return EVENT_LOGGER_ERROR_DB_OPEN;
     }
 
@@ -148,7 +170,7 @@ event_logger_status_t event_logger_init(const event_logger_config_t *config) {
         sqlite3_free(err_msg);
         sqlite3_close(g_db);
         g_db = NULL;
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return EVENT_LOGGER_ERROR_DB_QUERY;
     }
 
@@ -156,14 +178,14 @@ event_logger_status_t event_logger_init(const event_logger_config_t *config) {
     LOG_INFO("Event logger initialized (db: %s, prune: %u days)",
              g_config.db_path, g_config.prune_days);
 
-    pthread_mutex_unlock(&g_mutex);
+    EVENT_UNLOCK();
     return EVENT_LOGGER_OK;
 }
 
 bool event_logger_is_initialized(void) {
-    pthread_mutex_lock(&g_mutex);
+    EVENT_LOCK();
     bool initialized = g_initialized;
-    pthread_mutex_unlock(&g_mutex);
+    EVENT_UNLOCK();
     return initialized;
 }
 
@@ -177,11 +199,11 @@ int64_t event_logger_log(
         return -1;
     }
 
-    pthread_mutex_lock(&g_mutex);
+    EVENT_LOCK();
 
     if (!g_initialized) {
         LOG_WARN("event_logger_log called before initialization");
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -197,12 +219,15 @@ int64_t event_logger_log(
     int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         LOG_ERROR("Failed to prepare insert: %s", sqlite3_errmsg(g_db));
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
-    sqlite3_bind_text(stmt, 1, timestamp, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, confidence_to_db_string(detection->confidence), -1, SQLITE_STATIC);
+    // S8-M7 fix: Use SQLITE_TRANSIENT for stack-local `timestamp` buffer
+    // and caller-provided `clip_file` to ensure SQLite copies the data.
+    // SQLITE_STATIC is only safe for string literals with program lifetime.
+    sqlite3_bind_text(stmt, 1, timestamp, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, confidence_to_db_string(detection->confidence), -1, SQLITE_STATIC);  // String literal, safe
     sqlite3_bind_int(stmt, 3, detection->detection.x);
     sqlite3_bind_int(stmt, 4, detection->detection.y);
     sqlite3_bind_int(stmt, 5, detection->detection.w);
@@ -214,7 +239,7 @@ int64_t event_logger_log(
     sqlite3_bind_int(stmt, 11, laser_fired ? 1 : 0);
 
     if (clip_file && clip_file[0] != '\0') {
-        sqlite3_bind_text(stmt, 12, clip_file, -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, 12, clip_file, -1, SQLITE_TRANSIENT);
     } else {
         sqlite3_bind_null(stmt, 12);
     }
@@ -224,7 +249,7 @@ int64_t event_logger_log(
 
     if (rc != SQLITE_DONE) {
         LOG_ERROR("Failed to insert event: %s", sqlite3_errmsg(g_db));
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -235,7 +260,64 @@ int64_t event_logger_log(
               confidence_to_db_string(detection->confidence),
               laser_fired);
 
-    pthread_mutex_unlock(&g_mutex);
+    // AC3: After successful insert, check if storage is low and auto-prune.
+    // SECURITY FIX: Hold the mutex through the entire insert + status check + prune
+    // sequence to prevent a race where another thread could interleave operations
+    // between insert and prune.
+    bool should_prune = false;
+
+#ifdef APIS_PLATFORM_PI
+    {
+        struct statvfs stat_buf;
+        if (statvfs(g_config.db_path, &stat_buf) == 0) {
+            float free_mb = (float)((uint64_t)stat_buf.f_bfree * stat_buf.f_bsize) / (1024.0f * 1024.0f);
+            if (free_mb < g_config.min_free_mb && free_mb > 0) {
+                LOG_WARN("Storage low (%.2f MB free, threshold: %u MB), auto-pruning old events",
+                         free_mb, g_config.min_free_mb);
+                should_prune = true;
+            }
+        }
+    }
+#endif
+
+    if (should_prune) {
+        // Inline prune logic (same as event_logger_prune but without re-acquiring mutex)
+        int prune_days = (int)g_config.prune_days;
+        if (prune_days < 0) prune_days = 0;
+
+        time_t prune_now = time(NULL);
+        time_t prune_cutoff = prune_now - ((time_t)prune_days * (time_t)86400);
+        struct tm prune_tm_buf;
+        struct tm *prune_tm = gmtime_r(&prune_cutoff, &prune_tm_buf);
+
+        if (prune_tm) {
+            char prune_cutoff_str[EVENT_TIMESTAMP_MAX];
+            strftime(prune_cutoff_str, sizeof(prune_cutoff_str), "%Y-%m-%dT%H:%M:%SZ", prune_tm);
+
+            const char *prune_sql = "DELETE FROM events WHERE timestamp < ? AND synced = 1";
+            sqlite3_stmt *prune_stmt = NULL;
+            int prc = sqlite3_prepare_v2(g_db, prune_sql, -1, &prune_stmt, NULL);
+            if (prc == SQLITE_OK) {
+                // S8-M7 fix: stack-local buffer, use SQLITE_TRANSIENT
+                sqlite3_bind_text(prune_stmt, 1, prune_cutoff_str, -1, SQLITE_TRANSIENT);
+                prc = sqlite3_step(prune_stmt);
+                sqlite3_finalize(prune_stmt);
+
+                if (prc == SQLITE_DONE) {
+                    int pruned = sqlite3_changes(g_db);
+                    if (pruned > 0) {
+                        LOG_INFO("Auto-pruned %d old events due to low storage", pruned);
+                        if (pruned > 100) {
+                            sqlite3_exec(g_db, "VACUUM;", NULL, NULL, NULL);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    EVENT_UNLOCK();
+
     return event_id;
 }
 
@@ -290,11 +372,11 @@ int event_logger_get_events(
         return -1;
     }
 
-    pthread_mutex_lock(&g_mutex);
+    EVENT_LOCK();
 
     if (!g_initialized) {
         LOG_WARN("event_logger_get_events called before initialization");
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -305,35 +387,30 @@ int event_logger_get_events(
         "clip_file, synced, created_at FROM events WHERE 1=1";
 
     char sql[512];
-    int param_count = 0;
 
     if (since_timestamp && until_timestamp) {
         snprintf(sql, sizeof(sql),
                  "%s AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT %d",
                  sql_base, MAX_EVENTS_PER_QUERY);
-        param_count = 2;
     } else if (since_timestamp) {
         snprintf(sql, sizeof(sql),
                  "%s AND timestamp >= ? ORDER BY timestamp DESC LIMIT %d",
                  sql_base, MAX_EVENTS_PER_QUERY);
-        param_count = 1;
     } else if (until_timestamp) {
         snprintf(sql, sizeof(sql),
                  "%s AND timestamp <= ? ORDER BY timestamp DESC LIMIT %d",
                  sql_base, MAX_EVENTS_PER_QUERY);
-        param_count = 1;
     } else {
         snprintf(sql, sizeof(sql),
                  "%s ORDER BY timestamp DESC LIMIT %d",
                  sql_base, MAX_EVENTS_PER_QUERY);
-        param_count = 0;
     }
 
     sqlite3_stmt *stmt = NULL;
     int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         LOG_ERROR("Query prepare failed: %s", sqlite3_errmsg(g_db));
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -347,7 +424,7 @@ int event_logger_get_events(
     } else if (until_timestamp) {
         sqlite3_bind_text(stmt, bind_idx++, until_timestamp, -1, SQLITE_STATIC);
     }
-    (void)param_count; // Suppress unused variable warning
+    (void)bind_idx; // Suppress unused variable warning after final bind
 
     int count = 0;
     while (sqlite3_step(stmt) == SQLITE_ROW && count < MAX_EVENTS_PER_QUERY) {
@@ -356,7 +433,7 @@ int event_logger_get_events(
     }
 
     sqlite3_finalize(stmt);
-    pthread_mutex_unlock(&g_mutex);
+    EVENT_UNLOCK();
     return count;
 }
 
@@ -366,11 +443,11 @@ int event_logger_get_unsynced(event_record_t *events, int max_count) {
         return -1;
     }
 
-    pthread_mutex_lock(&g_mutex);
+    EVENT_LOCK();
 
     if (!g_initialized) {
         LOG_WARN("event_logger_get_unsynced called before initialization");
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -384,7 +461,7 @@ int event_logger_get_unsynced(event_record_t *events, int max_count) {
     int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         LOG_ERROR("Query prepare failed: %s", sqlite3_errmsg(g_db));
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -397,16 +474,16 @@ int event_logger_get_unsynced(event_record_t *events, int max_count) {
     }
 
     sqlite3_finalize(stmt);
-    pthread_mutex_unlock(&g_mutex);
+    EVENT_UNLOCK();
     return count;
 }
 
 int event_logger_mark_synced(int64_t event_id) {
-    pthread_mutex_lock(&g_mutex);
+    EVENT_LOCK();
 
     if (!g_initialized) {
         LOG_WARN("event_logger_mark_synced called before initialization");
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -416,7 +493,7 @@ int event_logger_mark_synced(int64_t event_id) {
     int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         LOG_ERROR("Update prepare failed: %s", sqlite3_errmsg(g_db));
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -426,11 +503,11 @@ int event_logger_mark_synced(int64_t event_id) {
 
     if (rc != SQLITE_DONE) {
         LOG_ERROR("Failed to mark event synced: %s", sqlite3_errmsg(g_db));
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
-    pthread_mutex_unlock(&g_mutex);
+    EVENT_UNLOCK();
     return 0;
 }
 
@@ -439,11 +516,11 @@ int event_logger_mark_synced_batch(const int64_t *event_ids, int count) {
         return 0;
     }
 
-    pthread_mutex_lock(&g_mutex);
+    EVENT_LOCK();
 
     if (!g_initialized) {
         LOG_WARN("event_logger_mark_synced_batch called before initialization");
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -455,7 +532,7 @@ int event_logger_mark_synced_batch(const int64_t *event_ids, int count) {
     int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         sqlite3_exec(g_db, "ROLLBACK", NULL, NULL, NULL);
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -471,16 +548,16 @@ int event_logger_mark_synced_batch(const int64_t *event_ids, int count) {
     sqlite3_finalize(stmt);
     sqlite3_exec(g_db, "COMMIT", NULL, NULL, NULL);
 
-    pthread_mutex_unlock(&g_mutex);
+    EVENT_UNLOCK();
     return marked;
 }
 
 int event_logger_prune(int days) {
-    pthread_mutex_lock(&g_mutex);
+    EVENT_LOCK();
 
     if (!g_initialized) {
         LOG_WARN("event_logger_prune called before initialization");
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -490,16 +567,18 @@ int event_logger_prune(int days) {
 
     // Calculate cutoff date
     // Use (time_t)86400 to avoid potential integer overflow on 32-bit systems
+    // Uses gmtime_r() for thread safety (gmtime() uses a shared static buffer).
     time_t now = time(NULL);
     time_t cutoff = now - ((time_t)days * (time_t)86400);
-    struct tm *tm = gmtime(&cutoff);
+    struct tm tm_buf;
+    struct tm *tm = gmtime_r(&cutoff, &tm_buf);
 
     char cutoff_str[EVENT_TIMESTAMP_MAX];
     if (tm) {
         strftime(cutoff_str, sizeof(cutoff_str), "%Y-%m-%dT%H:%M:%SZ", tm);
     } else {
         LOG_ERROR("Failed to compute cutoff date");
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -510,17 +589,18 @@ int event_logger_prune(int days) {
     int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         LOG_ERROR("Prune prepare failed: %s", sqlite3_errmsg(g_db));
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
-    sqlite3_bind_text(stmt, 1, cutoff_str, -1, SQLITE_STATIC);
+    // S8-M7 fix: cutoff_str is stack-local, use SQLITE_TRANSIENT
+    sqlite3_bind_text(stmt, 1, cutoff_str, -1, SQLITE_TRANSIENT);
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 
     if (rc != SQLITE_DONE) {
         LOG_ERROR("Prune failed: %s", sqlite3_errmsg(g_db));
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -528,13 +608,24 @@ int event_logger_prune(int days) {
 
     if (deleted > 0) {
         LOG_INFO("Pruned %d old events (older than %d days)", deleted, days);
-        // Only VACUUM when significant deletions to avoid performance overhead
-        if (deleted > 100) {
-            sqlite3_exec(g_db, "VACUUM;", NULL, NULL, NULL);
-        }
     }
 
-    pthread_mutex_unlock(&g_mutex);
+    // S8-M4 fix: Release mutex BEFORE VACUUM to avoid blocking other threads.
+    // VACUUM can take significant time on large databases. It's safe to run
+    // outside the mutex because SQLite WAL mode handles concurrent access.
+    bool needs_vacuum = (deleted > 100);
+
+    EVENT_UNLOCK();
+
+    if (needs_vacuum) {
+        // VACUUM outside the mutex - SQLite handles its own locking
+        EVENT_LOCK();
+        if (g_initialized && g_db) {
+            sqlite3_exec(g_db, "VACUUM;", NULL, NULL, NULL);
+        }
+        EVENT_UNLOCK();
+    }
+
     return deleted;
 }
 
@@ -543,11 +634,11 @@ int event_logger_get_status(storage_status_t *status) {
         return -1;
     }
 
-    pthread_mutex_lock(&g_mutex);
+    EVENT_LOCK();
 
     if (!g_initialized) {
         LOG_WARN("event_logger_get_status called before initialization");
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -570,6 +661,12 @@ int event_logger_get_status(storage_status_t *status) {
 
     status->warning = status->free_mb < g_config.min_free_mb && status->free_mb > 0;
 
+    // AC3: Log warning when storage is running low
+    if (status->warning) {
+        LOG_WARN("Storage low: %.2f MB free (threshold: %u MB)",
+                 status->free_mb, g_config.min_free_mb);
+    }
+
     // Get event counts
     sqlite3_stmt *stmt = NULL;
 
@@ -589,12 +686,12 @@ int event_logger_get_status(storage_status_t *status) {
         sqlite3_finalize(stmt);
     }
 
-    pthread_mutex_unlock(&g_mutex);
+    EVENT_UNLOCK();
     return 0;
 }
 
 void event_logger_close(void) {
-    pthread_mutex_lock(&g_mutex);
+    EVENT_LOCK();
     if (g_db) {
         // Ensure WAL is checkpointed before close
         sqlite3_wal_checkpoint(g_db, NULL);
@@ -602,7 +699,7 @@ void event_logger_close(void) {
         g_db = NULL;
     }
     g_initialized = false;
-    pthread_mutex_unlock(&g_mutex);
+    EVENT_UNLOCK();
     LOG_INFO("Event logger closed");
 }
 
@@ -612,11 +709,11 @@ int event_logger_clear_clip_reference(const char *clip_path) {
         return -1;
     }
 
-    pthread_mutex_lock(&g_mutex);
+    EVENT_LOCK();
 
     if (!g_initialized) {
         LOG_WARN("event_logger_clear_clip_reference called before initialization");
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -626,7 +723,7 @@ int event_logger_clear_clip_reference(const char *clip_path) {
     int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         LOG_ERROR("Failed to prepare clip reference clear: %s", sqlite3_errmsg(g_db));
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -636,7 +733,7 @@ int event_logger_clear_clip_reference(const char *clip_path) {
 
     if (rc != SQLITE_DONE) {
         LOG_ERROR("Failed to clear clip reference: %s", sqlite3_errmsg(g_db));
-        pthread_mutex_unlock(&g_mutex);
+        EVENT_UNLOCK();
         return -1;
     }
 
@@ -646,7 +743,7 @@ int event_logger_clear_clip_reference(const char *clip_path) {
         LOG_DEBUG("Cleared clip reference for %d events: %s", updated, clip_path);
     }
 
-    pthread_mutex_unlock(&g_mutex);
+    EVENT_UNLOCK();
     return updated;
 }
 

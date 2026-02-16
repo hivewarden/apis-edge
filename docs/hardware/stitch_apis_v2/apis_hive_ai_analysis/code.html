@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Hive AI Analysis Refined</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:ital,wght@0,100..900;1,100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "primary": "#f7a42d", // Sea Buckthorn
+                    "salomie": "#fcd483", // Sidebar highlight
+                    "coconut": "#fbf9e7", // Background
+                    "bramble": "#662604", // Text Main
+                    "sage": "#7c9082", // Healthy Status
+                    "surface-light": "#ffffff", // Pure White
+                },
+                fontFamily: {
+                    "display": ["Epilogue", "sans-serif"]
+                },
+                borderRadius: {
+                    "artisan": "16px",
+                    "pill": "9999px",
+                },
+                boxShadow: {
+                    "diffused": "0 10px 40px -15px rgba(102, 38, 4, 0.1), 0 4px 12px -5px rgba(102, 38, 4, 0.05)",
+                }
+            },
+        },
+    }
+    </script>
+<style>
+        body { font-family: 'Epilogue', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .filled-icon { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    </style>
+</head>
+<body class="bg-coconut text-bramble overflow-x-hidden transition-colors duration-200">
+<div class="relative flex h-screen w-full flex-row overflow-hidden">
+<div class="hidden lg:flex flex-col w-64 border-r border-bramble/10 bg-surface-light h-full">
+<div class="p-6">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-4xl text-primary filled-icon">hive</span>
+<div class="flex flex-col">
+<span class="text-bramble font-bold text-lg leading-tight">APIS</span>
+<span class="text-bramble/60 text-[10px] uppercase tracking-wider font-medium">Hive AI</span>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-4 flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-pill hover:bg-salomie/30 transition-colors group" href="#">
+<span class="material-symbols-outlined text-bramble/70 group-hover:text-bramble">home</span>
+<span class="text-bramble text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-pill bg-salomie text-bramble shadow-sm" href="#">
+<span class="material-symbols-outlined filled-icon">hive</span>
+<span class="text-sm font-bold">Hives</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-pill hover:bg-salomie/30 transition-colors group" href="#">
+<span class="material-symbols-outlined text-bramble/70 group-hover:text-bramble">location_on</span>
+<span class="text-bramble text-sm font-medium">Apiaries</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-pill hover:bg-salomie/30 transition-colors group" href="#">
+<span class="material-symbols-outlined text-bramble/70 group-hover:text-bramble">psychology</span>
+<span class="text-bramble text-sm font-medium">BeeBrain</span>
+</a>
+<div class="mt-auto mb-6">
+<a class="flex items-center gap-3 px-4 py-3 rounded-pill hover:bg-salomie/30 transition-colors group" href="#">
+<span class="material-symbols-outlined text-bramble/70 group-hover:text-bramble">settings</span>
+<span class="text-bramble text-sm font-medium">Settings</span>
+</a>
+</div>
+</nav>
+</div>
+<main class="flex-1 flex flex-col h-full overflow-y-auto bg-coconut relative">
+<div class="absolute top-0 right-0 w-1/3 h-1/3 bg-gradient-to-bl from-primary/10 to-transparent rounded-bl-full pointer-events-none"></div>
+<div class="max-w-[1000px] w-full mx-auto p-6 md:p-10 flex flex-col gap-8">
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-2 text-sm text-bramble/60">
+<span>Apiary 01</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span>Hive #04</span>
+</div>
+<div class="flex flex-wrap justify-between items-end gap-4">
+<div>
+<h1 class="text-3xl md:text-4xl font-black text-bramble tracking-tight">BeeBrain Analysis</h1>
+<p class="text-bramble/80 mt-1 font-medium text-lg">Hive #04 Insights</p>
+</div>
+<div class="flex gap-2">
+<button class="px-5 py-2.5 rounded-pill border border-bramble/20 text-bramble font-medium hover:bg-white transition-colors text-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">history</span>
+                                History
+                            </button>
+<button class="px-5 py-2.5 rounded-pill bg-primary text-white font-medium hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 text-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">add_circle</span>
+                                New Log
+                            </button>
+</div>
+</div>
+</div>
+<div class="bg-surface-light rounded-artisan p-1 shadow-diffused border border-bramble/5">
+<div class="relative overflow-hidden rounded-[12px] bg-white">
+<div class="absolute top-0 left-0 w-full h-48 bg-cover bg-center" data-alt="Honeycomb texture close up" style='background-image: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(255,255,255,1) 100%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuB3Oq_YuvMUStcCwXIJK2I0gi1Wfm5MOsNzi0aPKYuWg4fKWUHKsBMjjdKY87O0mDnyixFXoEXmDcRAtxc_drD4xZSEWYEfgk9nntUri4vGLJvZV4-1rAQcmhb76ztS0_T5NeGh3aHXny_KpDnvyWuVCCzWkEc_rlA0RKRHeG7reHzHKGPF2e7dKipdDZ2qijfYnrh83oLJ_b7u4S-BAW8a6Rcqdoc8BtF-G1-VdelSHZWBibCDByHhwKe_pDjEzhq2q64bHPiNsKU");'>
+<div class="absolute top-6 left-6">
+<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-white/90 backdrop-blur-sm shadow-sm border border-white/40">
+<span class="material-symbols-outlined text-primary text-[18px] filled-icon">bolt</span>
+<span class="text-xs font-bold text-bramble uppercase tracking-wide">AI Confidence: 94%</span>
+</span>
+</div>
+</div>
+<div class="absolute top-0 left-0 w-full h-48 bg-gradient-to-b from-transparent to-white"></div>
+<div class="relative pt-32 px-6 pb-8 md:px-10 md:pb-10">
+<div class="flex flex-col gap-6">
+<div class="self-start">
+<div class="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-red-50 text-red-700 border border-red-100">
+<span class="material-symbols-outlined text-[20px] filled-icon">warning</span>
+<span class="text-sm font-bold">Attention: Low Reserves</span>
+</div>
+</div>
+<div class="max-w-2xl">
+<p class="text-xl md:text-2xl font-bold text-bramble leading-snug mb-3">
+                                        Population growth is steady but food stores are slightly low for this season.
+                                    </p>
+<div class="p-4 bg-primary/10 rounded-xl border border-primary/20 flex gap-4 items-start">
+<div class="bg-primary/20 p-2 rounded-full shrink-0 text-primary">
+<span class="material-symbols-outlined filled-icon">tips_and_updates</span>
+</div>
+<div>
+<p class="text-bramble/60 text-sm font-medium uppercase tracking-wider mb-1">Recommendation</p>
+<p class="text-bramble font-medium">Consider supplementary feeding if foraging conditions don't improve within 3 days.</p>
+</div>
+</div>
+</div>
+<details class="group border-t border-bramble/10 pt-6 mt-2">
+<summary class="flex cursor-pointer items-center justify-between gap-4 select-none list-none outline-none focus:ring-2 focus:ring-primary/20 rounded-lg">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm border border-bramble/10 text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[20px] group-open:rotate-180 transition-transform duration-300">expand_more</span>
+</div>
+<span class="text-bramble font-bold text-base group-hover:text-primary transition-colors">Tell me more</span>
+</div>
+<span class="text-xs text-bramble/50 font-medium hidden md:block">Click to view data breakdown</span>
+</summary>
+<div class="pt-6 grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
+<div class="flex flex-col gap-4">
+<p class="text-bramble/80 text-sm leading-relaxed">
+                                                BeeBrain analysis compares the current comb weight (12kg) against the 3-year average for this specific apiary location (15kg). Historical trends indicate a potential 20% dip in forage availability this month due to delayed blooming.
+                                            </p>
+<div class="flex flex-col gap-3 mt-2">
+<div class="flex items-center justify-between p-3 bg-white rounded-lg border border-bramble/10 shadow-sm">
+<span class="text-sm font-medium text-bramble/70">Current Stores</span>
+<span class="text-sm font-bold text-bramble">12 kg</span>
+</div>
+<div class="flex items-center justify-between p-3 bg-white rounded-lg border border-bramble/10 shadow-sm">
+<span class="text-sm font-medium text-bramble/70">Regional Average</span>
+<span class="text-sm font-bold text-bramble">15 kg</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-2 bg-white p-4 rounded-xl border border-bramble/10">
+<div class="flex justify-between items-center mb-2">
+<span class="text-xs font-bold uppercase text-bramble/50 tracking-wider">Food Stores vs Pop.</span>
+<span class="text-xs font-bold text-primary">Last 30 Days</span>
+</div>
+<div class="h-32 w-full relative">
+<svg class="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 400 120">
+<line class="text-bramble/10" stroke="currentColor" stroke-dasharray="4 4" stroke-opacity="1" x1="0" x2="400" y1="0" y2="0"></line>
+<line class="text-bramble/10" stroke="currentColor" stroke-dasharray="4 4" stroke-opacity="1" x1="0" x2="400" y1="60" y2="60"></line>
+<line class="text-bramble/10" stroke="currentColor" stroke-dasharray="4 4" stroke-opacity="1" x1="0" x2="400" y1="120" y2="120"></line>
+<path d="M0,80 C100,75 200,70 400,65" fill="none" stroke="#662604" stroke-opacity="0.2" stroke-width="2"></path>
+<defs>
+<linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#f7a42d" stop-opacity="0.2"></stop>
+<stop offset="100%" stop-color="#f7a42d" stop-opacity="0"></stop>
+</linearGradient>
+</defs>
+<path d="M0,30 C50,30 150,40 250,80 S350,110 400,115" fill="none" stroke="#f7a42d" stroke-linecap="round" stroke-width="3"></path>
+<path d="M0,30 C50,30 150,40 250,80 S350,110 400,115 V120 H0 Z" fill="url(#chartGradient)" stroke="none"></path>
+<circle cx="400" cy="115" fill="#f7a42d" r="4" stroke="white" stroke-width="2"></circle>
+</svg>
+</div>
+<div class="flex justify-between text-[10px] text-bramble/50 font-medium mt-1">
+<span>Week 1</span>
+<span>Week 2</span>
+<span>Week 3</span>
+<span>Today</span>
+</div>
+</div>
+</div>
+<div class="flex flex-wrap gap-3 mt-6 pt-6 border-t border-bramble/10 border-dashed">
+<button class="flex items-center gap-2 px-4 py-2 rounded-pill bg-white border border-bramble/10 hover:border-primary/50 transition-colors text-sm font-medium text-bramble">
+<span class="material-symbols-outlined text-[18px] text-primary">local_florist</span>
+                                            Check Forage Map
+                                        </button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-pill bg-white border border-bramble/10 hover:border-primary/50 transition-colors text-sm font-medium text-bramble">
+<span class="material-symbols-outlined text-[18px] text-primary">restaurant</span>
+                                            Log Feeding
+                                        </button>
+</div>
+</details>
+<div class="flex flex-wrap items-center gap-4 pt-2">
+<button class="text-bramble/60 hover:text-bramble text-sm font-semibold transition-colors px-2">
+                                        Dismiss Insight
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="p-6 rounded-artisan bg-surface-light border border-bramble/5 shadow-diffused flex flex-col gap-2">
+<div class="p-2 w-fit rounded-full bg-sage/20 text-sage mb-2">
+<span class="material-symbols-outlined filled-icon">egg</span>
+</div>
+<p class="text-bramble/60 text-sm font-medium">Brood Pattern</p>
+<p class="text-2xl font-black text-sage">Healthy</p>
+</div>
+<div class="p-6 rounded-artisan bg-surface-light border border-bramble/5 shadow-diffused flex flex-col gap-2">
+<div class="p-2 w-fit rounded-full bg-blue-50 text-blue-600 mb-2">
+<span class="material-symbols-outlined filled-icon">water_drop</span>
+</div>
+<p class="text-bramble/60 text-sm font-medium">Humidity</p>
+<p class="text-2xl font-black text-bramble">55%</p>
+</div>
+<div class="p-6 rounded-artisan bg-surface-light border border-bramble/5 shadow-diffused flex flex-col gap-2">
+<div class="p-2 w-fit rounded-full bg-orange-50 text-orange-600 mb-2">
+<span class="material-symbols-outlined filled-icon">device_thermostat</span>
+</div>
+<p class="text-bramble/60 text-sm font-medium">Internal Temp</p>
+<p class="text-2xl font-black text-bramble">35°C</p>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

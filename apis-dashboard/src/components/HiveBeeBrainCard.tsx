@@ -6,7 +6,7 @@
  *
  * Part of Epic 8, Story 8.3: Hive Detail BeeBrain Analysis
  */
-import { useState, useRef, useCallback, type KeyboardEvent } from 'react';
+import { useState, useRef, useCallback, useEffect, type KeyboardEvent } from 'react';
 import {
   Card,
   Typography,
@@ -134,14 +134,6 @@ function formatDataPoints(dataPoints: Record<string, unknown>): { label: string;
 }
 
 /**
- * Format a timestamp as relative time using dayjs (e.g., "a few seconds ago", "5 minutes ago").
- * Uses the same pattern as TreatmentHistoryCard, FeedingHistoryCard, etc.
- */
-function formatLastUpdated(dateStr: string): string {
-  return dayjs(dateStr).fromNow();
-}
-
-/**
  * Sort insights by severity (action-needed first, then warning, then info).
  */
 function sortInsightsBySeverity(insights: Insight[]): Insight[] {
@@ -165,6 +157,17 @@ export function HiveBeeBrainCard({ hiveId }: HiveBeeBrainCardProps) {
   // Refs for focus management after dismiss
   const insightRefs = useRef<Map<string, HTMLElement | null>>(new Map());
   const healthSectionRef = useRef<HTMLDivElement | null>(null);
+  const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup focus timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+        focusTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   /**
    * Toggle expanded state for an insight.
@@ -220,7 +223,11 @@ export function HiveBeeBrainCard({ hiveId }: HiveBeeBrainCardProps) {
       message.success('Insight dismissed');
 
       // Move focus to next insight or health section
-      setTimeout(() => {
+      // Clear any existing focus timeout first
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+      }
+      focusTimeoutRef.current = setTimeout(() => {
         if (nextInsight) {
           const nextRef = insightRefs.current.get(nextInsight.id);
           if (nextRef) {
@@ -231,8 +238,9 @@ export function HiveBeeBrainCard({ hiveId }: HiveBeeBrainCardProps) {
         // No next insight - focus health section
         healthSectionRef.current?.focus();
       }, 100);
-    } catch {
-      message.error('Failed to dismiss insight');
+    } catch (err) {
+      console.error('Failed to dismiss insight:', err);
+      message.error('Failed to dismiss insight. Please try again.');
     } finally {
       setDismissingId(null);
     }
@@ -396,9 +404,9 @@ export function HiveBeeBrainCard({ hiveId }: HiveBeeBrainCardProps) {
             </Text>
           </Space>
           <Space size={spacing.sm}>
-            <Tooltip title={`Last updated: ${formatLastUpdated(data.last_analysis)}`}>
-              <Text type="secondary" style={{ fontSize: spacing.sm + 3 }}>
-                {formatLastUpdated(data.last_analysis)}
+            <Tooltip title={`Last updated: ${dayjs(data.last_analysis).fromNow()}`}>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {dayjs(data.last_analysis).fromNow()}
               </Text>
             </Tooltip>
             <Tooltip title="Refresh analysis">
@@ -551,7 +559,7 @@ export function HiveBeeBrainCard({ hiveId }: HiveBeeBrainCardProps) {
                           <Text strong style={{ color: colors.brownBramble, fontSize: 13 }}>
                             What triggered this:
                           </Text>
-                          <ul style={{ margin: '8px 0 16px 0', paddingLeft: 20 }}>
+                          <ul style={{ margin: `${spacing.sm}px 0 ${spacing.md}px 0`, paddingLeft: spacing.lg }}>
                             {formattedDataPoints.map(({ label, value }) => (
                               <li key={label} style={{ color: colors.brownBramble, fontSize: 13 }}>
                                 <Text type="secondary">{label}:</Text> {value}
@@ -561,7 +569,7 @@ export function HiveBeeBrainCard({ hiveId }: HiveBeeBrainCardProps) {
                         </>
                       )}
 
-                      <Divider style={{ margin: '12px 0' }} />
+                      <Divider style={{ margin: `${spacing.sm}px 0` }} />
 
                       {/* Why it Matters */}
                       <Text strong style={{ color: colors.brownBramble, fontSize: 13 }}>
@@ -569,7 +577,7 @@ export function HiveBeeBrainCard({ hiveId }: HiveBeeBrainCardProps) {
                       </Text>
                       <Paragraph
                         style={{
-                          margin: '8px 0 16px 0',
+                          margin: `${spacing.sm}px 0 ${spacing.md}px 0`,
                           color: colors.brownBramble,
                           fontSize: 13,
                         }}
@@ -577,7 +585,7 @@ export function HiveBeeBrainCard({ hiveId }: HiveBeeBrainCardProps) {
                         {whyText}
                       </Paragraph>
 
-                      <Divider style={{ margin: '12px 0' }} />
+                      <Divider style={{ margin: `${spacing.sm}px 0` }} />
 
                       {/* Suggested Action */}
                       <Text strong style={{ color: colors.brownBramble, fontSize: 13 }}>
@@ -585,7 +593,7 @@ export function HiveBeeBrainCard({ hiveId }: HiveBeeBrainCardProps) {
                       </Text>
                       <Paragraph
                         style={{
-                          margin: '8px 0',
+                          margin: `${spacing.sm}px 0`,
                           color: colors.brownBramble,
                           fontSize: 13,
                         }}

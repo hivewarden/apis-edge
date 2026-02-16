@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Typography,
@@ -12,7 +12,6 @@ import {
   Empty,
   List,
   Tag,
-  Badge,
 } from 'antd';
 import {
   EditOutlined,
@@ -22,50 +21,17 @@ import {
   PlusOutlined,
   CrownOutlined,
   ClockCircleOutlined,
-  WarningOutlined,
+  GiftOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
-import dayjs from 'dayjs';
-import { apiClient } from '../providers/apiClient';
 import { colors } from '../theme/apisTheme';
-import { HarvestFormModal, FirstHarvestModal, HarvestAnalyticsCard, showFirstHiveCelebration } from '../components';
-import { useHarvestsBySite, useHarvestAnalytics, useMilestoneFlags } from '../hooks';
+import { HarvestFormModal, FirstHarvestModal, HarvestAnalyticsCard, showFirstHiveCelebration, HiveStatusBadge, MiniHiveVisualization, ActivityFeedCard, OverdueBadge } from '../components';
+import { SiteMapViewLazy as SiteMapView } from '../components/lazy';
+import { useHarvestsBySite, useHarvestAnalytics, useMilestoneFlags, useSiteDetail } from '../hooks';
 import type { CreateHarvestInput } from '../hooks/useHarvests';
-import { GiftOutlined } from '@ant-design/icons';
+import { getLastInspectionText } from '../utils';
 
 const { Title, Text } = Typography;
-
-interface Site {
-  id: string;
-  name: string;
-  latitude: number | null;
-  longitude: number | null;
-  timezone: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface SiteResponse {
-  data: Site;
-}
-
-interface Hive {
-  id: string;
-  name: string;
-  queen_introduced_at: string | null;
-  queen_source: string | null;
-  queen_age_display: string | null;
-  brood_boxes: number;
-  honey_supers: number;
-  last_inspection_at: string | null;
-  last_inspection_issues: string[] | null;
-  status: 'healthy' | 'needs_attention' | 'unknown';
-}
-
-interface HivesResponse {
-  data: Hive[];
-  meta: { total: number };
-}
 
 /**
  * Site Detail Page
@@ -74,15 +40,22 @@ interface HivesResponse {
  * Allows editing and deletion of the site.
  *
  * Part of Epic 2, Story 2.1: Create and Manage Sites
+ * Refactored for Layered Hooks Architecture
  */
 export function SiteDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [site, setSite] = useState<Site | null>(null);
-  const [hives, setHives] = useState<Hive[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hivesLoading, setHivesLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
+
+  // Use hooks for data fetching
+  const {
+    site,
+    hives,
+    loading,
+    hivesLoading,
+    deleteSite,
+    deleting,
+  } = useSiteDetail(id);
+
   const [harvestModalOpen, setHarvestModalOpen] = useState(false);
   const [firstHarvestModalOpen, setFirstHarvestModalOpen] = useState(false);
   const [lastHarvestData, setLastHarvestData] = useState<{ amountKg: number; hiveCount: number; date: string; harvestId: string } | null>(null);
@@ -105,44 +78,7 @@ export function SiteDetail() {
     refetch: refetchAnalytics,
   } = useHarvestAnalytics();
 
-  const fetchSite = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get<SiteResponse>(`/sites/${id}`);
-      setSite(response.data.data);
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        message.error('Site not found');
-      } else {
-        message.error('Failed to load site');
-      }
-      navigate('/sites');
-    } finally {
-      setLoading(false);
-    }
-  }, [id, navigate]);
-
-  const fetchHives = useCallback(async () => {
-    try {
-      setHivesLoading(true);
-      const response = await apiClient.get<HivesResponse>(`/sites/${id}/hives`);
-      setHives(response.data.data || []);
-    } catch {
-      // Silently fail - hives table might not exist yet
-      setHives([]);
-    } finally {
-      setHivesLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    if (id) {
-      fetchSite();
-      fetchHives();
-    }
-  }, [id, fetchSite, fetchHives]);
-
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     Modal.confirm({
       title: 'Delete Site',
       content: `Are you sure you want to delete "${site?.name}"? This action cannot be undone.`,
@@ -151,8 +87,7 @@ export function SiteDetail() {
       cancelText: 'Cancel',
       onOk: async () => {
         try {
-          setDeleting(true);
-          await apiClient.delete(`/sites/${id}`);
+          await deleteSite();
           message.success('Site deleted successfully');
           navigate('/sites');
         } catch (error) {
@@ -161,12 +96,10 @@ export function SiteDetail() {
           } else {
             message.error('Failed to delete site');
           }
-        } finally {
-          setDeleting(false);
         }
       },
     });
-  };
+  }, [site?.name, deleteSite, navigate]);
 
   const handleEdit = () => {
     navigate(`/sites/${id}/edit`);
@@ -188,9 +121,14 @@ export function SiteDetail() {
     // Handle first-hive celebrations (AC#4 - smaller toast notifications)
     if (result.first_hive_ids && result.first_hive_ids.length > 0) {
       result.first_hive_ids.forEach((hiveId) => {
-        const hive = hives.find((h) => h.id === hiveId);
-        if (hive) {
-          showFirstHiveCelebration(hive.name);
+        const foundHive = hives.find((h) => h.id === hiveId);
+        if (foundHive) {
+          showFirstHiveCelebration(foundHive.name);
+        } else {
+          // Hive not found in local list - show celebration with generic name
+          // This can happen if hives list hasn't refreshed yet
+          console.warn(`First harvest hive ${hiveId} not found in local hive list`);
+          showFirstHiveCelebration('your hive');
         }
       });
     }
@@ -206,30 +144,6 @@ export function SiteDetail() {
       setFirstHarvestModalOpen(true);
     }
     return result;
-  };
-
-  const getStatusBadge = (hive: Hive) => {
-    if (hive.status === 'needs_attention') {
-      return (
-        <Tag color="warning" icon={<WarningOutlined />}>
-          Needs attention
-        </Tag>
-      );
-    }
-    if (hive.status === 'healthy') {
-      return <Tag color="success">Healthy</Tag>;
-    }
-    return <Tag color="default">Unknown</Tag>;
-  };
-
-  const getLastInspectionText = (hive: Hive): string => {
-    if (!hive.last_inspection_at) {
-      return 'No inspections yet';
-    }
-    const days = dayjs().diff(dayjs(hive.last_inspection_at), 'day');
-    if (days === 0) return 'Inspected today';
-    if (days === 1) return 'Inspected yesterday';
-    return `Inspected ${days} days ago`;
   };
 
   if (loading) {
@@ -305,24 +219,17 @@ export function SiteDetail() {
         </Descriptions>
       </Card>
 
-      {/* Map placeholder - will show location if coordinates are set */}
+      {/* Map view - shows location if coordinates are set */}
       {site.latitude !== null && site.longitude !== null && (
         <Card title="Location Map" style={{ marginTop: 16 }}>
-          <div
-            style={{
-              height: 300,
-              backgroundColor: '#f0f0f0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 8,
-            }}
-          >
-            <Text type="secondary">
-              <EnvironmentOutlined style={{ fontSize: 24, marginRight: 8 }} />
-              Map will be displayed here ({site.latitude.toFixed(4)}, {site.longitude.toFixed(4)})
-            </Text>
-          </div>
+          <SiteMapView
+            latitude={site.latitude}
+            longitude={site.longitude}
+            width={600}
+            height={300}
+            zoom={14}
+            showOpenInMaps
+          />
         </Card>
       )}
 
@@ -370,58 +277,13 @@ export function SiteDetail() {
               >
                 <List.Item.Meta
                   avatar={
-                    <Badge
-                      dot
-                      status={hive.status === 'healthy' ? 'success' : hive.status === 'needs_attention' ? 'warning' : 'default'}
-                      offset={[-4, 4]}
-                    >
-                      <div style={{
-                        width: 48,
-                        height: 48,
-                        display: 'flex',
-                        flexDirection: 'column-reverse',
-                        alignItems: 'center',
-                        justifyContent: 'flex-end',
-                        padding: 4,
-                        backgroundColor: 'rgba(247, 164, 45, 0.1)',
-                        borderRadius: 6,
-                      }}>
-                        {/* Mini hive visualization */}
-                        {Array.from({ length: Math.min(hive.brood_boxes, 2) }).map((_, i) => (
-                          <div
-                            key={`b-${i}`}
-                            style={{
-                              width: 28,
-                              height: 8,
-                              backgroundColor: colors.brownBramble,
-                              borderRadius: 2,
-                              marginTop: i > 0 ? 1 : 0,
-                            }}
-                          />
-                        ))}
-                        {Array.from({ length: Math.min(hive.honey_supers, 2) }).map((_, i) => (
-                          <div
-                            key={`s-${i}`}
-                            style={{
-                              width: 28,
-                              height: 6,
-                              backgroundColor: colors.seaBuckthorn,
-                              borderRadius: 2,
-                              marginTop: 1,
-                            }}
-                          />
-                        ))}
-                        <div
-                          style={{
-                            width: 32,
-                            height: 4,
-                            backgroundColor: colors.brownBramble,
-                            borderRadius: '2px 2px 0 0',
-                            marginTop: 1,
-                          }}
-                        />
-                      </div>
-                    </Badge>
+                    <OverdueBadge count={hive.task_summary?.overdue || 0}>
+                      <MiniHiveVisualization
+                        broodBoxes={hive.brood_boxes}
+                        honeySupers={hive.honey_supers}
+                        status={hive.status}
+                      />
+                    </OverdueBadge>
                   }
                   title={
                     <Space wrap>
@@ -429,7 +291,7 @@ export function SiteDetail() {
                       <Tag>
                         {hive.brood_boxes}B / {hive.honey_supers}S
                       </Tag>
-                      {getStatusBadge(hive)}
+                      <HiveStatusBadge hive={hive} />
                     </Space>
                   }
                   description={
@@ -475,6 +337,15 @@ export function SiteDetail() {
           </Text>
         </Empty>
       </Card>
+
+      {/* Activity Feed - Epic 13, Story 13.17 */}
+      <div style={{ marginTop: 16 }}>
+        <ActivityFeedCard
+          siteId={id}
+          title="Recent Activity at this Site"
+          limit={5}
+        />
+      </div>
 
       {/* Harvest Analytics - Epic 6, Story 6.3, AC #4 */}
       {hives.length > 0 && (

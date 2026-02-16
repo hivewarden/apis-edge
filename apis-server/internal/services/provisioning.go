@@ -15,8 +15,8 @@ import (
 // ProvisioningClaims contains the claims needed for user provisioning.
 // This avoids an import cycle with the middleware package.
 type ProvisioningClaims struct {
-	UserID string // Zitadel sub claim
-	OrgID  string // Zitadel organization ID
+	UserID string // OIDC sub claim (Keycloak user ID in SaaS mode)
+	OrgID  string // Organization ID (Keycloak org_id claim in SaaS mode)
 	Email  string // User email
 	Name   string // User display name
 }
@@ -25,7 +25,7 @@ type ProvisioningClaims struct {
 // Called on every authenticated request (fast path: user exists).
 //
 // Uses OrgID as tenant_id because:
-// - Zitadel Organizations map 1:1 to APIS tenants
+// - Keycloak Organizations map 1:1 to APIS tenants
 // - org_id is stable across user sessions
 // - org_id is already validated in AuthMiddleware
 //
@@ -51,7 +51,7 @@ func EnsureUserProvisioned(ctx context.Context, conn *pgxpool.Conn, claims *Prov
 	}
 
 	// Fast path: user already exists
-	user, err := storage.GetUserByZitadelID(ctx, conn, claims.UserID)
+	user, err := storage.GetUserByExternalID(ctx, conn, claims.UserID)
 	if err == nil {
 		return user, nil
 	}
@@ -63,7 +63,7 @@ func EnsureUserProvisioned(ctx context.Context, conn *pgxpool.Conn, claims *Prov
 	// This is a rare path (first login only)
 
 	log.Info().
-		Str("zitadel_user_id", claims.UserID).
+		Str("external_user_id", claims.UserID).
 		Str("org_id", claims.OrgID).
 		Str("email", claims.Email).
 		Msg("Provisioning new user")
@@ -78,7 +78,7 @@ func EnsureUserProvisioned(ctx context.Context, conn *pgxpool.Conn, claims *Prov
 	// Create user
 	user, err = storage.CreateUser(ctx, conn, &storage.User{
 		TenantID:      tenant.ID,
-		ZitadelUserID: claims.UserID,
+		ExternalUserID: claims.UserID,
 		Email:         claims.Email,
 		Name:          claims.Name,
 	})

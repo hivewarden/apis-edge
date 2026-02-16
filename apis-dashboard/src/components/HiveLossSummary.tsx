@@ -10,6 +10,7 @@ import { Card, Typography, Space, Tag, Divider } from 'antd';
 import { HeartOutlined, CalendarOutlined, EyeOutlined, BulbOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { colors } from '../theme/apisTheme';
+import { getSymptomDisplay } from '../hooks/useHiveLoss';
 import type { HiveLoss } from '../hooks/useHiveLoss';
 
 const { Text, Paragraph } = Typography;
@@ -30,7 +31,11 @@ export interface HiveLossSummaryProps {
 export function HiveLossSummary({ loss, compact = false }: HiveLossSummaryProps) {
   const formattedDate = dayjs(loss.discovered_at).format('MMMM D, YYYY');
   const causeDisplay = loss.cause_display || loss.cause;
-  const symptomsDisplay = loss.symptoms_display || loss.symptoms || [];
+
+  // Use symptoms_display from API if available, otherwise convert codes to display names client-side
+  // This provides a fallback in case the API doesn't return symptoms_display
+  const symptomsDisplay = loss.symptoms_display
+    || (loss.symptoms ? loss.symptoms.map(getSymptomDisplay) : []);
 
   if (compact) {
     return (

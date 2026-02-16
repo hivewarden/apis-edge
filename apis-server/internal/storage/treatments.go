@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -278,4 +279,162 @@ func GetLastTreatmentForHive(ctx context.Context, conn *pgxpool.Conn, hiveID str
 		return nil, fmt.Errorf("storage: failed to get last treatment: %w", err)
 	}
 	return &treatment, nil
+}
+
+// GetLastTreatmentsByTypeForHive returns the most recent treatment for each treatment type for a hive.
+// Returns a map of treatment_type -> Treatment.
+func GetLastTreatmentsByTypeForHive(ctx context.Context, conn *pgxpool.Conn, hiveID string) (map[string]*Treatment, error) {
+	rows, err := conn.Query(ctx,
+		`SELECT DISTINCT ON (treatment_type)
+		        id, tenant_id, hive_id, treated_at, treatment_type, method, dose, mite_count_before, mite_count_after, weather, notes, created_at, updated_at
+		 FROM treatments
+		 WHERE hive_id = $1
+		 ORDER BY treatment_type, treated_at DESC, created_at DESC`,
+		hiveID)
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to get last treatments by type: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]*Treatment)
+	for rows.Next() {
+		var t Treatment
+		err := rows.Scan(&t.ID, &t.TenantID, &t.HiveID, &t.TreatedAt, &t.TreatmentType,
+			&t.Method, &t.Dose, &t.MiteCountBefore, &t.MiteCountAfter,
+			&t.Weather, &t.Notes, &t.CreatedAt, &t.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("storage: failed to scan treatment: %w", err)
+		}
+		result[t.TreatmentType] = &t
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("storage: error iterating treatments: %w", err)
+	}
+
+	return result, nil
+}
+
+// ListTreatmentsForDateRange returns all treatments within a date range for a tenant.
+func ListTreatmentsForDateRange(ctx context.Context, conn *pgxpool.Conn, tenantID string, startDate, endDate time.Time) ([]Treatment, error) {
+	rows, err := conn.Query(ctx,
+		`SELECT id, tenant_id, hive_id, treated_at, treatment_type, method, dose, mite_count_before, mite_count_after, weather, notes, created_at, updated_at
+		 FROM treatments
+		 WHERE tenant_id = $1 AND treated_at >= $2 AND treated_at <= $3
+		 ORDER BY treated_at ASC, created_at ASC`,
+		tenantID, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to list treatments for date range: %w", err)
+	}
+	defer rows.Close()
+
+	var treatments []Treatment
+	for rows.Next() {
+		var t Treatment
+		err := rows.Scan(&t.ID, &t.TenantID, &t.HiveID, &t.TreatedAt, &t.TreatmentType,
+			&t.Method, &t.Dose, &t.MiteCountBefore, &t.MiteCountAfter,
+			&t.Weather, &t.Notes, &t.CreatedAt, &t.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("storage: failed to scan treatment: %w", err)
+		}
+		treatments = append(treatments, t)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("storage: error iterating treatments: %w", err)
+	}
+
+	return treatments, nil
+}
+
+// CreateTreatmentFromTask creates a treatment record from task completion data.
+// This is a simplified method that accepts a map and applies sensible defaults.
+// Used by auto-effects processing when a task creates a treatment record.
+func CreateTreatmentFromTask(ctx context.Context, conn *pgxpool.Conn, tenantID, hiveID string, fields map[string]any) (*Treatment, error) {
+	// Parse fields with defaults
+	treatmentType := parseTreatmentStringField(fields, "treatment_type", "other")
+	if treatmentType == "" {
+		treatmentType = "other"
+	}
+
+	// Optional fields
+	method := parseTreatmentOptionalString(fields, "method")
+	dose := parseTreatmentOptionalString(fields, "dose")
+	miteCountBefore := parseTreatmentOptionalInt(fields, "mite_count_before")
+	miteCountAfter := parseTreatmentOptionalInt(fields, "mite_count_after")
+	weather := parseTreatmentOptionalString(fields, "weather")
+	notes := parseTreatmentOptionalString(fields, "notes")
+
+	// Parse date or use today
+	treatedAt := parseTreatmentDateField(fields, "treated_at")
+
+	input := &CreateTreatmentInput{
+		HiveID:          hiveID,
+		TreatedAt:       treatedAt,
+		TreatmentType:   treatmentType,
+		Method:          method,
+		Dose:            dose,
+		MiteCountBefore: miteCountBefore,
+		MiteCountAfter:  miteCountAfter,
+		Weather:         weather,
+		Notes:           notes,
+	}
+
+	return CreateTreatment(ctx, conn, tenantID, input)
+}
+
+// parseTreatmentStringField extracts a string from a map with a default value.
+func parseTreatmentStringField(fields map[string]any, key, defaultVal string) string {
+	if val, ok := fields[key]; ok {
+		if s, ok := val.(string); ok && s != "" {
+			return s
+		}
+	}
+	return defaultVal
+}
+
+// parseTreatmentOptionalString extracts an optional string pointer from a map.
+func parseTreatmentOptionalString(fields map[string]any, key string) *string {
+	if val, ok := fields[key]; ok {
+		if s, ok := val.(string); ok && s != "" {
+			return &s
+		}
+	}
+	return nil
+}
+
+// parseTreatmentOptionalInt extracts an optional int pointer from a map.
+func parseTreatmentOptionalInt(fields map[string]any, key string) *int {
+	if val, ok := fields[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			i := int(v)
+			return &i
+		case int:
+			return &v
+		case int64:
+			i := int(v)
+			return &i
+		case string:
+			if i, err := strconv.Atoi(v); err == nil {
+				return &i
+			}
+		}
+	}
+	return nil
+}
+
+// parseTreatmentDateField extracts a date from fields or returns current time.
+func parseTreatmentDateField(fields map[string]any, key string) time.Time {
+	if val, ok := fields[key]; ok {
+		if dateStr, ok := val.(string); ok && dateStr != "" {
+			// Try various date formats
+			for _, layout := range []string{"2006-01-02", time.RFC3339, "2006-01-02T15:04:05Z"} {
+				if parsed, err := time.Parse(layout, dateStr); err == nil {
+					return parsed
+				}
+			}
+		}
+	}
+	return time.Now()
 }

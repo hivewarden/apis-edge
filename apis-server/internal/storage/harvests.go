@@ -583,3 +583,131 @@ func CountHarvestsByHive(ctx context.Context, conn *pgxpool.Conn, hiveID string)
 	}
 	return count, nil
 }
+
+// CreateHarvestFromTask creates a harvest record from task completion data.
+// This is a simplified method for single-hive harvests created via task auto-effects.
+// It creates both the harvest record and the harvest_hive breakdown.
+func CreateHarvestFromTask(ctx context.Context, conn *pgxpool.Conn, tenantID, hiveID string, fields map[string]any) (*Harvest, error) {
+	// Get hive to find site_id
+	hive, err := GetHiveByID(ctx, conn, hiveID)
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to get hive for harvest: %w", err)
+	}
+
+	// Parse fields
+	frames := parseHarvestOptionalInt(fields, "frames")
+	weightKg := parseHarvestAmountField(fields, "weight_kg")
+	if weightKg.IsZero() {
+		// Try alternate field names
+		weightKg = parseHarvestAmountField(fields, "amount")
+		if weightKg.IsZero() {
+			weightKg = parseHarvestAmountField(fields, "amount_kg")
+		}
+	}
+
+	notes := parseHarvestOptionalString(fields, "notes")
+	harvestedAt := parseHarvestDateField(fields, "harvested_at")
+
+	// Create harvest input with single hive breakdown
+	input := &CreateHarvestInput{
+		SiteID:      hive.SiteID,
+		HarvestedAt: harvestedAt,
+		TotalKg:     weightKg,
+		Notes:       notes,
+		HiveBreakdown: []HarvestHiveInput{
+			{
+				HiveID:   hiveID,
+				Frames:   frames,
+				AmountKg: weightKg,
+			},
+		},
+	}
+
+	return CreateHarvest(ctx, conn, tenantID, input)
+}
+
+// parseHarvestOptionalString extracts an optional string pointer from a map.
+func parseHarvestOptionalString(fields map[string]any, key string) *string {
+	if val, ok := fields[key]; ok {
+		if s, ok := val.(string); ok && s != "" {
+			return &s
+		}
+	}
+	return nil
+}
+
+// parseHarvestOptionalInt extracts an optional int pointer from a map.
+func parseHarvestOptionalInt(fields map[string]any, key string) *int {
+	if val, ok := fields[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			i := int(v)
+			return &i
+		case int:
+			return &v
+		case int64:
+			i := int(v)
+			return &i
+		case string:
+			var i int
+			if _, err := fmt.Sscanf(v, "%d", &i); err == nil {
+				return &i
+			}
+		}
+	}
+	return nil
+}
+
+// parseHarvestAmountField extracts and parses a decimal amount from fields.
+func parseHarvestAmountField(fields map[string]any, key string) decimal.Decimal {
+	if val, ok := fields[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			return decimal.NewFromFloat(v)
+		case int:
+			return decimal.NewFromInt(int64(v))
+		case int64:
+			return decimal.NewFromInt(v)
+		case string:
+			// Remove common unit suffixes
+			cleaned := v
+			for _, suffix := range []string{"kg", "Kg", "KG", "g", "G", "lb", "lbs"} {
+				if len(cleaned) > len(suffix) {
+					cleaned = cleaned[:len(cleaned)-len(suffix)]
+				}
+			}
+			cleaned = trimSpaces(cleaned)
+			if d, err := decimal.NewFromString(cleaned); err == nil {
+				return d
+			}
+		}
+	}
+	return decimal.Zero
+}
+
+// parseHarvestDateField extracts a date from fields or returns current time.
+func parseHarvestDateField(fields map[string]any, key string) time.Time {
+	if val, ok := fields[key]; ok {
+		if dateStr, ok := val.(string); ok && dateStr != "" {
+			for _, layout := range []string{"2006-01-02", time.RFC3339, "2006-01-02T15:04:05Z"} {
+				if parsed, err := time.Parse(layout, dateStr); err == nil {
+					return parsed
+				}
+			}
+		}
+	}
+	return time.Now()
+}
+
+// trimSpaces is a simple whitespace trimmer.
+func trimSpaces(s string) string {
+	start := 0
+	end := len(s)
+	for start < end && (s[start] == ' ' || s[start] == '\t') {
+		start++
+	}
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t') {
+		end--
+	}
+	return s[start:end]
+}

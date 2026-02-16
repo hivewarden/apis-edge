@@ -525,6 +525,14 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 - [2026-01-25] All backend and frontend tasks implemented
 - [2026-01-25] Remediation: Fixed 9 code review issues (null checks, type safety, validation, JSDoc, documentation)
+- [2026-01-26] Remediation: Fixed 7 code review issues from bulk review:
+  - I3 (HIGH): Used CreateHiveLossWithTransaction for atomic DB operations
+  - I2 (MEDIUM): Enhanced error handling in HiveLossWizard to show API error messages
+  - I1 (MEDIUM): Enhanced LostHiveBadge tests with date formatting
+  - I5 (MEDIUM): Already fixed - tenant_id filtering present
+  - I4 (LOW): Added getSymptomDisplay fallback in HiveLossSummary
+  - I6 (LOW): Added tests for hiveLoss state update after create
+  - I7 (LOW): Added server-side text field length validation
 
 ### File List
 

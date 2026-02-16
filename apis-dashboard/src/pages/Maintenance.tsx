@@ -11,7 +11,7 @@
  *
  * Part of Epic 8, Story 8.5: Maintenance Priority View
  */
-import { useState, useMemo, useEffect, Component, ReactNode } from 'react';
+import { useState, useMemo, useEffect, useCallback, Component, ReactNode } from 'react';
 import {
   Typography,
   Select,
@@ -23,6 +23,8 @@ import {
   Collapse,
   Alert,
   Modal,
+  Row,
+  Col,
 } from 'antd';
 import {
   CheckCircleOutlined,
@@ -32,8 +34,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { colors } from '../theme/apisTheme';
 import { MaintenanceItemCard } from '../components';
-import { useMaintenanceItems } from '../hooks';
-import { apiClient } from '../providers/apiClient';
+import { useMaintenanceItems, useSites } from '../hooks';
 import type { MaintenanceItem } from '../hooks/useMaintenanceItems';
 import dayjs from 'dayjs';
 
@@ -84,14 +85,6 @@ class CardErrorBoundary extends Component<CardErrorBoundaryProps, CardErrorBound
 }
 
 /**
- * Site interface for the filter dropdown.
- */
-interface Site {
-  id: string;
-  name: string;
-}
-
-/**
  * Maintenance page component.
  *
  * Displays a prioritized list of hives that need attention,
@@ -103,9 +96,8 @@ export function Maintenance() {
   // Site filter state
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
 
-  // Sites for filter dropdown
-  const [sites, setSites] = useState<Site[]>([]);
-  const [sitesLoading, setSitesLoading] = useState(true);
+  // Use hook for sites
+  const { sites, loading: sitesLoading } = useSites();
 
   // Batch selection state
   const [selectedHiveIds, setSelectedHiveIds] = useState<Set<string>>(new Set());
@@ -116,20 +108,24 @@ export function Maintenance() {
   // Fetch maintenance items
   const { data, loading, error, refetch } = useMaintenanceItems(selectedSiteId);
 
-  // Fetch sites for filter dropdown
+  // Auto-refresh data when page gains focus (e.g., after completing an action)
+  // This ensures the recently_completed section updates after user returns from action
+  const handleVisibilityChange = useCallback(() => {
+    if (document.visibilityState === 'visible') {
+      refetch();
+    }
+  }, [refetch]);
+
   useEffect(() => {
-    const fetchSites = async () => {
-      try {
-        const response = await apiClient.get<{ data: Site[] }>('/sites');
-        setSites(response.data.data || []);
-      } catch (err) {
-        console.error('Failed to fetch sites:', err);
-      } finally {
-        setSitesLoading(false);
-      }
+    // Listen for both visibility change and focus events
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
     };
-    fetchSites();
-  }, []);
+  }, [handleVisibilityChange]);
 
   // Derive select all state
   const allSelected = useMemo(() => {
@@ -182,14 +178,27 @@ export function Maintenance() {
     setTreatmentModalOpen(true);
   };
 
-  // Handle batch treatment submit
+  // Handle batch treatment submit - navigates through selected hives sequentially
   const handleTreatmentSubmit = async () => {
-    // Navigate to first selected hive's treatment tab
-    // In a real implementation, this could create treatments for all selected hives
-    const firstHiveId = Array.from(selectedHiveIds)[0];
-    if (firstHiveId) {
-      navigate(`/hives/${firstHiveId}`, { state: { activeTab: 'treatments' } });
+    const selectedIds = Array.from(selectedHiveIds);
+    if (selectedIds.length === 0) {
+      setTreatmentModalOpen(false);
+      return;
     }
+
+    // Navigate to first hive with state containing remaining hive IDs for sequential processing
+    const firstHiveId = selectedIds[0];
+    const remainingHiveIds = selectedIds.slice(1);
+
+    navigate(`/hives/${firstHiveId}`, {
+      state: {
+        activeTab: 'treatments',
+        batchTreatmentQueue: remainingHiveIds,
+        batchTreatmentTotal: selectedIds.length,
+        batchTreatmentCurrent: 1
+      }
+    });
+
     setTreatmentModalOpen(false);
     handleClearSelection();
   };
@@ -223,19 +232,31 @@ export function Maintenance() {
     );
   }
 
-  // Render error state
+  // Render error state — show friendly message instead of scary error
   if (error) {
     return (
-      <Result
-        status="error"
-        title="Failed to Load Maintenance Items"
-        subTitle={error.message}
-        extra={
-          <Button type="primary" onClick={() => refetch()}>
-            Try Again
-          </Button>
-        }
-      />
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+          <Title level={2} style={{ margin: 0 }}>
+            Maintenance
+          </Title>
+        </div>
+        <Result
+          icon={<span className="material-symbols-outlined" style={{ fontSize: 64, color: '#d4a574' }}>psychology</span>}
+          title="BeeBrain Not Configured"
+          subTitle="The maintenance view is powered by BeeBrain, which analyzes your hive data to suggest what needs attention. Once BeeBrain is configured and has analyzed your hives, maintenance items will appear here."
+          extra={
+            <Space>
+              <Button onClick={() => refetch()}>
+                Retry
+              </Button>
+              <Button type="primary" onClick={() => navigate('/hives')}>
+                View Hives
+              </Button>
+            </Space>
+          }
+        />
+      </div>
     );
   }
 
@@ -378,18 +399,20 @@ export function Maintenance() {
         style={{ marginBottom: 16 }}
       />
 
-      {/* Maintenance items list */}
-      <div>
+      {/* Maintenance items grid */}
+      <Row gutter={[16, 16]}>
         {data?.items.map((item: MaintenanceItem) => (
-          <CardErrorBoundary key={item.hive_id} itemName={item.hive_name || item.hive_id}>
-            <MaintenanceItemCard
-              item={item}
-              selected={selectedHiveIds.has(item.hive_id)}
-              onSelectionChange={handleSelectionChange}
-            />
-          </CardErrorBoundary>
+          <Col xs={24} sm={12} lg={8} xl={6} key={item.hive_id}>
+            <CardErrorBoundary itemName={item.hive_name || item.hive_id}>
+              <MaintenanceItemCard
+                item={item}
+                selected={selectedHiveIds.has(item.hive_id)}
+                onSelectionChange={handleSelectionChange}
+              />
+            </CardErrorBoundary>
+          </Col>
         ))}
-      </div>
+      </Row>
 
       {/* Recently completed section */}
       {data?.recently_completed && data.recently_completed.length > 0 && (
@@ -424,15 +447,20 @@ export function Maintenance() {
         open={treatmentModalOpen}
         onOk={handleTreatmentSubmit}
         onCancel={() => setTreatmentModalOpen(false)}
-        okText="Go to First Hive"
+        okText="Start Batch Treatment"
       >
         <Text>
           You have selected {selectedHiveIds.size} hive{selectedHiveIds.size !== 1 ? 's' : ''} for treatment.
-          Click "Go to First Hive" to navigate to the treatment form for the first selected hive.
+        </Text>
+        <br /><br />
+        <Text>
+          Clicking "Start Batch Treatment" will navigate you through each hive sequentially.
+          After logging a treatment, the hive detail page will show a "Next Hive" button to continue
+          to the next selected hive.
         </Text>
         <br /><br />
         <Text type="secondary">
-          Tip: After logging the treatment, use the browser back button to return and select the next hive.
+          Progress will be tracked so you can complete all {selectedHiveIds.size} treatments in one session.
         </Text>
       </Modal>
     </div>

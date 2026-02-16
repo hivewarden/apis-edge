@@ -1,6 +1,6 @@
 # Story 9.5: Overwintering Success Report
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -44,8 +44,8 @@ So that I can track survival rates and understand what works.
 
 ### Backend Tasks
 
-- [ ] **Task 1: Create overwintering_records table and migration** (AC: #1, #2, #3, #6, #7)
-  - [ ] 1.1 Create migration `apis-server/internal/storage/migrations/0020_overwintering_records.sql`:
+- [x] **Task 1: Create overwintering_records table and migration** (AC: #1, #2, #3, #6, #7)
+  - [x] 1.1 Create migration `apis-server/internal/storage/migrations/0020_overwintering_records.sql`:
     ```sql
     -- Migration: 0020_overwintering_records.sql
     -- Description: Creates overwintering_records table for tracking winter survival
@@ -87,22 +87,22 @@ So that I can track survival rates and understand what works.
         USING (tenant_id = current_setting('app.tenant_id', true));
     ```
 
-- [ ] **Task 2: Create overwintering storage layer** (AC: #2, #3, #6, #7, #8)
-  - [ ] 2.1 Create `apis-server/internal/storage/overwintering.go`:
+- [x] **Task 2: Create overwintering storage layer** (AC: #2, #3, #6, #7, #8)
+  - [x] 2.1 Create `apis-server/internal/storage/overwintering.go`:
     - Define `OverwinteringRecord` struct with all fields
     - Define `CreateOverwinteringInput` struct
     - Define `WinterReport` struct for aggregated data
     - Define `WinterSurvivalTrend` struct for historical trends
-  - [ ] 2.2 Implement `CreateOverwinteringRecord(ctx, conn, tenantID, input) (*OverwinteringRecord, error)`
-  - [ ] 2.3 Implement `GetOverwinteringRecord(ctx, conn, hiveID, winterSeason) (*OverwinteringRecord, error)`
-  - [ ] 2.4 Implement `ListOverwinteringRecordsBySeason(ctx, conn, tenantID, winterSeason) ([]OverwinteringRecord, error)`
-  - [ ] 2.5 Implement `HasOverwinteringRecordForSeason(ctx, conn, tenantID, winterSeason) (bool, error)` - check if any record exists
-  - [ ] 2.6 Implement `GetWinterReport(ctx, conn, tenantID, winterSeason) (*WinterReport, error)` - aggregated stats
-  - [ ] 2.7 Implement `GetSurvivalTrends(ctx, conn, tenantID, years int) ([]WinterSurvivalTrend, error)` - historical data
-  - [ ] 2.8 Implement `GetAvailableWinterSeasons(ctx, conn, tenantID) ([]int, error)` - list years with data
+  - [x] 2.2 Implement `CreateOverwinteringRecord(ctx, conn, tenantID, input) (*OverwinteringRecord, error)`
+  - [x] 2.3 Implement `GetOverwinteringRecord(ctx, conn, hiveID, winterSeason) (*OverwinteringRecord, error)`
+  - [x] 2.4 Implement `ListOverwinteringRecordsBySeason(ctx, conn, tenantID, winterSeason) ([]OverwinteringRecord, error)`
+  - [x] 2.5 Implement `HasOverwinteringRecordForSeason(ctx, conn, tenantID, winterSeason) (bool, error)` - check if any record exists
+  - [x] 2.6 Implement `GetWinterReport(ctx, conn, tenantID, winterSeason) (*WinterReport, error)` - aggregated stats
+  - [x] 2.7 Implement `GetSurvivalTrends(ctx, conn, tenantID, years int) ([]WinterSurvivalTrend, error)` - historical data
+  - [x] 2.8 Implement `GetAvailableWinterSeasons(ctx, conn, tenantID) ([]int, error)` - list years with data
 
-- [ ] **Task 3: Create overwintering service** (AC: #1, #4, #7)
-  - [ ] 3.1 Create `apis-server/internal/services/overwintering.go`:
+- [x] **Task 3: Create overwintering service** (AC: #1, #4, #7)
+  - [x] 3.1 Create `apis-server/internal/services/overwintering.go`:
     - Define `OverwinteringService` struct
     - Define season detection helpers:
       ```go
@@ -118,60 +118,60 @@ So that I can track survival rates and understand what works.
       // GetWinterSeasonLabel returns display label like "2025-2026"
       func GetWinterSeasonLabel(winterSeason int) string
       ```
-  - [ ] 3.2 Implement `ShouldShowSpringPrompt(ctx, tenantID, hemisphere) (bool, int, error)`:
+  - [x] 3.2 Implement `ShouldShowSpringPrompt(ctx, tenantID, hemisphere) (bool, int, error)`:
     - Check if it's spring prompt time
     - Check if user has already recorded for this winter season
     - Return (shouldShow, winterSeason, error)
-  - [ ] 3.3 Implement `GenerateWinterReport(ctx, tenantID, winterSeason) (*WinterReportData, error)`:
+  - [x] 3.3 Implement `GenerateWinterReport(ctx, tenantID, winterSeason) (*WinterReportData, error)`:
     - Calculate survival rate (survived count / total count)
     - Get lost hive causes from hive_losses table
     - Calculate comparison to previous winters
     - Check for 100% survival celebration trigger
 
-- [ ] **Task 4: Create overwintering handler** (AC: #1, #2, #3, #4, #5, #6, #8)
-  - [ ] 4.1 Create `apis-server/internal/handlers/overwintering.go`
-  - [ ] 4.2 Implement `GET /api/overwintering/prompt` - Check if spring prompt should show:
+- [x] **Task 4: Create overwintering handler** (AC: #1, #2, #3, #4, #5, #6, #8)
+  - [x] 4.1 Create `apis-server/internal/handlers/overwintering.go`
+  - [x] 4.2 Implement `GET /api/overwintering/prompt` - Check if spring prompt should show:
     - Query param: `?hemisphere=northern` (default)
     - Returns: `{should_show: true, winter_season: 2025, season_label: "2025-2026"}`
-  - [ ] 4.3 Implement `GET /api/overwintering/hives` - Get hives for overwintering entry:
+  - [x] 4.3 Implement `GET /api/overwintering/hives` - Get hives for overwintering entry:
     - Query param: `?winter_season=2025`
     - Returns list of hives with any existing overwintering records
-  - [ ] 4.4 Implement `POST /api/overwintering` - Submit overwintering record:
+  - [x] 4.4 Implement `POST /api/overwintering` - Submit overwintering record:
     - Body: `{hive_id, winter_season, survived, condition?, stores_remaining?, first_inspection_notes?}`
     - Validate condition/stores only allowed if survived=true
-  - [ ] 4.5 Implement `GET /api/overwintering/report` - Get winter report:
+  - [x] 4.5 Implement `GET /api/overwintering/report` - Get winter report:
     - Query param: `?winter_season=2025`
     - Returns survival rate, lost causes, comparison data
-  - [ ] 4.6 Implement `GET /api/overwintering/trends` - Get survival trends:
+  - [x] 4.6 Implement `GET /api/overwintering/trends` - Get survival trends:
     - Query param: `?years=5` (default 5)
     - Returns year-over-year survival rates
-  - [ ] 4.7 Implement `GET /api/overwintering/seasons` - List available winter seasons:
+  - [x] 4.7 Implement `GET /api/overwintering/seasons` - List available winter seasons:
     - Returns years with overwintering data
 
-- [ ] **Task 5: Backend tests** (AC: all)
-  - [ ] 5.1 Create `apis-server/tests/storage/overwintering_test.go`
-  - [ ] 5.2 Create `apis-server/tests/services/overwintering_test.go`
-  - [ ] 5.3 Create `apis-server/tests/handlers/overwintering_test.go`
-  - [ ] 5.4 Test season detection for both hemispheres
-  - [ ] 5.5 Test spring prompt timing logic
-  - [ ] 5.6 Test survival rate calculations
-  - [ ] 5.7 Test unique constraint (one record per hive per winter)
-  - [ ] 5.8 Test 100% survival detection
+- [x] **Task 5: Backend tests** (AC: all)
+  - [x] 5.1 Create `apis-server/tests/storage/overwintering_test.go`
+  - [x] 5.2 Create `apis-server/tests/services/overwintering_test.go`
+  - [x] 5.3 Create `apis-server/tests/handlers/overwintering_test.go`
+  - [x] 5.4 Test season detection for both hemispheres
+  - [x] 5.5 Test spring prompt timing logic
+  - [x] 5.6 Test survival rate calculations
+  - [x] 5.7 Test unique constraint (one record per hive per winter)
+  - [x] 5.8 Test 100% survival detection
 
 ### Frontend Tasks
 
-- [ ] **Task 6: Create OverwinteringPrompt component** (AC: #1, #8)
-  - [ ] 6.1 Create `apis-dashboard/src/components/OverwinteringPrompt.tsx`:
+- [x] **Task 6: Create OverwinteringPrompt component** (AC: #1, #8)
+  - [x] 6.1 Create `apis-dashboard/src/components/OverwinteringPrompt.tsx`:
     - Modal or banner that appears on Dashboard in spring
     - Header: "Time for spring inspection! Did all your hives survive winter?"
     - "Start Survey" button to open OverwinteringSurvey page
     - "Remind Me Later" and "Already Completed" dismiss options
     - Store dismiss preference in localStorage (remind again in 7 days)
-  - [ ] 6.2 Use Ant Design Modal with warm Honey Beegood styling
-  - [ ] 6.3 Export from `components/index.ts`
+  - [x] 6.2 Use Ant Design Modal with warm Honey Beegood styling
+  - [x] 6.3 Export from `components/index.ts`
 
-- [ ] **Task 7: Create OverwinteringSurvey page** (AC: #2, #3)
-  - [ ] 7.1 Create `apis-dashboard/src/pages/OverwinteringSurvey.tsx`:
+- [x] **Task 7: Create OverwinteringSurvey page** (AC: #2, #3)
+  - [x] 7.1 Create `apis-dashboard/src/pages/OverwinteringSurvey.tsx`:
     - Page header: "Winter 2025-2026 Overwintering Report"
     - List all active hives (from before winter)
     - For each hive, show:
@@ -180,11 +180,11 @@ So that I can track survival rates and understand what works.
       - If Survived/Weak: Expandable details section
     - "Mark all as Survived" quick action button
     - Submit button to save all records
-  - [ ] 7.2 Add route `/overwintering/survey` to App.tsx
-  - [ ] 7.3 Export from `pages/index.ts`
+  - [x] 7.2 Add route `/overwintering/survey` to App.tsx
+  - [x] 7.3 Export from `pages/index.ts`
 
-- [ ] **Task 8: Create HiveWinterStatusCard component** (AC: #2, #3)
-  - [ ] 8.1 Create `apis-dashboard/src/components/HiveWinterStatusCard.tsx`:
+- [x] **Task 8: Create HiveWinterStatusCard component** (AC: #2, #3)
+  - [x] 8.1 Create `apis-dashboard/src/components/HiveWinterStatusCard.tsx`:
     - Card for each hive in the survey
     - Hive name and icon
     - Status selector: Survived (green check), Lost (red X), Weak (yellow warning)
@@ -193,11 +193,11 @@ So that I can track survival rates and understand what works.
       - Stores remaining: None / Low / Adequate / Plenty (radio)
       - First inspection notes (textarea)
     - If "Lost" selected: Link to hive loss post-mortem wizard
-  - [ ] 8.2 Use Ant Design Card with status-based border colors
-  - [ ] 8.3 Export from `components/index.ts`
+  - [x] 8.2 Use Ant Design Card with status-based border colors
+  - [x] 8.3 Export from `components/index.ts`
 
-- [ ] **Task 9: Create WinterReport page** (AC: #4, #5, #6)
-  - [ ] 9.1 Create `apis-dashboard/src/pages/WinterReport.tsx`:
+- [x] **Task 9: Create WinterReport page** (AC: #4, #5, #6)
+  - [x] 9.1 Create `apis-dashboard/src/pages/WinterReport.tsx`:
     - Page header with winter season label
     - Survival rate card: "2 of 3 hives survived (67%)"
     - Progress bar visualization of survival rate
@@ -206,29 +206,29 @@ So that I can track survival rates and understand what works.
     - Survived hives section with condition summaries
     - Historical comparison card (if previous data exists)
     - Year selector dropdown to view past winters
-  - [ ] 9.2 Add route `/overwintering/report` to App.tsx
-  - [ ] 9.3 Export from `pages/index.ts`
+  - [x] 9.2 Add route `/overwintering/report` to App.tsx
+  - [x] 9.3 Export from `pages/index.ts`
 
-- [ ] **Task 10: Create SurvivalCelebration component** (AC: #5)
-  - [ ] 10.1 Create `apis-dashboard/src/components/SurvivalCelebration.tsx`:
+- [x] **Task 10: Create SurvivalCelebration component** (AC: #5)
+  - [x] 10.1 Create `apis-dashboard/src/components/SurvivalCelebration.tsx`:
     - Celebratory card for 100% survival
     - Large "100%" with confetti/celebration icon
     - Message: "Great winter preparation!"
     - Honey Beegood warm colors and positive messaging
     - Optional: Simple CSS confetti animation
-  - [ ] 10.2 Export from `components/index.ts`
+  - [x] 10.2 Export from `components/index.ts`
 
-- [ ] **Task 11: Create SurvivalTrendChart component** (AC: #6)
-  - [ ] 11.1 Create `apis-dashboard/src/components/SurvivalTrendChart.tsx`:
+- [x] **Task 11: Create SurvivalTrendChart component** (AC: #6)
+  - [x] 11.1 Create `apis-dashboard/src/components/SurvivalTrendChart.tsx`:
     - Line chart showing survival rate % over winters
     - X-axis: Winter seasons (2022-2023, 2023-2024, etc.)
     - Y-axis: Survival rate (0-100%)
     - Use Ant Design Charts or Chart.js
     - Show improvement/decline trend indicator
-  - [ ] 11.2 Export from `components/index.ts`
+  - [x] 11.2 Export from `components/index.ts`
 
-- [ ] **Task 12: Create useOverwintering hook** (AC: all)
-  - [ ] 12.1 Create `apis-dashboard/src/hooks/useOverwintering.ts`:
+- [x] **Task 12: Create useOverwintering hook** (AC: all)
+  - [x] 12.1 Create `apis-dashboard/src/hooks/useOverwintering.ts`:
     ```typescript
     interface OverwinteringRecord {
       id: string;
@@ -264,32 +264,32 @@ So that I can track survival rates and understand what works.
       survived_count: number;
     }
     ```
-  - [ ] 12.2 Implement `useSpringPrompt(hemisphere?: string)` - Check if prompt should show
-  - [ ] 12.3 Implement `useOverwinteringHives(winterSeason: number)` - Get hives for survey
-  - [ ] 12.4 Implement `submitOverwinteringRecord(record: CreateOverwinteringInput)` - Submit single record
-  - [ ] 12.5 Implement `useWinterReport(winterSeason?: number)` - Get winter report
-  - [ ] 12.6 Implement `useSurvivalTrends(years?: number)` - Get historical trends
-  - [ ] 12.7 Implement `useAvailableWinters()` - List available winter seasons
-  - [ ] 12.8 Export from `hooks/index.ts`
+  - [x] 12.2 Implement `useSpringPrompt(hemisphere?: string)` - Check if prompt should show
+  - [x] 12.3 Implement `useOverwinteringHives(winterSeason: number)` - Get hives for survey
+  - [x] 12.4 Implement `submitOverwinteringRecord(record: CreateOverwinteringInput)` - Submit single record
+  - [x] 12.5 Implement `useWinterReport(winterSeason?: number)` - Get winter report
+  - [x] 12.6 Implement `useSurvivalTrends(years?: number)` - Get historical trends
+  - [x] 12.7 Implement `useAvailableWinters()` - List available winter seasons
+  - [x] 12.8 Export from `hooks/index.ts`
 
-- [ ] **Task 13: Integrate spring prompt on Dashboard** (AC: #1)
-  - [ ] 13.1 Update `apis-dashboard/src/pages/Dashboard.tsx`:
+- [x] **Task 13: Integrate spring prompt on Dashboard** (AC: #1)
+  - [x] 13.1 Update `apis-dashboard/src/pages/Dashboard.tsx`:
     - Import and use OverwinteringPrompt component
     - Check `useSpringPrompt()` on mount
     - Show prompt if `should_show` is true and not dismissed
     - Store dismiss state in localStorage with expiry
-  - [ ] 13.2 Add navigation to overwintering survey from prompt
+  - [x] 13.2 Add navigation to overwintering survey from prompt
 
-- [ ] **Task 14: Frontend tests** (AC: all)
-  - [ ] 14.1 Create `apis-dashboard/tests/pages/OverwinteringSurvey.test.tsx`
-  - [ ] 14.2 Create `apis-dashboard/tests/pages/WinterReport.test.tsx`
-  - [ ] 14.3 Create `apis-dashboard/tests/components/HiveWinterStatusCard.test.tsx`
-  - [ ] 14.4 Create `apis-dashboard/tests/components/SurvivalCelebration.test.tsx`
-  - [ ] 14.5 Create `apis-dashboard/tests/hooks/useOverwintering.test.ts`
-  - [ ] 14.6 Test spring prompt display logic
-  - [ ] 14.7 Test survey submission flow
-  - [ ] 14.8 Test 100% survival celebration display
-  - [ ] 14.9 Test lost hive → post-mortem linking
+- [x] **Task 14: Frontend tests** (AC: all)
+  - [x] 14.1 Create `apis-dashboard/tests/pages/OverwinteringSurvey.test.tsx`
+  - [x] 14.2 Create `apis-dashboard/tests/pages/WinterReport.test.tsx`
+  - [x] 14.3 Create `apis-dashboard/tests/components/HiveWinterStatusCard.test.tsx`
+  - [x] 14.4 Create `apis-dashboard/tests/components/SurvivalCelebration.test.tsx`
+  - [x] 14.5 Create `apis-dashboard/tests/hooks/useOverwintering.test.ts`
+  - [x] 14.6 Test spring prompt display logic
+  - [x] 14.7 Test survey submission flow
+  - [x] 14.8 Test 100% survival celebration display
+  - [x] 14.9 Test lost hive → post-mortem linking
 
 ## Dev Notes
 
@@ -699,11 +699,69 @@ The overwintering report queries `hive_losses` table to get cause for lost hives
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 ### Debug Log References
 
 ### Completion Notes List
 
+1. **Backend Implementation Complete** (Tasks 1-5):
+   - Created migration for `overwintering_records` table with RLS policies
+   - Implemented storage layer with all CRUD operations and report generation
+   - Created services layer with season detection for both hemispheres
+   - Implemented all 6 API endpoints (prompt, hives, create, report, trends, seasons)
+   - All backend tests pass (handlers, storage, services)
+
+2. **Frontend Implementation Complete** (Tasks 6-14):
+   - Created `useOverwintering` hook with all API integrations
+   - Created `OverwinteringPrompt` component with localStorage dismiss persistence
+   - Created `HiveWinterStatusCard` component for survey with conditional fields
+   - Created `SurvivalCelebration` component with confetti for 100% survival
+   - Created `SurvivalTrendChart` component with bar-based visualization
+   - Created `OverwinteringSurvey` page with full form handling
+   - Created `WinterReport` page with survival statistics and comparisons
+   - Integrated spring prompt on Dashboard
+   - Added routes to App.tsx
+   - All 44 frontend tests pass
+
+3. **Design Decisions**:
+   - Used simple bar chart for trends instead of external library (project has no chart.js)
+   - Spring prompt stored dismiss state in localStorage with 7-day reminder expiry
+   - Lost hive handling routes to post-mortem wizard (Story 9.3) via redirect URL
+   - "Weak" status treated as survived but with special handling for reporting
+
 ### File List
+
+**Backend Created:**
+- `apis-server/internal/storage/migrations/0020_overwintering_records.sql`
+- `apis-server/internal/storage/overwintering.go`
+- `apis-server/internal/services/overwintering.go`
+- `apis-server/internal/handlers/overwintering.go`
+- `apis-server/tests/storage/overwintering_test.go`
+- `apis-server/tests/services/overwintering_test.go`
+- `apis-server/tests/handlers/overwintering_test.go`
+
+**Backend Modified:**
+- `apis-server/cmd/server/main.go` (added routes)
+
+**Frontend Created:**
+- `apis-dashboard/src/hooks/useOverwintering.ts`
+- `apis-dashboard/src/components/OverwinteringPrompt.tsx`
+- `apis-dashboard/src/components/HiveWinterStatusCard.tsx`
+- `apis-dashboard/src/components/SurvivalCelebration.tsx`
+- `apis-dashboard/src/components/SurvivalTrendChart.tsx`
+- `apis-dashboard/src/pages/OverwinteringSurvey.tsx`
+- `apis-dashboard/src/pages/WinterReport.tsx`
+- `apis-dashboard/tests/hooks/useOverwintering.test.ts`
+- `apis-dashboard/tests/components/SurvivalCelebration.test.tsx`
+- `apis-dashboard/tests/components/HiveWinterStatusCard.test.tsx`
+- `apis-dashboard/tests/pages/OverwinteringSurvey.test.tsx`
+- `apis-dashboard/tests/pages/WinterReport.test.tsx`
+
+**Frontend Modified:**
+- `apis-dashboard/src/hooks/index.ts` (added exports)
+- `apis-dashboard/src/components/index.ts` (added exports)
+- `apis-dashboard/src/pages/index.ts` (added exports)
+- `apis-dashboard/src/App.tsx` (added routes and imports)
+- `apis-dashboard/src/pages/Dashboard.tsx` (added OverwinteringPrompt)
 

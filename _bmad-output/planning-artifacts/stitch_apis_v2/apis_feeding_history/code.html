@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS - Feeding History</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;500;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a42d", // Sea Buckthorn
+                        "coconut-cream": "#fbf9e7",
+                        "brown-bramble": "#662604",
+                        "salomie": "#fcd483",
+                        "soft-gold": "#d4af37",
+                        "background-light": "#fbf9e7", // Coconut Cream
+                        "background-dark": "#231a0f",
+                        "surface-light": "#ffffff", // Pure White
+                        "surface-dark": "#181511",
+                        "text-main-light": "#4a3b32", // Darker neutral brown for body text
+                        "text-header-light": "#662604", // Brown Bramble for headers
+                        "text-main-dark": "#f5f3f0",
+                        "text-secondary-light": "#8c785f",
+                        "text-secondary-dark": "#a0907a",
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "card": "16px",
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Epilogue', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-nav-icon {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-text-main-light dark:text-text-main-dark h-screen overflow-hidden flex">
+<aside class="w-64 bg-surface-light dark:bg-surface-dark border-r border-[#ece8e1] dark:border-[#3a2e22] flex-col justify-between hidden md:flex shrink-0 z-20">
+<div class="flex flex-col gap-6 p-6">
+<div class="flex flex-col">
+<h1 class="text-text-header-light dark:text-text-main-dark text-2xl font-black tracking-tight flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-3xl active-nav-icon">hive</span>
+                    APIS
+                </h1>
+<p class="text-text-secondary-light dark:text-text-secondary-dark text-xs font-medium uppercase tracking-wider mt-1">Beekeeping Platform</p>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-coconut-cream dark:hover:bg-[#2a2218] group transition-colors" href="#">
+<span class="material-symbols-outlined text-text-secondary-light dark:text-text-secondary-dark group-hover:text-primary transition-colors">dashboard</span>
+<span class="text-text-main-light dark:text-text-main-dark text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-coconut-cream dark:hover:bg-[#2a2218] group transition-colors" href="#">
+<span class="material-symbols-outlined text-text-secondary-light dark:text-text-secondary-dark group-hover:text-primary transition-colors">map</span>
+<span class="text-text-main-light dark:text-text-main-dark text-sm font-medium">Apiaries</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-coconut-cream dark:hover:bg-[#2a2218] group transition-colors" href="#">
+<span class="material-symbols-outlined text-text-secondary-light dark:text-text-secondary-dark group-hover:text-primary transition-colors">hexagon</span>
+<span class="text-text-main-light dark:text-text-main-dark text-sm font-medium">Hives</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-coconut-cream dark:hover:bg-[#2a2218] group transition-colors" href="#">
+<span class="material-symbols-outlined text-text-secondary-light dark:text-text-secondary-dark group-hover:text-primary transition-colors">content_paste</span>
+<span class="text-text-main-light dark:text-text-main-dark text-sm font-medium">Inspections</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-salomie dark:bg-primary/20 text-text-header-light dark:text-primary shadow-sm" href="#">
+<span class="material-symbols-outlined active-nav-icon">restaurant</span>
+<span class="text-sm font-bold">Feeding History</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-coconut-cream dark:hover:bg-[#2a2218] group transition-colors" href="#">
+<span class="material-symbols-outlined text-text-secondary-light dark:text-text-secondary-dark group-hover:text-primary transition-colors">medication</span>
+<span class="text-text-main-light dark:text-text-main-dark text-sm font-medium">Treatments</span>
+</a>
+</nav>
+</div>
+<div class="p-6">
+<button class="flex w-full cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-10 px-4 bg-background-light dark:bg-[#2a2218] hover:bg-[#ebe6db] dark:hover:bg-[#3a2e22] text-text-main-light dark:text-text-main-dark text-sm font-bold transition-colors">
+<span class="material-symbols-outlined text-lg">logout</span>
+<span class="truncate">Log Out</span>
+</button>
+</div>
+</aside>
+<main class="flex-1 overflow-y-auto relative h-full">
+<div class="max-w-[1080px] mx-auto px-4 md:px-8 py-8 flex flex-col gap-8">
+<header class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div class="flex flex-col gap-2">
+<h2 class="text-4xl font-black text-text-header-light dark:text-text-main-dark tracking-tight">Feeding History</h2>
+<p class="text-text-secondary-light dark:text-text-secondary-dark text-base">Track nutritional supplements and feeding events across all apiaries.</p>
+</div>
+<button class="shrink-0 flex items-center justify-center gap-2 rounded-full h-12 px-8 bg-primary hover:bg-[#e09224] text-white shadow-lg shadow-primary/20 text-sm font-bold transition-all transform hover:translate-y-[-1px]">
+<span class="material-symbols-outlined">add</span>
+<span class="truncate">Add Feed Record</span>
+</button>
+</header>
+<section class="bg-surface-light dark:bg-surface-dark rounded-2xl p-6 border border-[#ece8e1] dark:border-[#3a2e22] shadow-sm relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-64 h-64 bg-soft-gold/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+<div class="flex flex-col gap-4 relative z-10">
+<div class="flex items-center gap-2 text-soft-gold font-bold uppercase tracking-widest text-xs">
+<span class="material-symbols-outlined text-lg">calendar_month</span>
+                        2026 Season Summary
+                    </div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="flex flex-col gap-1 p-4 rounded-xl bg-background-light dark:bg-[#231a0f] border border-transparent dark:border-[#3a2e22]">
+<span class="text-text-secondary-light dark:text-text-secondary-dark text-sm font-medium">Total Syrup</span>
+<div class="flex items-end gap-2">
+<span class="text-3xl font-black text-text-header-light dark:text-text-main-dark">12</span>
+<span class="text-lg font-bold text-text-secondary-light dark:text-text-secondary-dark mb-1">kg</span>
+</div>
+</div>
+<div class="flex flex-col gap-1 p-4 rounded-xl bg-background-light dark:bg-[#231a0f] border border-transparent dark:border-[#3a2e22]">
+<span class="text-text-secondary-light dark:text-text-secondary-dark text-sm font-medium">Total Fondant</span>
+<div class="flex items-end gap-2">
+<span class="text-3xl font-black text-text-header-light dark:text-text-main-dark">2</span>
+<span class="text-lg font-bold text-text-secondary-light dark:text-text-secondary-dark mb-1">kg</span>
+</div>
+</div>
+<div class="flex flex-col gap-1 p-4 rounded-xl bg-background-light dark:bg-[#231a0f] border border-transparent dark:border-[#3a2e22]">
+<span class="text-text-secondary-light dark:text-text-secondary-dark text-sm font-medium">Pollen Patties</span>
+<div class="flex items-end gap-2">
+<span class="text-3xl font-black text-text-header-light dark:text-text-main-dark">5</span>
+<span class="text-lg font-bold text-text-secondary-light dark:text-text-secondary-dark mb-1">units</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="flex flex-col gap-5">
+<div class="flex items-center justify-between pb-2 border-b border-[#e6e1db] dark:border-[#3a2e22]">
+<h3 class="text-lg font-bold text-text-header-light dark:text-text-main-dark">Recent Logs</h3>
+<div class="flex items-center gap-2">
+<button class="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark hover:text-primary flex items-center gap-1">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+                            Filter
+                        </button>
+</div>
+</div>
+<article class="group relative flex flex-col md:flex-row gap-4 bg-surface-light dark:bg-surface-dark p-6 rounded-[16px] shadow-sm hover:shadow-md transition-all border-l-[4px] border-primary">
+<div class="flex flex-col md:w-48 shrink-0">
+<span class="text-text-header-light dark:text-text-main-dark font-black text-lg">Oct 24</span>
+<span class="text-text-secondary-light dark:text-text-secondary-dark text-sm font-medium">2026</span>
+</div>
+<div class="flex flex-1 flex-col justify-center gap-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">water_drop</span>
+<h4 class="text-text-header-light dark:text-text-main-dark text-lg font-bold leading-tight">2L Sugar Syrup 1:1</h4>
+</div>
+<div class="flex items-center gap-2 text-text-secondary-light dark:text-text-secondary-dark text-sm">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span>Fed to: <span class="font-medium text-text-main-light dark:text-text-main-dark">Apiary A (All Hives)</span></span>
+</div>
+</div>
+<div class="flex items-center gap-3 mt-4 md:mt-0 md:justify-end shrink-0">
+<div class="px-3 py-1 rounded-full bg-background-light dark:bg-[#231a0f] text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
+                            Maintenance
+                        </div>
+<button class="p-2 text-text-secondary-light dark:text-text-secondary-dark hover:text-primary hover:bg-background-light dark:hover:bg-[#231a0f] rounded-full transition-colors">
+<span class="material-symbols-outlined">edit</span>
+</button>
+</div>
+</article>
+<article class="group relative flex flex-col md:flex-row gap-4 bg-surface-light dark:bg-surface-dark p-6 rounded-[16px] shadow-sm hover:shadow-md transition-all border-l-[4px] border-primary">
+<div class="flex flex-col md:w-48 shrink-0">
+<span class="text-text-header-light dark:text-text-main-dark font-black text-lg">Oct 10</span>
+<span class="text-text-secondary-light dark:text-text-secondary-dark text-sm font-medium">2026</span>
+</div>
+<div class="flex flex-1 flex-col justify-center gap-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">cookie</span>
+<h4 class="text-text-header-light dark:text-text-main-dark text-lg font-bold leading-tight">500g Pollen Patty</h4>
+</div>
+<div class="flex items-center gap-2 text-text-secondary-light dark:text-text-secondary-dark text-sm">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span>Fed to: <span class="font-medium text-text-main-light dark:text-text-main-dark">Hive #04 (Weak colony)</span></span>
+</div>
+</div>
+<div class="flex items-center gap-3 mt-4 md:mt-0 md:justify-end shrink-0">
+<div class="px-3 py-1 rounded-full bg-red-50 dark:bg-red-900/20 text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">
+                            Emergency
+                        </div>
+<button class="p-2 text-text-secondary-light dark:text-text-secondary-dark hover:text-primary hover:bg-background-light dark:hover:bg-[#231a0f] rounded-full transition-colors">
+<span class="material-symbols-outlined">edit</span>
+</button>
+</div>
+</article>
+<article class="group relative flex flex-col md:flex-row gap-4 bg-surface-light dark:bg-surface-dark p-6 rounded-[16px] shadow-sm hover:shadow-md transition-all border-l-[4px] border-primary">
+<div class="flex flex-col md:w-48 shrink-0">
+<span class="text-text-header-light dark:text-text-main-dark font-black text-lg">Sep 28</span>
+<span class="text-text-secondary-light dark:text-text-secondary-dark text-sm font-medium">2026</span>
+</div>
+<div class="flex flex-1 flex-col justify-center gap-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">inventory_2</span>
+<h4 class="text-text-header-light dark:text-text-main-dark text-lg font-bold leading-tight">2.5kg Fondant Block</h4>
+</div>
+<div class="flex items-center gap-2 text-text-secondary-light dark:text-text-secondary-dark text-sm">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span>Fed to: <span class="font-medium text-text-main-light dark:text-text-main-dark">Hive #02</span></span>
+</div>
+</div>
+<div class="flex items-center gap-3 mt-4 md:mt-0 md:justify-end shrink-0">
+<div class="px-3 py-1 rounded-full bg-background-light dark:bg-[#231a0f] text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
+                            Winter Prep
+                        </div>
+<button class="p-2 text-text-secondary-light dark:text-text-secondary-dark hover:text-primary hover:bg-background-light dark:hover:bg-[#231a0f] rounded-full transition-colors">
+<span class="material-symbols-outlined">edit</span>
+</button>
+</div>
+</article>
+<article class="group relative flex flex-col md:flex-row gap-4 bg-surface-light dark:bg-surface-dark p-6 rounded-[16px] shadow-sm hover:shadow-md transition-all border-l-[4px] border-primary/40 opacity-75">
+<div class="flex flex-col md:w-48 shrink-0">
+<span class="text-text-header-light dark:text-text-main-dark font-black text-lg">Sep 15</span>
+<span class="text-text-secondary-light dark:text-text-secondary-dark text-sm font-medium">2026</span>
+</div>
+<div class="flex flex-1 flex-col justify-center gap-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary/70 text-xl">water_drop</span>
+<h4 class="text-text-header-light dark:text-text-main-dark text-lg font-bold leading-tight">1L Sugar Syrup 2:1</h4>
+</div>
+<div class="flex items-center gap-2 text-text-secondary-light dark:text-text-secondary-dark text-sm">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span>Fed to: <span class="font-medium text-text-main-light dark:text-text-main-dark">Hive #05</span></span>
+</div>
+</div>
+<div class="flex items-center gap-3 mt-4 md:mt-0 md:justify-end shrink-0">
+<div class="px-3 py-1 rounded-full bg-background-light dark:bg-[#231a0f] text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
+                            Stimulation
+                        </div>
+<button class="p-2 text-text-secondary-light dark:text-text-secondary-dark hover:text-primary hover:bg-background-light dark:hover:bg-[#231a0f] rounded-full transition-colors">
+<span class="material-symbols-outlined">edit</span>
+</button>
+</div>
+</article>
+</section>
+</div>
+</main>
+
+</body></html>

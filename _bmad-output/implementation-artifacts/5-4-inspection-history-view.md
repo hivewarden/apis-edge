@@ -21,37 +21,37 @@ So that I can track hive progress and spot trends.
 ## Tasks / Subtasks
 
 ### Task 1: Backend - Add Pagination to List Inspections (AC: #1, #3)
-- [ ] 1.1 Add offset/cursor pagination to ListInspectionsByHive
-- [ ] 1.2 Add total count to response meta
-- [ ] 1.3 Support sorting by inspected_at (asc/desc)
+- [x] 1.1 Add offset/cursor pagination to ListInspectionsByHive
+- [x] 1.2 Add total count to response meta
+- [x] 1.3 Support sorting by inspected_at (asc/desc)
 
 ### Task 2: Backend - Export Endpoint (AC: #3)
-- [ ] 2.1 Add GET /api/hives/{id}/inspections/export endpoint
-- [ ] 2.2 Return CSV format with all inspection fields
-- [ ] 2.3 Include proper Content-Disposition header
+- [x] 2.1 Add GET /api/hives/{id}/inspections/export endpoint
+- [x] 2.2 Return CSV format with all inspection fields
+- [x] 2.3 Include proper Content-Disposition header
 
 ### Task 3: Frontend - Inspection History Table (AC: #1, #3)
-- [ ] 3.1 Create InspectionHistory.tsx component
-- [ ] 3.2 Display Ant Design Table with sortable columns
-- [ ] 3.3 Show key findings summary in table row
-- [ ] 3.4 Add "View Details" action per row
-- [ ] 3.5 Add "Export CSV" button
+- [x] 3.1 Create InspectionHistory.tsx component
+- [x] 3.2 Display Ant Design Table with sortable columns
+- [x] 3.3 Show key findings summary in table row
+- [x] 3.4 Add "View Details" action per row
+- [x] 3.5 Add "Export CSV" button
 
 ### Task 4: Frontend - Inspection Detail Modal (AC: #2)
-- [ ] 4.1 Create InspectionDetailModal.tsx component
-- [ ] 4.2 Display all inspection fields in organized layout
-- [ ] 4.3 Show edit button if within 24 hours
-- [ ] 4.4 Show delete button with confirmation
-- [ ] 4.5 Wire up edit to InspectionEdit page
+- [x] 4.1 Create InspectionDetailModal.tsx component
+- [x] 4.2 Display all inspection fields in organized layout
+- [x] 4.3 Show edit button if within 24 hours
+- [x] 4.4 Show delete button with confirmation
+- [x] 4.5 Wire up edit to InspectionEdit page
 
 ### Task 5: Frontend - Edit Inspection Page (AC: #2)
-- [ ] 5.1 Create InspectionEdit.tsx page
-- [ ] 5.2 Pre-populate form with existing inspection data
-- [ ] 5.3 Validate 24-hour edit window on backend
+- [x] 5.1 Create InspectionEdit.tsx page
+- [x] 5.2 Pre-populate form with existing inspection data
+- [x] 5.3 Validate 24-hour edit window on backend
 
 ### Task 6: Backend - Update/Delete Validation (AC: #2)
-- [ ] 6.1 Add edit window validation (24 hours) to UpdateInspection
-- [ ] 6.2 Log edit attempts outside window
+- [x] 6.1 Add edit window validation (24 hours) to UpdateInspection
+- [x] 6.2 Log edit attempts outside window
 
 ### Task 7: Frontend - Comparison View (AC: #4) [Optional for MVP]
 - [ ] 7.1 Add checkbox selection for inspections
@@ -103,6 +103,17 @@ Claude Opus 4.5
 - Added 24-hour edit window validation to UpdateInspection handler
 - Added server-side sorting support
 - Fixed linter warnings about string concatenation in loops
+
+### Change Log
+
+- [2026-01-25] Remediation: Fixed 7 issues from code review:
+  - Updated task checkboxes to reflect actual completion status
+  - Created unit tests for InspectionHistory, InspectionDetailModal, InspectionEdit
+  - Added SECURITY comment for SQL sort order pattern
+  - Applied escapeCSV() consistently to all CSV string fields
+  - Added API response caching in InspectionDetailModal
+  - Replaced hardcoded colors with theme colors
+  - Added 30-minute buffer for edit window clock sync
 
 ### Completion Notes List
 

@@ -3,11 +3,52 @@ import { AreaChartOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { Area } from '@ant-design/charts';
 import { useFrameHistory } from '../hooks';
 import { colors } from '../theme/apisTheme';
+import React from 'react';
 
 const { Text, Title } = Typography;
 
+// Error boundary for chart rendering failures
+interface ChartErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ChartErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  ChartErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ChartErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Alert
+          type="warning"
+          message="Chart rendering failed"
+          description="Unable to display the frame development chart. Please try refreshing the page."
+          showIcon
+        />
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Default chart height - can be overridden via props
+const DEFAULT_CHART_HEIGHT = 300;
+
 interface FrameDevelopmentChartProps {
   hiveId: string;
+  /** Optional chart height in pixels. Defaults to 300. */
+  height?: number;
 }
 
 // Color palette matching story requirements
@@ -25,7 +66,7 @@ const CHART_COLORS = {
  *
  * Part of Epic 5, Story 5.6: Frame Development Graphs
  */
-export function FrameDevelopmentChart({ hiveId }: FrameDevelopmentChartProps) {
+export function FrameDevelopmentChart({ hiveId, height = DEFAULT_CHART_HEIGHT }: FrameDevelopmentChartProps) {
   const { data, loading, error, hasEnoughData } = useFrameHistory(hiveId);
 
   if (loading) {
@@ -109,7 +150,7 @@ export function FrameDevelopmentChart({ hiveId }: FrameDevelopmentChartProps) {
       label: {
         formatter: (text: string) => {
           const date = new Date(text);
-          return `${date.getMonth() + 1}/${date.getDate()}`;
+          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         },
       },
     },
@@ -122,15 +163,25 @@ export function FrameDevelopmentChart({ hiveId }: FrameDevelopmentChartProps) {
     tooltip: {
       shared: true,
       showMarkers: false,
-      formatter: (datum: { type: string; value: number }) => {
-        return {
-          name: datum.type,
-          value: `${datum.value} frames`,
-        };
-      },
-      title: (title: string) => {
+      customContent: (title: string, items: Array<{ name: string; value: string; data: { type: string; value: number } }>) => {
+        if (!items || items.length === 0) return null;
         const date = new Date(title);
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        // Extract values by type
+        const values: Record<string, number> = {};
+        items.forEach(item => {
+          values[item.data.type.toLowerCase()] = item.data.value;
+        });
+
+        const brood = values['brood'] ?? 0;
+        const honey = values['honey'] ?? 0;
+        const pollen = values['pollen'] ?? 0;
+
+        // Format as "Jun 15: 6 brood, 4 honey, 2 pollen frames" per AC#2
+        const tooltipText = `${formattedDate}: ${brood} brood, ${honey} honey, ${pollen} pollen frames`;
+
+        return `<div style="padding: 8px 12px; background: white; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">${tooltipText}</div>`;
       },
     },
     legend: {
@@ -158,7 +209,9 @@ export function FrameDevelopmentChart({ hiveId }: FrameDevelopmentChartProps) {
         </Space>
       }
     >
-      <Area {...config} height={300} />
+      <ChartErrorBoundary>
+        <Area {...config} height={height} />
+      </ChartErrorBoundary>
       <div style={{ marginTop: 16, display: 'flex', gap: 16, justifyContent: 'center' }}>
         <Space>
           <div style={{ width: 12, height: 12, backgroundColor: CHART_COLORS.Brood, borderRadius: 2 }} />

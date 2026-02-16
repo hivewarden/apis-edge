@@ -11,8 +11,12 @@ import (
 	"github.com/jermoo/apis/apis-server/internal/middleware"
 	"github.com/jermoo/apis/apis-server/internal/services"
 	"github.com/jermoo/apis/apis-server/internal/storage"
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/rs/zerolog/log"
 )
+
+// sanitizer is a strict HTML policy that strips all HTML tags for XSS prevention
+var sanitizer = bluemonday.StrictPolicy()
 
 // OverwinteringPromptResponse represents the spring prompt API response.
 type OverwinteringPromptResponse struct {
@@ -255,6 +259,13 @@ func CreateOverwinteringRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sanitize first_inspection_notes for XSS prevention
+	var sanitizedNotes *string
+	if req.FirstInspectionNotes != nil {
+		sanitized := sanitizer.Sanitize(*req.FirstInspectionNotes)
+		sanitizedNotes = &sanitized
+	}
+
 	// Create the overwintering record
 	input := &storage.CreateOverwinteringInput{
 		HiveID:               req.HiveID,
@@ -262,7 +273,7 @@ func CreateOverwinteringRecord(w http.ResponseWriter, r *http.Request) {
 		Survived:             req.Survived,
 		Condition:            req.Condition,
 		StoresRemaining:      req.StoresRemaining,
-		FirstInspectionNotes: req.FirstInspectionNotes,
+		FirstInspectionNotes: sanitizedNotes,
 	}
 
 	record, err := storage.CreateOverwinteringRecord(r.Context(), conn, tenantID, input)

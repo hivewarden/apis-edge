@@ -16,6 +16,9 @@ secrets/*.dec.json
 
 # Build artifacts
 apis-server/apis-server
+apis-server/server
+apis-edge/.cache/
+apis-edge/build/
 *.exe
 
 # Node
@@ -29,3 +32,8 @@ coverage.out
 
 # Logs
 *.log
+
+# AI assistant tooling (local/generated)
+.claude/audio/
+.claude/.agentvibes-backup/
+.claude/.agentvibes-hidden.flag

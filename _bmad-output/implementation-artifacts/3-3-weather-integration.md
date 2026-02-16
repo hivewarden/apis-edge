@@ -279,3 +279,4 @@ None
 - 2026-01-24: Story 3.3 created with comprehensive developer context
 - 2026-01-24: Implementation completed - all tasks done
 - 2026-01-24: Code review remediation - added cache pruning, logging, auto-refresh
+- 2026-01-25: Remediation: Fixed 7 issues from code review (tests, hook fixes, cache testability, HTTP pooling)

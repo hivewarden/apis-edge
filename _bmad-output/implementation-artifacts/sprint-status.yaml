@@ -95,13 +95,13 @@ development_status:
   epic-5-retrospective: optional
 
   # Epic 6: Treatments, Feedings & Harvests
-  epic-6: in-progress
+  epic-6: done
   6-1-treatment-log: done
   6-2-feeding-log: done
   6-3-harvest-tracking: done
   6-4-equipment-log: done
-  6-5-custom-labels-system: backlog
-  6-6-treatment-calendar-reminders: backlog
+  6-5-custom-labels-system: done
+  6-6-treatment-calendar-reminders: done
   epic-6-retrospective: optional
 
   # Epic 7: Mobile PWA & Field Mode
@@ -124,12 +124,12 @@ development_status:
   epic-8-retrospective: optional
 
   # Epic 9: Data Export & Emotional Moments
-  epic-9: in-progress
+  epic-9: done
   9-1-configurable-data-export: done
   9-2-first-harvest-celebration: done
   9-3-hive-loss-post-mortem: done
   9-4-season-recap-summary: done
-  9-5-overwintering-success-report: in-progress
+  9-5-overwintering-success-report: done
   epic-9-retrospective: optional
 
   # Epic 10: Edge Detection Software
@@ -165,3 +165,63 @@ development_status:
   12-5-physical-arm-disarm-button: done
   12-6-safety-enforcement-layer: done
   epic-12-retrospective: optional
+
+  # Epic 13: Dual Authentication Mode
+  epic-13: done
+  13-1-database-migrations: done
+  13-2-auth-mode-infrastructure: done
+  13-3-retrofit-auth-middleware: done
+  13-4-retrofit-tenant-middleware: done
+  13-5-retrofit-auth-provider-react: done
+  13-6-retrofit-login-page: done
+  13-7-setup-wizard: done
+  13-8-login-logout-endpoints: done
+  13-9-user-management-endpoints: done
+  13-10-invite-flow: done
+  13-11-user-management-ui: done
+  13-12-super-admin-tenant-list-management: done
+  13-13-super-admin-tenant-limits: done
+  13-14-super-admin-impersonation: done
+  13-15-super-admin-beebrain-config: done
+  13-16-audit-log-infrastructure: done
+  13-17-activity-feed: done
+  13-18-beebrain-byok: done
+  13-19-tenant-settings-ui: done
+  13-20-rate-limiting: done
+  13-21-security-hardening: done
+  13-22-dual-mode-ci-testing: done
+  epic-13-retrospective: optional
+
+  # Epic 14: Hive Task Management
+  epic-14: in-progress
+  14-1-database-migrations: done
+  14-2-task-crud-api-endpoints: done
+  14-3-task-templates-api: done
+  14-4-portal-tasks-screen: done
+  14-5-portal-active-tasks-list: done
+  14-6-portal-hive-detail-task-integration: done
+  14-7-mobile-hive-detail-single-scroll: done
+  14-8-mobile-bottom-anchor-navigation: done
+  14-9-mobile-tasks-section-view: done
+  14-10-mobile-task-completion-flow: done
+  14-11-mobile-inline-task-creation: done
+  14-12-auto-update-hive-configuration: done
+  14-13-task-completion-inspection-note: done
+  14-14-overdue-alerts-navigation-badge: done
+  14-15-beebrain-task-suggestions: done
+  14-16-offline-task-support: done
+  epic-14-retrospective: optional
+
+  # Epic 15: Keycloak Migration (Replace Zitadel)
+  epic-15: done
+  15-1-auth-mode-config-env-vars: done
+  15-2-secrets-auth-config-endpoint: done
+  15-3-auth-middleware-keycloak-jwt-validation: done
+  15-4-tenant-middleware-org-id-claim: done
+  15-5-keycloak-auth-provider-react: done
+  15-6-login-page-callback-integration: done
+  15-7-docker-compose-keycloak-realm: done
+  15-8-environment-templates-claudemd: done
+  15-9-documentation-architecture-updates: done
+  15-10-ci-dual-mode-test-verification: done
+  epic-15-retrospective: optional

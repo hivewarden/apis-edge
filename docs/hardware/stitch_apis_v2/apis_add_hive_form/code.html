@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS - Add Hive</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#f7a42d",     // Sea Buckthorn
+              "primary-hover": "#e5931b",
+              "secondary": "#fcd483",   // Salomie
+              "cream": "#fbf9e7",       // Coconut Cream
+              "bramble": "#662604",     // Brown Bramble
+              "bramble-light": "#8c785f",
+              "white": "#ffffff",
+            },
+            fontFamily: {
+              "display": ["Epilogue", "sans-serif"]
+            },
+            borderRadius: {
+              "xl": "12px",
+              "2xl": "16px",
+            },
+          },
+        },
+      }
+    </script>
+<style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #ebdccb;
+            border-radius: 20px;
+        }.material-symbols-outlined {
+          font-variation-settings:
+          'FILL' 0,
+          'wght' 300,
+          'GRAD' 0,
+          'opsz' 24
+        }
+        .material-symbols-outlined.filled {
+          font-variation-settings:
+          'FILL' 1,
+          'wght' 300,
+          'GRAD' 0,
+          'opsz' 24
+        }
+    </style>
+</head>
+<body class="bg-cream text-bramble font-display min-h-screen flex overflow-hidden">
+<aside class="w-[240px] bg-white border-r border-orange-100 flex flex-col shrink-0 h-screen z-20">
+<div class="p-6 flex items-center gap-3">
+<div class="bg-primary bg-center bg-no-repeat bg-cover rounded-xl size-10 shadow-sm shrink-0" data-alt="Sea Buckthorn square logo" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCV6HNNB52CB1ygQvtVuJ6RTgZ7tnIqnJYyoFTxo2YMFS7Ta0m6WEOV6ZHO7wEL3Cdn0gw-aaACtuNhP3_9m2C0WVRmO9b5_bxER0MXy1xs8NJqqA_ByKPxeXRggVt1sd4tDNRLTmQTrJOFy5EoIxRMXCwBIjKS3gOP55p_vl3VKHuAu5vnUqa2N1X5slOgERDMb5WPsgFzsAiserZ3CAjENTFSbwcXPfUEOfKdIYEpqqoPxnBoITTrXfQcP-J6BIgUkC3BWmA4i1Y");'></div>
+<div class="flex flex-col">
+<h1 class="text-bramble text-lg font-bold leading-none tracking-tight">APIS</h1>
+<p class="text-bramble/60 text-xs font-medium mt-1">Beekeeping Platform</p>
+</div>
+</div>
+<nav class="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2 custom-scrollbar">
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-bramble/70 hover:bg-cream hover:text-bramble transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-bramble transition-colors">grid_view</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full bg-secondary text-bramble transition-colors shadow-sm" href="#">
+<span class="material-symbols-outlined filled text-[20px]">inventory_2</span>
+<span class="text-sm font-bold">Hives</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-bramble/70 hover:bg-cream hover:text-bramble transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-bramble transition-colors">location_on</span>
+<span class="text-sm font-medium">Apiaries</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-bramble/70 hover:bg-cream hover:text-bramble transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-bramble transition-colors">crown</span>
+<span class="text-sm font-medium">Queens</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-bramble/70 hover:bg-cream hover:text-bramble transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-bramble transition-colors">potted_plant</span>
+<span class="text-sm font-medium">Harvests</span>
+</a>
+</nav>
+<div class="p-6 border-t border-orange-100">
+<div class="flex items-center gap-3">
+<div class="size-9 rounded-full bg-slate-200 bg-cover bg-center ring-2 ring-white shadow-sm" data-alt="User profile photo" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuC0ad9Xx24jxuei3-FPVLNjU2SKmhnb6szrNa-7bR4GvJBCj3wem20vDOOOPX_5mlFsnaDq6Lz2r1LJ6N51RRilKicTfPYtrJ0d6l6oVZbhIQvYxIOp1KjLq4G9B5J5vEWZeCD69HhOyhEIinmVnyJuekbQQoKuRzeAefAfNSdEGG0MObCFTANEXmsv344I5Tg8orAfck7vfGRRGyIdGbFYEQypQ3UN9H50h9j5RxWzVzW3oq2HXfIto2wGjyw_GxL0PVUXXuMMpws");'></div>
+<div class="flex flex-col">
+<p class="text-sm font-semibold text-bramble">Alex Beekeeper</p>
+<p class="text-xs text-bramble/60">Pro Plan</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-screen overflow-y-auto bg-cream relative">
+<header class="px-10 pt-10 pb-6 max-w-5xl mx-auto w-full">
+<nav class="flex items-center text-sm font-medium text-bramble/60 mb-4">
+<a class="hover:text-primary transition-colors" href="#">Hives</a>
+<span class="mx-3 text-bramble/30">/</span>
+<span class="text-bramble font-semibold">Add New Hive</span>
+</nav>
+<div class="flex flex-col gap-2">
+<h1 class="text-bramble text-3xl font-bold tracking-tight">Add Hive</h1>
+<p class="text-bramble/70">Configure your new hive setup, queen assignment, and box structure.</p>
+</div>
+</header>
+<div class="px-10 pb-16 max-w-5xl mx-auto w-full flex-1">
+<form class="bg-white rounded-2xl shadow-[0_8px_30px_rgba(102,38,4,0.06)] border border-orange-100/50 overflow-hidden">
+<div class="p-10 border-b border-orange-50">
+<h2 class="text-xl font-bold text-bramble mb-8 flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">feed</span>
+                        Basic Information
+                    </h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<label class="flex flex-col gap-2">
+<span class="text-sm font-semibold text-bramble">Hive Identifier</span>
+<input class="w-full h-[52px] px-5 rounded-xl bg-white border border-stone-200 text-bramble placeholder-bramble/40 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none" placeholder="e.g., Hive #042" type="text" value=""/>
+<span class="text-xs text-bramble/50">Unique ID used for tracking.</span>
+</label>
+<label class="flex flex-col gap-2">
+<span class="text-sm font-semibold text-bramble">Site Assignment</span>
+<div class="relative">
+<select class="w-full h-[52px] px-5 rounded-xl bg-white border border-stone-200 text-bramble focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none appearance-none">
+<option disabled="" selected="" value="">Select Apiary Location</option>
+<option value="north_field">North Field - Oak Grove</option>
+<option value="river_bank">River Bank Apiary</option>
+<option value="home_garden">Home Garden</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-bramble/50 pointer-events-none">expand_more</span>
+</div>
+<span class="text-xs text-bramble/50">Where will this hive be located?</span>
+</label>
+</div>
+</div>
+<div class="p-10 border-b border-orange-50 bg-[#faf9f6]">
+<h2 class="text-xl font-bold text-bramble mb-8 flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">diamond</span>
+                        Queen Details
+                    </h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
+<label class="flex flex-col gap-2">
+<span class="text-sm font-semibold text-bramble">Year Introduced</span>
+<div class="relative">
+<select class="w-full h-[52px] px-5 rounded-xl bg-white border border-stone-200 text-bramble focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none appearance-none">
+<option selected="" value="2024">2024</option>
+<option value="2023">2023</option>
+<option value="2022">2022</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-bramble/50 pointer-events-none">calendar_today</span>
+</div>
+</label>
+<div class="flex items-center justify-between px-6 bg-white rounded-xl border border-stone-200 h-[52px]">
+<span class="text-sm font-semibold text-bramble">Is Queen Marked?</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</div>
+</div>
+<div class="p-10">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
+<div>
+<h2 class="text-xl font-bold text-bramble flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">layers</span>
+                                Box Configuration
+                            </h2>
+<p class="text-sm text-bramble/60 mt-2">Visually build your hive stack from the ground up.</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-5 py-2.5 rounded-full border border-primary text-primary hover:bg-primary/5 transition-colors text-sm font-semibold" type="button">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                                Add Super
+                            </button>
+<button class="flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-white hover:bg-primary-hover shadow-md hover:shadow-lg transition-all text-sm font-semibold" type="button">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                                Add Brood Box
+                            </button>
+</div>
+</div>
+<div class="relative bg-cream rounded-2xl border border-dashed border-stone-300 p-12 flex justify-center min-h-[400px]">
+<div class="w-full max-w-[320px] flex flex-col items-center justify-end gap-1">
+<div class="w-full h-4 bg-[#e6e1db] rounded-t-md relative shadow-sm border-b border-black/5"></div>
+<div class="w-[340px] h-8 bg-[#d6d1cb] rounded-sm relative shadow-md flex items-center justify-center mb-1 border border-[#c6c1bb]">
+<span class="text-[10px] font-bold uppercase tracking-widest text-bramble/40">Telescoping Lid</span>
+</div>
+<div class="group w-full h-[80px] bg-[#fffbf5] border-2 border-primary rounded-lg relative shadow-sm flex flex-col items-center justify-center cursor-move hover:shadow-md transition-all">
+<div class="absolute left-3 text-primary/40 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">drag_indicator</span>
+</div>
+<span class="text-sm font-bold text-bramble">Honey Super</span>
+<span class="text-xs text-bramble/60">10 Frames • Medium</span>
+<div class="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 hover:bg-red-50 text-red-400 rounded-full">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</div>
+<div class="w-[310px] h-1 bg-bramble opacity-20 my-1 rounded-full"></div>
+<div class="group w-full h-[120px] bg-white border border-stone-300 rounded-lg relative shadow-sm flex flex-col items-center justify-center cursor-move hover:border-primary hover:shadow-md transition-all">
+<div class="absolute left-3 text-stone-300 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">drag_indicator</span>
+</div>
+<span class="text-sm font-bold text-bramble">Deep Brood Box</span>
+<span class="text-xs text-bramble/60">10 Frames • Deep</span>
+<div class="w-12 h-1 bg-stone-100 rounded-full mt-3"></div>
+<div class="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 hover:bg-red-50 text-red-400 rounded-full">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</div>
+<div class="group w-full h-[120px] bg-white border border-stone-300 rounded-lg relative shadow-sm flex flex-col items-center justify-center cursor-move hover:border-primary hover:shadow-md transition-all">
+<div class="absolute left-3 text-stone-300 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">drag_indicator</span>
+</div>
+<span class="text-sm font-bold text-bramble">Deep Brood Box</span>
+<span class="text-xs text-bramble/60">10 Frames • Deep</span>
+<div class="w-12 h-1 bg-stone-100 rounded-full mt-3"></div>
+<div class="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 hover:bg-red-50 text-red-400 rounded-full">
+<span class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</div>
+<div class="w-[330px] h-6 bg-[#3a342e] rounded-sm relative shadow-md mt-1 flex items-center justify-center">
+<div class="w-[300px] h-2 bg-[#181511] absolute top-0 rounded-b-sm"></div>
+<span class="text-[9px] font-bold uppercase tracking-widest text-white/30 pt-2">Screened Bottom Board</span>
+</div>
+<div class="flex w-[300px] justify-between px-4">
+<div class="w-4 h-8 bg-[#8c785f] rounded-b-md"></div>
+<div class="w-4 h-8 bg-[#8c785f] rounded-b-md"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="p-8 bg-[#faf9f6] border-t border-orange-50 flex justify-end items-center gap-4">
+<button class="px-8 py-3 rounded-xl border border-stone-300 text-bramble/80 font-semibold hover:bg-white hover:text-bramble hover:shadow-sm transition-all" type="button">
+                        Cancel
+                    </button>
+<button class="px-8 py-3 rounded-xl bg-primary text-white font-bold shadow-md hover:bg-primary-hover hover:shadow-lg focus:ring-2 focus:ring-primary/50 focus:ring-offset-1 transition-all" type="submit">
+                        Save Hive
+                    </button>
+</div>
+</form>
+<div class="mt-8 flex justify-center pb-8">
+<p class="text-xs text-bramble/50 font-medium">Need help configuring? Check our <a class="underline hover:text-primary transition-colors" href="#">Apiary Standards Guide</a>.</p>
+</div>
+</div>
+</main>
+
+</body></html>

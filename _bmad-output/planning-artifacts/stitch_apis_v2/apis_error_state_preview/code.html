@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS - Statistics Error</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&amp;family=Noto+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#f7a42d","coconut-cream": "#fbf9e7",
+            "salomie": "#fcd483",
+            "brown-bramble": "#662604",
+            "white": "#ffffff",
+          },
+          fontFamily: {
+            "display": ["Space Grotesk", "sans-serif"],
+            "body": ["Noto Sans", "sans-serif"]
+          },
+          borderRadius: {
+            "DEFAULT": "0.375rem", 
+            "lg": "0.5rem", 
+            "xl": "1rem","full": "9999px"
+          },
+          boxShadow: {
+            "diffused": "0 20px 40px -10px rgba(102, 38, 4, 0.08)"
+          }
+        },
+      },
+    }
+  </script>
+<style>::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #e5e0d8;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #d1cdc5;
+    }
+  </style>
+</head>
+<body class="bg-coconut-cream text-brown-bramble font-display min-h-screen flex overflow-hidden">
+<aside class="w-72 bg-white border-r border-[#e5e0d8] flex flex-col justify-between h-screen shrink-0 transition-colors duration-200">
+<div class="flex flex-col p-6 gap-8">
+<div class="flex items-center gap-3">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-12 shadow-sm border border-[#e5e0d8]" data-alt="Golden stylized bee logo on hexagon" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBJjtNbqMmtvPGF5FdaY4UiiF19LskjRnI3E2d1RyqjVMDkig567mnAquclAv6yoUY7guX5MMie2J8oFh8nPbtzy18opiqKyNIMcYvAp1PYxBcd_ZxbhniD2TNvuNCvK6JPC7qkQKbrQnHr9FIoZ7u4jUWZVfef-j9mW_xBw1dR6pyaQb9_R2u84NUcKvc0jUy6A4IqowVkgqiwsGaPqRwUz6cOWCXoB_ufLKT0VkXGxuHbk2327KxDVJbNGPnjhpcxvSI9L-_nlro");'>
+</div>
+<div class="flex flex-col">
+<h1 class="text-brown-bramble text-xl font-bold tracking-tight">APIS</h1>
+<p class="text-brown-bramble/70 text-sm font-normal">Artisan Beekeeping</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-brown-bramble hover:bg-[#f4eee7] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[24px]" data-weight="regular">grid_view</span>
+<span class="text-sm font-medium">Overview</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-brown-bramble hover:bg-[#f4eee7] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[24px]" data-weight="regular">favorite</span>
+<span class="text-sm font-medium">Colony Health</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full bg-salomie text-brown-bramble transition-colors" href="#">
+<span class="material-symbols-outlined text-[24px] fill-current" data-weight="fill">bar_chart</span>
+<span class="text-sm font-bold">Statistics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-brown-bramble hover:bg-[#f4eee7] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[24px]" data-weight="regular">assignment</span>
+<span class="text-sm font-medium">Harvest Logs</span>
+</a>
+</nav>
+</div>
+<div class="p-6 border-t border-[#e5e0d8]">
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-brown-bramble hover:bg-[#f4eee7] transition-colors" href="#">
+<span class="material-symbols-outlined text-[24px]">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+<div class="mt-4 flex items-center gap-3 px-4">
+<div class="size-8 rounded-full bg-[#e5e0d8] overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHuFSe7dJBxqkaJxYoQt6RCbQQTROib52XHgNT7qn1ZnFvaGw1_iqyOWaUVs8UIm_LFteGLGV2sdYbe9dnwlkCYrr_X5D0dKpj8tU4CL9OG_FVxlqUv2KaYUm8f-8yDDbYNKdMsucSbHvRep5SriGyU3zeia1KTWcFxy4g4EU_bupaTpPPhNlnjHYTOqjIgq8iDnAwbmK0F8_Q2_hQgBn-Au9t4zqZdNzWaYCixVVo30VnSTCM0IzqtSzdaVwnSPrnt8vblvmEIbw"/>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-bold text-brown-bramble">Beekeeper John</span>
+<span class="text-xs text-brown-bramble/70">Pro Plan</span>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col min-w-0 bg-coconut-cream overflow-y-auto">
+<header class="w-full px-10 pt-10 pb-4">
+<div class="max-w-[1000px] mx-auto flex items-center justify-between">
+<h2 class="text-brown-bramble tracking-tight text-[32px] font-bold leading-tight">Statistics</h2>
+<div class="flex gap-3">
+<button class="flex items-center justify-center p-2 rounded-full hover:bg-black/5 text-brown-bramble">
+<span class="material-symbols-outlined font-light" style="font-weight: 200;">refresh</span>
+</button>
+<button class="flex items-center justify-center p-2 rounded-full hover:bg-black/5 text-brown-bramble">
+<span class="material-symbols-outlined font-light" style="font-weight: 200;">more_vert</span>
+</button>
+</div>
+</div>
+</header>
+<div class="flex-1 px-10 pb-10 flex flex-col">
+<div class="max-w-[1000px] mx-auto w-full flex-1 flex flex-col justify-center">
+<div class="bg-white rounded-xl shadow-diffused border-none p-12 flex flex-col items-center justify-center text-center gap-8 w-full max-w-2xl mx-auto">
+<div class="relative w-64 h-48 mb-2">
+<div class="absolute inset-0 bg-[#fef8ed] rounded-full opacity-50 blur-2xl scale-75"></div>
+<div class="w-full h-full bg-contain bg-center bg-no-repeat z-10 relative" data-alt="Illustration of a cute confused bee hovering over a map" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAuelO223vTSQmSycL6FPgKemYcOjHlrPbqXqpjzE8YveepD1ETtIYa_leUhQPAxyTcJjKUiToqstIVWzwIayfEpNWRoFwV7WIOu_o9nm-avIKzG9SYOLcPjJEVWyWRlc1Zo0vEWVvPrJe36KAp_sl2jB7uUtOkmSg_4ZLjyaATU0dmOlJjfcpLoEVcuvqU4ctOd1VhsP9qVt_7iBIe4JUam_m9feJmNZZO2dIK6mdbbOfdfwHn53EEUvqgdDvUGuRt1UuZtz1b6W0"); mask-image: radial-gradient(circle, black 50%, transparent 70%); -webkit-mask-image: radial-gradient(circle, black 50%, transparent 70%);'>
+</div>
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-[120px] text-primary/80 animate-pulse">bug_report</span>
+</div>
+</div>
+<div class="flex flex-col gap-3 max-w-md">
+<h3 class="text-brown-bramble text-2xl font-bold leading-tight">Something didn't work</h3>
+<p class="text-brown-bramble text-base font-normal leading-relaxed">
+              We couldn't load your analytics right now. This might be a temporary connection issue.
+            </p>
+</div>
+<div class="flex flex-col items-center gap-4 w-full">
+<button class="h-12 px-8 bg-primary hover:bg-primary/90 text-white text-base font-bold rounded-full shadow-sm transition-all transform active:scale-95 flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">refresh</span>
+              Try again
+            </button>
+<a class="text-brown-bramble/80 text-sm font-medium hover:text-brown-bramble transition-colors underline underline-offset-4 decoration-primary/30 hover:decoration-primary" href="#">
+              Contact support
+            </a>
+</div>
+</div>
+</div>
+</div>
+</main>
+
+</body></html>

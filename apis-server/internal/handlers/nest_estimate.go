@@ -26,8 +26,12 @@ type NestEstimateResponse struct {
 
 // Hornet flight speed: approximately 22 km/h = 367 m/min
 const flightSpeedMPerMin = 367.0
+
+// Nest estimation configuration (could be made configurable via environment in future)
+// minObservations: Minimum detection count before estimate is attempted
+// minValidIntervals: Minimum valid time intervals (0 < interval < 120 min) for reliable calculation
 const minObservations = 20
-const minValidIntervals = 5 // Minimum valid intervals needed for reliable calculation
+const minValidIntervals = 5
 
 // GetNestEstimate handles GET /api/sites/{id}/nest-estimate
 // Calculates estimated nest radius based on detection patterns.

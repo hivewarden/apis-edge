@@ -176,6 +176,17 @@ claude-opus-4-5-20251101
 5. Added `inspectionsLoading` and `inspectionsError` states to HiveDetail
 6. Added retry button when inspections fail to load
 
+### Change Log
+
+- [2026-01-25] Remediation: Fixed 7 issues from code review
+  - I1: Verified VoiceInputButton already implemented (AC6 voice input)
+  - I2: Added documentation comment explaining max=20 brood frames
+  - I3: Created `apis-dashboard/tests/pages/InspectionCreate.test.tsx` (25+ tests)
+  - I4: Created `apis-server/tests/handlers/inspections_test.go` (40+ tests)
+  - I5: Verified offline queuing already implemented via Epic 7
+  - I6: Acknowledged swipe gestures as nice-to-have per story notes
+  - I7: Added accessibility attributes to step indicators (role, tabIndex, aria-label, onKeyDown)
+
 ### File List
 
 **Backend:**

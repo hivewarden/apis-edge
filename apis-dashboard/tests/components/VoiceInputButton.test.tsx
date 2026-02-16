@@ -35,9 +35,10 @@ vi.mock('../../src/services/whisperTranscription', () => ({
 
 // Now import the component and mocked modules
 import { VoiceInputButton } from '../../src/components/VoiceInputButton';
-import { SettingsProvider } from '../../src/context/SettingsContext';
+import { SettingsProvider, useSettings } from '../../src/context/SettingsContext';
 import { useSpeechRecognition } from '../../src/hooks/useSpeechRecognition';
 import { useOnlineStatus } from '../../src/hooks/useOnlineStatus';
+import * as whisperService from '../../src/services/whisperTranscription';
 
 const renderWithProviders = (component: React.ReactNode) => {
   return render(<SettingsProvider>{component}</SettingsProvider>);
@@ -67,10 +68,12 @@ describe('VoiceInputButton', () => {
   });
 
   describe('rendering', () => {
-    it('should render SPEAK button with correct text', () => {
+    it('should render SPEAK button with correct text', async () => {
       renderWithProviders(<VoiceInputButton onTranscript={mockOnTranscript} />);
 
-      expect(screen.getByRole('button', { name: /speak/i })).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /speak/i })).toBeInTheDocument();
+      });
     });
 
     it('should render with 64px minimum height for touch target', () => {
@@ -313,6 +316,148 @@ describe('VoiceInputButton', () => {
 
       await waitFor(() => {
         expect(mockOnTranscript).toHaveBeenCalledWith('Hello world');
+      });
+    });
+  });
+
+  describe('Whisper mode integration', () => {
+    /**
+     * A test wrapper that sets voiceInputMethod to 'whisper'
+     */
+    const WhisperModeWrapper = ({ children }: { children: React.ReactNode }) => {
+      const { setVoiceInputMethod } = useSettings();
+      React.useEffect(() => {
+        setVoiceInputMethod('whisper');
+      }, [setVoiceInputMethod]);
+      return <>{children}</>;
+    };
+
+    const renderWithWhisperMode = (component: React.ReactNode) => {
+      return render(
+        <SettingsProvider>
+          <WhisperModeWrapper>{component}</WhisperModeWrapper>
+        </SettingsProvider>
+      );
+    };
+
+    beforeEach(() => {
+      // Set native speech recognition as not supported to force Whisper mode
+      vi.mocked(useSpeechRecognition).mockReturnValue({
+        isSupported: false,
+        isListening: false,
+        transcript: '',
+        interimTranscript: '',
+        error: null,
+        start: vi.fn(),
+        stop: vi.fn(),
+        reset: vi.fn(),
+      });
+      vi.mocked(useOnlineStatus).mockReturnValue(true);
+    });
+
+    it('should call startRecording when SPEAK is clicked in Whisper mode', async () => {
+      renderWithWhisperMode(<VoiceInputButton onTranscript={mockOnTranscript} />);
+
+      // Wait for the component to render and settings to apply
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /speak/i })).not.toBeDisabled();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /speak/i }));
+
+      await waitFor(() => {
+        expect(whisperService.startRecording).toHaveBeenCalled();
+      });
+    });
+
+    it('should call stopRecording and transcribeAudio when Done is clicked in Whisper mode', async () => {
+      const mockAudioBlob = new Blob(['test'], { type: 'audio/webm' });
+      vi.mocked(whisperService.stopRecording).mockResolvedValue(mockAudioBlob);
+      vi.mocked(whisperService.transcribeAudio).mockResolvedValue({ text: 'whisper test result' });
+
+      renderWithWhisperMode(<VoiceInputButton onTranscript={mockOnTranscript} />);
+
+      // Wait for component to render
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /speak/i })).not.toBeDisabled();
+      });
+
+      // Start recording
+      fireEvent.click(screen.getByRole('button', { name: /speak/i }));
+
+      await waitFor(() => {
+        expect(whisperService.startRecording).toHaveBeenCalled();
+      });
+
+      // Wait for Done button to appear
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument();
+      });
+
+      // Stop recording (click Done)
+      fireEvent.click(screen.getByRole('button', { name: /done/i }));
+
+      await waitFor(() => {
+        expect(whisperService.stopRecording).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(whisperService.transcribeAudio).toHaveBeenCalledWith(mockAudioBlob, expect.any(String));
+      });
+    });
+
+    it('should call onTranscript with transcribed text in Whisper mode', async () => {
+      const mockAudioBlob = new Blob(['test'], { type: 'audio/webm' });
+      vi.mocked(whisperService.stopRecording).mockResolvedValue(mockAudioBlob);
+      vi.mocked(whisperService.transcribeAudio).mockResolvedValue({ text: 'Hello from Whisper' });
+
+      renderWithWhisperMode(<VoiceInputButton onTranscript={mockOnTranscript} />);
+
+      // Wait for component to render
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /speak/i })).not.toBeDisabled();
+      });
+
+      // Start recording
+      fireEvent.click(screen.getByRole('button', { name: /speak/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument();
+      });
+
+      // Stop recording (click Done)
+      fireEvent.click(screen.getByRole('button', { name: /done/i }));
+
+      // Verify callback receives the transcribed text
+      await waitFor(() => {
+        expect(mockOnTranscript).toHaveBeenCalledWith('Hello from Whisper');
+      });
+    });
+
+    it('should display error when Whisper transcription fails', async () => {
+      vi.mocked(whisperService.stopRecording).mockResolvedValue(new Blob());
+      vi.mocked(whisperService.transcribeAudio).mockRejectedValue(new Error('Transcription service unavailable'));
+
+      renderWithWhisperMode(<VoiceInputButton onTranscript={mockOnTranscript} />);
+
+      // Wait for component to render
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /speak/i })).not.toBeDisabled();
+      });
+
+      // Start recording
+      fireEvent.click(screen.getByRole('button', { name: /speak/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument();
+      });
+
+      // Stop recording
+      fireEvent.click(screen.getByRole('button', { name: /done/i }));
+
+      // Verify error is displayed
+      await waitFor(() => {
+        expect(screen.getByText('Transcription service unavailable')).toBeInTheDocument();
       });
     });
   });

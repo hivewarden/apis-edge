@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 )
 
 // SeasonRecap represents a cached season recap in the database.
@@ -164,6 +165,7 @@ func ListSeasonRecaps(ctx context.Context, conn *pgxpool.Conn, tenantID string) 
 			return nil, fmt.Errorf("storage: failed to scan season recap: %w", err)
 		}
 		if err := json.Unmarshal(recapDataBytes, &recap.RecapData); err != nil {
+			log.Warn().Err(err).Str("recap_id", recap.ID).Msg("storage: failed to unmarshal recap data, using empty")
 			recap.RecapData = SeasonRecapData{} // Use empty data on parse error
 		}
 		recaps = append(recaps, recap)

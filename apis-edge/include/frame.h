@@ -26,6 +26,13 @@
  * longer continuous operation is required, consider using the sequence
  * number (which also overflows but at a much longer interval at typical
  * FPS) or comparing timestamps within a reasonable window.
+ *
+ * C7-LOW-007: ALL consumers of timestamp_ms MUST handle wraparound.
+ * Use unsigned subtraction for duration: duration = (newer - older)
+ * which works correctly across the wrap boundary for durations < ~24 days.
+ * See classifier.c:147-154 for a correct wraparound handling example.
+ * NEVER compare timestamps with > or < directly (e.g., "if (ts > deadline)")
+ * as this fails at the wrap boundary.
  */
 typedef struct {
     uint8_t data[FRAME_SIZE];   // BGR pixel data

@@ -4,7 +4,8 @@
  * Part of Epic 8, Story 8.4: Proactive Insight Notifications
  */
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
 import { ProactiveInsightNotification } from '../../src/components/ProactiveInsightNotification';
 import type { ProactiveInsight } from '../../src/hooks/useProactiveInsights';
@@ -18,6 +19,9 @@ vi.mock('react-router-dom', async () => {
     useNavigate: () => mockNavigate,
   };
 });
+
+// Increase default timeout for async operations with Ant Design components
+const ASYNC_TIMEOUT = { timeout: 10000 };
 
 const mockInsight: ProactiveInsight = {
   id: 'insight-1',
@@ -51,10 +55,17 @@ describe('ProactiveInsightNotification', () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    // Clean up any Ant Design portals/dropdowns
+    document.body.innerHTML = '';
+  });
+
   describe('Rendering', () => {
-    it('should render the insight message', () => {
+    it('should render the insight message', async () => {
       renderComponent();
-      expect(screen.getByText('Varroa treatment due')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('Varroa treatment due')).toBeInTheDocument();
+      }, ASYNC_TIMEOUT);
     });
 
     it('should render the suggested action', () => {
@@ -101,11 +112,13 @@ describe('ProactiveInsightNotification', () => {
       expect(screen.getByText('Info')).toBeInTheDocument();
     });
 
-    it('should render all action buttons', () => {
+    it('should render all action buttons', async () => {
       renderComponent();
-      expect(screen.getByRole('button', { name: /dismiss/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /snooze/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /take action/i })).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /dismiss/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /snooze/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /take action/i })).toBeInTheDocument();
+      }, ASYNC_TIMEOUT);
     });
   });
 
@@ -140,78 +153,80 @@ describe('ProactiveInsightNotification', () => {
 
   describe('Snooze Action', () => {
     it('should open dropdown when Snooze button is clicked', async () => {
+      const user = userEvent.setup();
       renderComponent();
 
       const snoozeBtn = screen.getByRole('button', { name: /snooze/i });
-      await act(async () => {
-        fireEvent.click(snoozeBtn);
-      });
+      await user.click(snoozeBtn);
 
-      // Dropdown options should appear
+      // Dropdown options should appear - search in document body since Ant Design uses portals
       await waitFor(() => {
         expect(screen.getByText('Snooze for 1 day')).toBeInTheDocument();
         expect(screen.getByText('Snooze for 7 days')).toBeInTheDocument();
         expect(screen.getByText('Snooze for 30 days')).toBeInTheDocument();
-      });
+      }, ASYNC_TIMEOUT);
     });
 
     it('should call onSnooze with 1 day when "Snooze for 1 day" is clicked', async () => {
+      const user = userEvent.setup();
       const onSnooze = vi.fn().mockResolvedValue(undefined);
       renderComponent({ onSnooze });
 
       // Open dropdown
       const snoozeBtn = screen.getByRole('button', { name: /snooze/i });
-      await act(async () => {
-        fireEvent.click(snoozeBtn);
-      });
+      await user.click(snoozeBtn);
 
-      // Click 1 day option
-      const option = await screen.findByText('Snooze for 1 day');
-      await act(async () => {
-        fireEvent.click(option);
-      });
+      // Wait for dropdown to appear and click option
+      await waitFor(() => {
+        expect(screen.getByText('Snooze for 1 day')).toBeInTheDocument();
+      }, ASYNC_TIMEOUT);
+
+      const option = screen.getByText('Snooze for 1 day');
+      await user.click(option);
 
       await waitFor(() => {
         expect(onSnooze).toHaveBeenCalledWith('insight-1', 1);
-      });
+      }, ASYNC_TIMEOUT);
     });
 
     it('should call onSnooze with 7 days when "Snooze for 7 days" is clicked', async () => {
+      const user = userEvent.setup();
       const onSnooze = vi.fn().mockResolvedValue(undefined);
       renderComponent({ onSnooze });
 
       const snoozeBtn = screen.getByRole('button', { name: /snooze/i });
-      await act(async () => {
-        fireEvent.click(snoozeBtn);
-      });
+      await user.click(snoozeBtn);
 
-      const option = await screen.findByText('Snooze for 7 days');
-      await act(async () => {
-        fireEvent.click(option);
-      });
+      await waitFor(() => {
+        expect(screen.getByText('Snooze for 7 days')).toBeInTheDocument();
+      }, ASYNC_TIMEOUT);
+
+      const option = screen.getByText('Snooze for 7 days');
+      await user.click(option);
 
       await waitFor(() => {
         expect(onSnooze).toHaveBeenCalledWith('insight-1', 7);
-      });
+      }, ASYNC_TIMEOUT);
     });
 
     it('should call onSnooze with 30 days when "Snooze for 30 days" is clicked', async () => {
+      const user = userEvent.setup();
       const onSnooze = vi.fn().mockResolvedValue(undefined);
       renderComponent({ onSnooze });
 
       const snoozeBtn = screen.getByRole('button', { name: /snooze/i });
-      await act(async () => {
-        fireEvent.click(snoozeBtn);
-      });
+      await user.click(snoozeBtn);
 
-      const option = await screen.findByText('Snooze for 30 days');
-      await act(async () => {
-        fireEvent.click(option);
-      });
+      await waitFor(() => {
+        expect(screen.getByText('Snooze for 30 days')).toBeInTheDocument();
+      }, ASYNC_TIMEOUT);
+
+      const option = screen.getByText('Snooze for 30 days');
+      await user.click(option);
 
       await waitFor(() => {
         expect(onSnooze).toHaveBeenCalledWith('insight-1', 30);
-      });
+      }, ASYNC_TIMEOUT);
     });
   });
 

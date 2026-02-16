@@ -1,6 +1,6 @@
 # Story 0-1: Infrastructure Consolidation & Secrets Hardening
 
-Status: done
+Status: in progress
 
 ## Story
 
@@ -74,9 +74,10 @@ So that we have a simplified stack with proper secrets management.
   - [x] 5.1: Run `docker compose down -v` (clean slate)
   - [x] 5.2: Run `docker compose up --build` - Fixed Go 1.24 version in Dockerfile
   - [x] 5.3: Database migrations run successfully (added pgcrypto extension)
-  - [ ] 5.4: Test login flow through Zitadel - **BLOCKED: Requires ZITADEL_CLIENT_ID**
-  - [ ] 5.5: Verify tenant isolation - **BLOCKED: Server doesn't start without auth config**
-  - **Note:** ZITADEL_CLIENT_ID is a bootstrap issue from Epic 1 - requires manual Zitadel application setup before server can start
+  - [x] 5.4: Bootstrap Zitadel client id automatically (docker-compose `zitadel-bootstrap`)
+  - [x] 5.5: Verify services + health endpoints (`scripts/verify-epic-0.sh`)
+  - [ ] 5.6: Manual: Login via Zitadel and call a protected endpoint (`GET /api/me`)
+  - **Note:** Auth flow is no longer blocked by missing `ZITADEL_CLIENT_ID`; it now requires a manual browser login to fully validate end-to-end behavior.
 
 ## Dev Notes
 
@@ -183,10 +184,9 @@ This story was identified during the Epic 1 retrospective (2026-01-22). Two infr
    - Workaround: Keep dedicated PostgreSQL for Zitadel
    - Tracking: https://github.com/zitadel/zitadel/discussions/8840
 
-2. **apis-server Requires ZITADEL_CLIENT_ID**
-   - Server won't start without auth middleware configured
-   - This is a pre-existing Epic 1 bootstrap issue
-   - Requires manual Zitadel application creation first
+2. **End-to-end auth still needs manual runtime verification**
+   - The stack now bootstraps the OIDC client id automatically for local dev
+   - Manual check: open the dashboard, log in, and confirm `GET /api/me` succeeds
 
 ### Verification Results
 
@@ -196,9 +196,9 @@ This story was identified during the Epic 1 retrospective (2026-01-22). Two infr
 | OpenBao | ✅ Healthy | Dev mode with apis-dev-token |
 | Zitadel-db | ✅ Healthy | PostgreSQL 16 |
 | Zitadel | ✅ Running | v4.9.2, OIDC endpoints registered |
-| DB Migrations | ✅ Pass | 3 migrations applied |
-| apis-server | ⚠️ Blocked | Needs ZITADEL_CLIENT_ID |
-| apis-dashboard | ✅ Running | Health: starting |
+| DB Migrations | ✅ Pass | 23 migrations applied |
+| apis-server | ✅ Healthy | Starts without manual Zitadel steps (client id auto-generated for local dev) |
+| apis-dashboard | ✅ Healthy | Vite dev server reachable on 5173 |
 
 ## Change Log
 
@@ -206,3 +206,4 @@ This story was identified during the Epic 1 retrospective (2026-01-22). Two infr
 |------|--------|---------|
 | 2026-01-22 | Claude (dev-story) | Implemented Tasks 1-5, documented YugabyteDB compatibility issues |
 | 2026-01-22 | Epic 1 Retrospective | Story created to address infrastructure gaps |
+| 2026-01-26 | Codex (GPT-5.2) | Automated Zitadel bootstrap, wired OpenBao secrets, hardened Yugabyte init, and added `scripts/verify-epic-0.sh` |

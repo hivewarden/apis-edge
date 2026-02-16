@@ -1,8 +1,10 @@
 package handlers
 
 import (
-	"encoding/json"
+	"bytes"
+	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"os/exec"
@@ -98,10 +100,20 @@ func Transcribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create temp file for audio
-	// Use extension from original filename if available
-	ext := filepath.Ext(header.Filename)
+	// Use extension from original filename if available, with whitelist validation
+	ext := strings.ToLower(filepath.Ext(header.Filename))
 	if ext == "" {
 		ext = ".webm"
+	}
+
+	// Whitelist allowed audio file extensions to prevent temp file abuse
+	allowedExts := map[string]bool{
+		".webm": true, ".wav": true, ".mp3": true,
+		".ogg": true, ".m4a": true, ".mp4": true,
+	}
+	if !allowedExts[ext] {
+		respondError(w, "Unsupported audio format", http.StatusBadRequest)
+		return
 	}
 	tempFile, err := os.CreateTemp("", "transcribe-*"+ext)
 	if err != nil {
@@ -157,10 +169,9 @@ func Transcribe(w http.ResponseWriter, r *http.Request) {
 		Msg("Audio transcription completed")
 
 	// Send response
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	respondJSON(w, map[string]any{
 		"data": response,
-	})
+	}, http.StatusOK)
 }
 
 // transcribeWithWhisper runs Whisper transcription on an audio file
@@ -234,6 +245,8 @@ func transcribeWithWhisperCpp(audioPath string) (string, error) {
 	)
 	if output, err := ffmpegCmd.CombinedOutput(); err != nil {
 		log.Error().Err(err).Str("output", string(output)).Msg("ffmpeg conversion failed")
+		// Explicitly clean up any partial wav file that may have been created
+		os.Remove(wavPath)
 		return "", err
 	}
 
@@ -269,7 +282,9 @@ func transcribeWithWhisperCpp(audioPath string) (string, error) {
 	}
 }
 
-// transcribeWithOpenAI uses the OpenAI Whisper API
+// transcribeWithOpenAI uses the OpenAI Whisper API via net/http.
+// SECURITY: Uses Go's HTTP client instead of exec.Command("curl") to avoid
+// exposing the API key in the process list.
 func transcribeWithOpenAI(audioPath string, apiKey string) (string, error) {
 	// Open audio file
 	file, err := os.Open(audioPath)
@@ -278,23 +293,58 @@ func transcribeWithOpenAI(audioPath string, apiKey string) (string, error) {
 	}
 	defer file.Close()
 
-	// Create multipart request
-	// This is a simplified version - in production you'd use a proper HTTP client
-	// For now, we'll use curl as it handles multipart properly
+	// Build multipart form body
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
 
-	cmd := exec.Command("curl",
-		"-s", // Silent
-		"https://api.openai.com/v1/audio/transcriptions",
-		"-H", "Authorization: Bearer "+apiKey,
-		"-F", "file=@"+audioPath,
-		"-F", "model=whisper-1",
-		"-F", "response_format=text",
-	)
+	// Add the audio file
+	part, err := writer.CreateFormFile("file", filepath.Base(audioPath))
+	if err != nil {
+		return "", fmt.Errorf("failed to create form file: %w", err)
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return "", fmt.Errorf("failed to copy audio data: %w", err)
+	}
 
-	output, err := cmd.Output()
+	// Add model field
+	if err := writer.WriteField("model", "whisper-1"); err != nil {
+		return "", fmt.Errorf("failed to write model field: %w", err)
+	}
+
+	// Add response format
+	if err := writer.WriteField("response_format", "text"); err != nil {
+		return "", fmt.Errorf("failed to write response_format field: %w", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		return "", fmt.Errorf("failed to close multipart writer: %w", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequest("POST", "https://api.openai.com/v1/audio/transcriptions", &body)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	// Send request with timeout
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Error().Err(err).Msg("OpenAI Whisper API call failed")
 		return "", err
+	}
+	defer resp.Body.Close()
+
+	output, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		log.Error().Int("status", resp.StatusCode).Str("body", string(output)).Msg("OpenAI API error")
+		return "", fmt.Errorf("OpenAI API returned status %d", resp.StatusCode)
 	}
 
 	return string(output), nil

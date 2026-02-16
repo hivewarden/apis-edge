@@ -15,6 +15,7 @@ import {
 } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import axios from 'axios';
 import { apiClient } from '../providers/apiClient';
 import { colors } from '../theme/apisTheme';
 
@@ -72,8 +73,12 @@ export function HiveCreate() {
 
       message.success(`Hive "${values.name}" created successfully`);
       navigate(`/hives/${response.data.data.id}`);
-    } catch {
-      message.error('Failed to create hive');
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.data?.error) {
+        message.error(error.response.data.error);
+      } else {
+        message.error('Failed to create hive');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -212,7 +217,12 @@ export function HiveCreate() {
             </Form.Item>
           </div>
 
-          {/* Visual box preview */}
+          {/* Visual box preview
+              NOTE: Uses flexDirection: 'column-reverse' so elements render bottom-up:
+              - First in code = bottom of visual (brood boxes at foundation)
+              - Last in code = top of visual (roof on top)
+              This creates an intuitive hive stack: brood -> supers -> roof
+          */}
           <Form.Item noStyle shouldUpdate={(prev, cur) =>
             prev.brood_boxes !== cur.brood_boxes || prev.honey_supers !== cur.honey_supers
           }>
@@ -222,14 +232,14 @@ export function HiveCreate() {
               return (
                 <div style={{
                   display: 'flex',
-                  flexDirection: 'column-reverse',
+                  flexDirection: 'column-reverse', // Elements stack bottom-up: first=bottom, last=top
                   alignItems: 'center',
                   padding: 16,
                   backgroundColor: 'rgba(247, 164, 45, 0.08)',
                   borderRadius: 8,
                   marginBottom: 16,
                 }}>
-                  {/* Brood boxes - brown */}
+                  {/* Brood boxes - brown (rendered first = appears at bottom due to column-reverse) */}
                   {Array.from({ length: broodBoxes }).map((_, i) => (
                     <div
                       key={`brood-${i}`}
@@ -249,7 +259,7 @@ export function HiveCreate() {
                       </Text>
                     </div>
                   ))}
-                  {/* Honey supers - gold */}
+                  {/* Honey supers - gold (rendered second = appears above brood) */}
                   {Array.from({ length: honeySupers }).map((_, i) => (
                     <div
                       key={`super-${i}`}
@@ -269,7 +279,7 @@ export function HiveCreate() {
                       </Text>
                     </div>
                   ))}
-                  {/* Roof */}
+                  {/* Roof (rendered last = appears at top due to column-reverse) */}
                   <div
                     style={{
                       width: 130,

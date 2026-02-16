@@ -110,6 +110,8 @@ export const touchTargets = {
   standard: 48,
   /** Large touch target for glove-friendly mobile use */
   mobile: 64,
+  /** Input height per DESIGN-KEY mockups */
+  inputHeight: 52,
   /** Minimum gap between touch targets */
   gap: 16,
 } as const;
@@ -121,6 +123,8 @@ export const touchTargets = {
  * Honey Beegood aesthetic: warm, natural, inviting - like stepping
  * into a sun-dappled apiary on a golden afternoon.
  *
+ * Design reference: /docs/hardware/stitch_apis_v2/DESIGN-KEY.md
+ *
  * Key principles:
  * - Warm over clinical: soft browns and golds, not stark grays
  * - Natural feel: organic rounded corners, gentle shadows
@@ -131,9 +135,9 @@ export const apisTheme: ThemeConfig = {
   token: {
     // === Core Colors ===
     colorPrimary: colors.seaBuckthorn,
-    colorBgContainer: colors.coconutCream,
+    colorBgContainer: '#ffffff', // Cards use white bg per mockups
     colorText: colors.brownBramble,
-    colorBgElevated: colors.salomie,
+    colorBgElevated: '#ffffff', // Elevated surfaces are white
     colorBgLayout: colors.coconutCream,
     colorBgBase: colors.coconutCream,
 
@@ -144,39 +148,38 @@ export const apisTheme: ThemeConfig = {
     colorInfo: colors.info,
 
     // === Text Variations ===
-    colorTextSecondary: colors.textMuted,
+    colorTextSecondary: '#8c7e72', // Text secondary per DESIGN-KEY
     colorTextTertiary: 'rgba(102, 38, 4, 0.55)',
     colorTextQuaternary: 'rgba(102, 38, 4, 0.35)',
     colorTextLightSolid: '#ffffff',
 
     // === Borders & Dividers ===
-    colorBorder: 'rgba(102, 38, 4, 0.15)',
+    colorBorder: '#ece8d6', // Border per mockups (orange-100 equivalent)
     colorBorderSecondary: 'rgba(102, 38, 4, 0.08)',
     colorSplit: 'rgba(102, 38, 4, 0.06)',
 
     // === Interactive States ===
-    colorPrimaryHover: '#e8960f',
+    colorPrimaryHover: '#d98616', // Sea Buckthorn Dark per DESIGN-KEY
     colorPrimaryActive: '#d68800',
     colorPrimaryBg: 'rgba(247, 164, 45, 0.12)',
     colorPrimaryBgHover: 'rgba(247, 164, 45, 0.18)',
 
-    // === Border Radius (soft, natural curves) ===
-    borderRadius: 8,
-    borderRadiusLG: 12,
+    // === Border Radius (per DESIGN-KEY) ===
+    borderRadius: 8, // rounded-lg = 8px for small elements
+    borderRadiusLG: 16, // rounded-2xl = 16px for cards
     borderRadiusSM: 6,
     borderRadiusXS: 4,
 
-    // === Typography ===
-    // System font stack for fast loading and native feel
-    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    // === Typography (Inter font per DESIGN-KEY) ===
+    fontFamily: '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontSize: 14,
     fontSizeLG: 16,
     fontSizeSM: 12,
-    fontSizeHeading1: 32,
-    fontSizeHeading2: 24,
-    fontSizeHeading3: 20,
-    fontSizeHeading4: 16,
-    fontSizeHeading5: 14,
+    fontSizeHeading1: 32, // text-3xl
+    fontSizeHeading2: 24, // text-2xl
+    fontSizeHeading3: 20, // text-xl
+    fontSizeHeading4: 16, // text-base
+    fontSizeHeading5: 14, // text-sm
     lineHeight: 1.5,
     lineHeightLG: 1.5,
     lineHeightSM: 1.5,
@@ -204,34 +207,34 @@ export const apisTheme: ThemeConfig = {
     controlHeightLG: touchTargets.mobile,
     controlHeightSM: 36,
 
-    // === Shadows (warm-tinted) ===
-    boxShadow: colors.shadowMd,
+    // === Shadows (warm-tinted per DESIGN-KEY) ===
+    boxShadow: '0 4px 20px -2px rgba(102, 38, 4, 0.05)', // shadow-soft
     boxShadowSecondary: colors.shadowSm,
   },
 
   components: {
-    // === Cards: The primary content container ===
+    // === Cards: Per DESIGN-KEY - white bg, rounded-2xl, shadow-soft ===
     Card: {
-      borderRadiusLG: 12,
-      colorBgContainer: colors.salomie,
-      boxShadowTertiary: colors.shadowMd,
-      paddingLG: spacing.lg,
+      borderRadiusLG: 16, // rounded-2xl = 16px
+      colorBgContainer: '#ffffff', // Cards are white per mockups
+      boxShadowTertiary: '0 4px 20px -2px rgba(102, 38, 4, 0.05)', // shadow-soft
+      paddingLG: 20, // p-5 = 20px per mockups
     },
 
-    // === Layout: Warm sidebar, cream content ===
+    // === Layout: White sidebar per mockups, cream content ===
     Layout: {
       bodyBg: colors.coconutCream,
-      headerBg: colors.brownBramble,
-      siderBg: colors.brownBramble,
+      headerBg: colors.coconutCream, // Mobile header matches page bg
+      siderBg: '#ffffff', // Sidebar is white per mockups
       headerPadding: `0 ${spacing.lg}px`,
     },
 
-    // === Buttons: Honey-gold primary, warm interactions ===
+    // === Buttons: rounded-full for primary per DESIGN-KEY ===
     Button: {
       controlHeight: touchTargets.standard,
       controlHeightLG: touchTargets.mobile,
       paddingContentHorizontal: spacing.lg,
-      borderRadius: 8,
+      borderRadius: 9999, // rounded-full for primary buttons
       primaryShadow: colors.shadowSm,
     },
 
@@ -244,11 +247,11 @@ export const apisTheme: ThemeConfig = {
       controlHeight: touchTargets.standard,
     },
 
-    // === Input: Warm focus states ===
+    // === Input: Warm focus states, 52px height per DESIGN-KEY ===
     Input: {
-      controlHeight: touchTargets.standard,
+      controlHeight: touchTargets.inputHeight, // 52px per mockups
       controlHeightLG: touchTargets.mobile,
-      borderRadius: 8,
+      borderRadius: 12, // rounded-xl per DESIGN-KEY
       activeBorderColor: colors.seaBuckthorn,
       hoverBorderColor: colors.textMuted,
     },
@@ -261,18 +264,26 @@ export const apisTheme: ThemeConfig = {
       optionSelectedBg: 'rgba(247, 164, 45, 0.15)',
     },
 
-    // === Menu: Sidebar navigation ===
+    // === Menu: Sidebar navigation per DESIGN-KEY ===
+    // Uses light theme (white sidebar) with rounded-full items
     Menu: {
+      // Light theme colors for white sidebar
+      itemBg: 'transparent',
+      itemSelectedBg: colors.salomie, // bg-salomie for active
+      itemHoverBg: colors.coconutCream, // hover:bg-coconut-cream
+      itemColor: '#8c7e72', // text-[#8c7e72] for inactive
+      itemSelectedColor: colors.brownBramble, // text-brown-bramble for active
+      itemBorderRadius: 9999, // rounded-full
+      itemMarginInline: 8,
+      itemPaddingInline: 16,
+      iconSize: 22, // 22px per mockups
+      iconMarginInlineEnd: 12,
+      // Dark theme fallback
       darkItemBg: colors.brownBramble,
       darkItemSelectedBg: colors.seaBuckthorn,
       darkItemHoverBg: 'rgba(247, 164, 45, 0.15)',
       darkItemColor: colors.coconutCream,
       darkItemSelectedColor: '#ffffff',
-      itemBorderRadius: 8,
-      itemMarginInline: 8,
-      itemPaddingInline: 16,
-      iconSize: 18,
-      iconMarginInlineEnd: 12,
     },
 
     // === Table: Data display ===

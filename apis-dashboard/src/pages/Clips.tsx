@@ -11,7 +11,6 @@ import {
   DatePicker,
   Button,
   Pagination,
-  message,
   Segmented,
 } from 'antd';
 import {
@@ -23,31 +22,11 @@ import {
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import { ClipCard, ClipPlayerModal } from '../components';
-import { useClips } from '../hooks/useClips';
-import { apiClient } from '../providers/apiClient';
+import { useClips, useSites, useUnits } from '../hooks';
 import { colors } from '../theme/apisTheme';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
-
-interface Site {
-  id: string;
-  name: string;
-}
-
-interface Unit {
-  id: string;
-  name: string;
-  site_id: string;
-}
-
-interface SitesResponse {
-  data: Site[];
-}
-
-interface UnitsResponse {
-  data: Unit[];
-}
 
 /**
  * Clips Page
@@ -56,14 +35,13 @@ interface UnitsResponse {
  * Features a honeycomb-inspired grid with warm amber aesthetics.
  *
  * Part of Epic 4, Stories 4.2 & 4.3
+ * Refactored for Layered Hooks Architecture
  */
 export function Clips() {
   const navigate = useNavigate();
 
-  // Sites and units for filter dropdowns
-  const [sites, setSites] = useState<Site[]>([]);
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [loadingSites, setLoadingSites] = useState(true);
+  // Use hooks for sites and units
+  const { sites, loading: loadingSites } = useSites();
 
   // Filter state
   const [selectedSite, setSelectedSite] = useState<string | null>(null);
@@ -73,6 +51,23 @@ export function Clips() {
 
   // Video player modal state
   const [selectedClipIndex, setSelectedClipIndex] = useState<number | null>(null);
+
+  // Auto-select first site when sites load
+  useEffect(() => {
+    if (!selectedSite && sites.length > 0 && !loadingSites) {
+      setSelectedSite(sites[0].id);
+    }
+  }, [sites, selectedSite, loadingSites]);
+
+  // Fetch units for the selected site
+  const { units } = useUnits(selectedSite);
+
+  // Reset unit selection when site changes
+  useEffect(() => {
+    if (!selectedSite) {
+      setSelectedUnit(null);
+    }
+  }, [selectedSite]);
 
   // Fetch clips using hook
   const {
@@ -90,47 +85,6 @@ export function Clips() {
     from: dateRange?.[0]?.toDate() || null,
     to: dateRange?.[1]?.toDate() || null,
   });
-
-  // Load sites on mount
-  useEffect(() => {
-    fetchSites();
-  }, []);
-
-  // Load units when site changes
-  useEffect(() => {
-    if (selectedSite) {
-      fetchUnits(selectedSite);
-    } else {
-      setUnits([]);
-      setSelectedUnit(null);
-    }
-  }, [selectedSite]);
-
-  const fetchSites = async () => {
-    try {
-      setLoadingSites(true);
-      const response = await apiClient.get<SitesResponse>('/sites');
-      const siteList = response.data.data || [];
-      setSites(siteList);
-      // Auto-select first site if available
-      if (siteList.length > 0) {
-        setSelectedSite(siteList[0].id);
-      }
-    } catch {
-      message.error('Failed to load sites');
-    } finally {
-      setLoadingSites(false);
-    }
-  };
-
-  const fetchUnits = async (siteId: string) => {
-    try {
-      const response = await apiClient.get<UnitsResponse>(`/units?site_id=${siteId}`);
-      setUnits(response.data.data || []);
-    } catch {
-      setUnits([]);
-    }
-  };
 
   const handleClipClick = (index: number) => {
     setSelectedClipIndex(index);
@@ -260,7 +214,7 @@ export function Clips() {
             onChange={setSelectedUnit}
             allowClear
             style={{ width: 160 }}
-            options={units.map((u) => ({ value: u.id, label: u.name }))}
+            options={units.map((u) => ({ value: u.id, label: u.name || u.serial }))}
             disabled={!selectedSite}
           />
 
@@ -467,32 +421,19 @@ export function Clips() {
 function PageHeader() {
   return (
     <div style={{ marginBottom: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 10,
-            background: `linear-gradient(135deg, ${colors.seaBuckthorn} 0%, ${colors.salomie} 100%)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: `0 4px 12px ${colors.seaBuckthorn}40`,
-          }}
-        >
-          <VideoCameraOutlined style={{ fontSize: 20, color: 'white' }} />
-        </div>
-        <Title
-          level={2}
-          style={{
-            margin: 0,
-            color: colors.brownBramble,
-            fontWeight: 700,
-          }}
-        >
-          Detection Clips
-        </Title>
-      </div>
+      {/* Per mockup: bold title + subtitle, no icon */}
+      <Title
+        level={2}
+        style={{
+          margin: 0,
+          fontSize: 30,
+          fontWeight: 900,
+          letterSpacing: '-0.03em',
+          color: colors.brownBramble,
+        }}
+      >
+        Detection Clips
+      </Title>
       <Text
         style={{
           color: colors.brownBramble,

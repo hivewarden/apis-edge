@@ -232,3 +232,11 @@ None
 - 2026-01-24: Code review completed - fixed 2 issues:
   - M1: Extracted animation config to static constant
   - M2: Removed unnecessary transformData function (use points directly)
+- 2026-01-26: Remediation: Fixed 7 issues from code review
+  - I1: Added useTrendData export to hooks barrel file
+  - I2: Created useTrendData.test.ts with 12 test cases
+  - I3: Created TrendChartCard.test.tsx with 17 test cases
+  - I4: Added 13 GetTrendData handler tests
+  - I5: Accepted deviation (autoHide handles labels)
+  - I6: Fixed y-axis max edge case
+  - I7: Fixed tooltip format to match AC

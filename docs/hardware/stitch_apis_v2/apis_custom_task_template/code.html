@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS - Create Custom Task</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a42d", // Sea Buckthorn
+                        "primary-dark": "#e5931b",
+                        "brown-bramble": "#662604", // Brown Bramble
+                        "background-light": "#fcfaf8",
+                        "background-dark": "#231c0f",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#2d2415",
+                        "border-light": "#eaddd5",
+                        "border-dark": "#423826",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "2xl": "1rem", // 16px as requested
+                        "pill": "9999px"
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(102, 38, 4, 0.08)',
+                        'deep': '0 20px 40px -4px rgba(102, 38, 4, 0.12), 0 8px 16px -4px rgba(102, 38, 4, 0.08)',
+                        'glow': '0 0 0 4px rgba(247, 164, 45, 0.15)',
+                    }
+                },
+            },
+        }
+    </script>
+<style>textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background-color: #eaddd5;
+            border-radius: 20px;
+        }
+        .bg-pattern {
+             background-color: #fcfaf8;
+             background-image: radial-gradient(#eaddd5 1px, transparent 1px);
+             background-size: 24px 24px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-brown-bramble dark:text-[#f4efe6] overflow-hidden antialiased h-screen w-screen relative">
+<div class="absolute inset-0 z-0 flex flex-col p-8 opacity-40 blur-[2px] pointer-events-none select-none bg-pattern dark:bg-none">
+<header class="flex justify-between items-center mb-8">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-4xl text-primary">hive</span>
+<h1 class="text-3xl font-bold text-brown-bramble">Hive Tasks</h1>
+</div>
+<div class="flex gap-4">
+<div class="h-10 w-10 rounded-full bg-border-light dark:bg-border-dark"></div>
+<div class="h-10 w-32 rounded-lg bg-primary/20"></div>
+</div>
+</header>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="h-48 rounded-xl bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark p-6 shadow-sm"></div>
+<div class="h-48 rounded-xl bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark p-6 shadow-sm"></div>
+<div class="h-48 rounded-xl bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark p-6 shadow-sm"></div>
+<div class="h-48 rounded-xl bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark p-6 shadow-sm"></div>
+<div class="h-48 rounded-xl bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark p-6 shadow-sm"></div>
+</div>
+</div>
+<div class="fixed inset-0 bg-[#3d2611]/20 dark:bg-black/60 backdrop-blur-md z-10 transition-opacity"></div>
+<div class="fixed inset-0 z-20 flex items-center justify-center p-4">
+<div class="relative w-full max-w-[580px] flex flex-col bg-white dark:bg-surface-dark rounded-2xl shadow-deep dark:shadow-black/50 overflow-hidden transform transition-all ring-1 ring-black/5">
+<div class="px-10 pt-10 pb-4 text-center">
+<h2 class="text-brown-bramble dark:text-white tracking-tight text-[28px] font-extrabold leading-tight">Create Custom Task</h2>
+<p class="text-brown-bramble/60 dark:text-[#dcd6ca]/70 text-[15px] mt-2 font-medium">Define a new standard procedure for your apiary</p>
+</div>
+<div class="px-10 py-6 flex flex-col gap-8">
+<div class="flex flex-col gap-4">
+<label class="text-brown-bramble dark:text-white text-xs font-bold uppercase tracking-wider opacity-90">Category Icon</label>
+<div class="flex gap-4 flex-wrap justify-center sm:justify-start">
+<button class="group flex flex-col items-center gap-2 cursor-pointer transition-all">
+<div class="h-12 w-12 flex items-center justify-center rounded-full bg-primary text-white shadow-md ring-2 ring-offset-2 ring-primary">
+<span class="material-symbols-outlined text-[24px]">hexagon</span>
+</div>
+<span class="text-brown-bramble dark:text-primary text-xs font-bold">Hive</span>
+</button>
+<button class="group flex flex-col items-center gap-2 cursor-pointer transition-all opacity-70 hover:opacity-100">
+<div class="h-12 w-12 flex items-center justify-center rounded-full bg-[#f4efe6] dark:bg-white/10 text-brown-bramble dark:text-[#dcd6ca] group-hover:bg-[#ebe0d1] transition-colors">
+<span class="material-symbols-outlined text-[24px]">pest_control</span>
+</div>
+<span class="text-brown-bramble dark:text-[#dcd6ca] text-xs font-medium">Bee</span>
+</button>
+<button class="group flex flex-col items-center gap-2 cursor-pointer transition-all opacity-70 hover:opacity-100">
+<div class="h-12 w-12 flex items-center justify-center rounded-full bg-[#f4efe6] dark:bg-white/10 text-brown-bramble dark:text-[#dcd6ca] group-hover:bg-[#ebe0d1] transition-colors">
+<span class="material-symbols-outlined text-[24px]">local_florist</span>
+</div>
+<span class="text-brown-bramble dark:text-[#dcd6ca] text-xs font-medium">Forage</span>
+</button>
+<button class="group flex flex-col items-center gap-2 cursor-pointer transition-all opacity-70 hover:opacity-100">
+<div class="h-12 w-12 flex items-center justify-center rounded-full bg-[#f4efe6] dark:bg-white/10 text-brown-bramble dark:text-[#dcd6ca] group-hover:bg-[#ebe0d1] transition-colors">
+<span class="material-symbols-outlined text-[24px]">device_thermostat</span>
+</div>
+<span class="text-brown-bramble dark:text-[#dcd6ca] text-xs font-medium">Climate</span>
+</button>
+<button class="group flex flex-col items-center gap-2 cursor-pointer transition-all opacity-70 hover:opacity-100">
+<div class="h-12 w-12 flex items-center justify-center rounded-full bg-[#f4efe6] dark:bg-white/10 text-brown-bramble dark:text-[#dcd6ca] group-hover:bg-[#ebe0d1] transition-colors">
+<span class="material-symbols-outlined text-[24px]">handyman</span>
+</div>
+<span class="text-brown-bramble dark:text-[#dcd6ca] text-xs font-medium">Maint.</span>
+</button>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-brown-bramble dark:text-white text-xs font-bold uppercase tracking-wider opacity-90" for="template-name">Template Name</label>
+<div class="relative">
+<input class="flex w-full rounded-xl text-brown-bramble dark:text-white bg-[#fcfaf8] dark:bg-background-dark border border-border-light dark:border-border-dark focus:border-primary focus:ring-4 focus:ring-primary/10 h-14 px-5 text-[17px] font-medium placeholder:text-brown-bramble/40 dark:placeholder:text-[#dcd6ca]/40 transition-all shadow-sm" id="template-name" placeholder="e.g., Winter Insulation" type="text" value=""/>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-brown-bramble dark:text-white text-xs font-bold uppercase tracking-wider opacity-90" for="description">Description</label>
+<div class="relative">
+<textarea class="flex w-full resize-none rounded-xl text-brown-bramble dark:text-white bg-[#fcfaf8] dark:bg-background-dark border border-border-light dark:border-border-dark focus:border-primary focus:ring-4 focus:ring-primary/10 min-h-[140px] p-5 text-base font-normal placeholder:text-brown-bramble/40 dark:placeholder:text-[#dcd6ca]/40 transition-all shadow-sm" id="description" placeholder="Add detailed instructions for this task (e.g., Check ventilation, wrap hives with insulation material, ensure mouse guards are in place)..."></textarea>
+</div>
+</div>
+</div>
+<div class="px-10 pb-10 pt-4 flex flex-col gap-4">
+<button class="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-8 bg-primary hover:bg-primary-dark text-white text-[17px] font-bold leading-normal tracking-wide transition-all shadow-lg shadow-primary/20 hover:shadow-primary/40 transform hover:-translate-y-0.5">
+                    Create Template
+                </button>
+<button class="flex w-full cursor-pointer items-center justify-center h-10 px-5 text-brown-bramble dark:text-[#dcd6ca] text-[15px] font-semibold hover:text-brown-bramble/80 hover:underline decoration-2 underline-offset-4 transition-all">
+                    Cancel
+                </button>
+</div>
+</div>
+</div>
+
+</body></html>

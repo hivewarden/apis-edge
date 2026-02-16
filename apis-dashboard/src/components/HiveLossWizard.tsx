@@ -136,7 +136,22 @@ export function HiveLossWizard({
       await onSubmit(input);
       setShowCompletion(true);
     } catch (error) {
-      antMessage.error('Failed to save loss record. Please try again.');
+      // Extract specific error message from API response if available
+      let errorMessage = 'Failed to save loss record. Please try again.';
+
+      // Check for axios-like error structure with response data
+      if (error && typeof error === 'object') {
+        const err = error as { response?: { data?: { error?: string; message?: string } }; message?: string };
+        if (err.response?.data?.error) {
+          errorMessage = err.response.data.error;
+        } else if (err.response?.data?.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
+      }
+
+      antMessage.error(errorMessage);
     }
   };
 

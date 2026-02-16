@@ -2,7 +2,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/jermoo/apis/apis-server/internal/middleware"
@@ -12,12 +11,12 @@ import (
 // MeResponse contains the current user's identity information.
 // Field naming convention:
 //   - id: Internal database UUID (stable, for internal references)
-//   - user_id: External Zitadel user ID (JWT "sub" claim, for IdP operations)
+//   - user_id: External OIDC user ID (JWT "sub" claim, for IdP operations)
 //   - tenant_id: Organization ID (JWT "org_id" claim, for multi-tenant isolation)
 type MeResponse struct {
 	// ID is the internal database user ID (UUID)
 	ID string `json:"id"`
-	// UserID is the external Zitadel user identifier (JWT "sub" claim)
+	// UserID is the external OIDC user identifier (JWT "sub" claim)
 	UserID string `json:"user_id"`
 	// TenantID is the organization/tenant ID (JWT "org_id" claim)
 	TenantID string `json:"tenant_id"`
@@ -37,7 +36,7 @@ type MeResponse struct {
 //
 //	{
 //	  "id": "abc-123",
-//	  "user_id": "zitadel-sub-123",
+//	  "user_id": "oidc-sub-123",
 //	  "tenant_id": "org_789",
 //	  "email": "user@example.com",
 //	  "name": "John Doe",
@@ -48,12 +47,7 @@ func GetMe(w http.ResponseWriter, r *http.Request) {
 	if claims == nil {
 		// This shouldn't happen if auth middleware is properly applied
 		log.Error().Msg("GetMe called without authentication claims")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]any{
-			"error": "not authenticated",
-			"code":  http.StatusUnauthorized,
-		})
+		respondError(w, "not authenticated", http.StatusUnauthorized)
 		return
 	}
 
@@ -62,18 +56,13 @@ func GetMe(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		// This shouldn't happen if tenant middleware is properly applied
 		log.Error().Msg("GetMe called without user in context")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]any{
-			"error": "user not found",
-			"code":  http.StatusInternalServerError,
-		})
+		respondError(w, "user not found", http.StatusInternalServerError)
 		return
 	}
 
 	response := MeResponse{
 		ID:       user.ID,
-		UserID:   user.ZitadelUserID,
+		UserID:   user.ExternalUserID,
 		TenantID: user.TenantID,
 		Email:    user.Email,
 		Name:     user.Name,
@@ -85,9 +74,5 @@ func GetMe(w http.ResponseWriter, r *http.Request) {
 		Str("tenant_id", user.TenantID).
 		Msg("User info requested")
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		// Note: Headers already sent, can only log the error
-		log.Error().Err(err).Msg("Failed to encode me response")
-	}
+	respondJSON(w, response, http.StatusOK)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -290,4 +291,100 @@ func CountFeedingsByHive(ctx context.Context, conn *pgxpool.Conn, hiveID string)
 		return 0, fmt.Errorf("storage: failed to count feedings: %w", err)
 	}
 	return count, nil
+}
+
+// CreateFeedingFromTask creates a feeding record from task completion data.
+// This is a simplified method that accepts a map and applies sensible defaults.
+// Used by auto-effects processing when a task creates a feeding record.
+func CreateFeedingFromTask(ctx context.Context, conn *pgxpool.Conn, tenantID, hiveID string, fields map[string]any) (*Feeding, error) {
+	// Parse fields with defaults
+	feedType := parseStringField(fields, "feed_type", "other")
+	if feedType == "" {
+		feedType = "other"
+	}
+
+	// Parse amount - handle various formats like "2L", "2", 2.0
+	amount := parseAmountField(fields, "amount")
+
+	// Default unit
+	unit := parseStringField(fields, "unit", "L")
+
+	// Optional fields
+	concentration := parseOptionalString(fields, "concentration")
+	notes := parseOptionalString(fields, "notes")
+
+	// Parse date or use today
+	fedAt := parseDateField(fields, "fed_at")
+
+	input := &CreateFeedingInput{
+		HiveID:        hiveID,
+		FedAt:         fedAt,
+		FeedType:      feedType,
+		Amount:        amount,
+		Unit:          unit,
+		Concentration: concentration,
+		Notes:         notes,
+	}
+
+	return CreateFeeding(ctx, conn, tenantID, input)
+}
+
+// parseStringField extracts a string from a map with a default value.
+func parseStringField(fields map[string]any, key, defaultVal string) string {
+	if val, ok := fields[key]; ok {
+		if s, ok := val.(string); ok && s != "" {
+			return s
+		}
+	}
+	return defaultVal
+}
+
+// parseOptionalString extracts an optional string pointer from a map.
+func parseOptionalString(fields map[string]any, key string) *string {
+	if val, ok := fields[key]; ok {
+		if s, ok := val.(string); ok && s != "" {
+			return &s
+		}
+	}
+	return nil
+}
+
+// parseAmountField extracts and parses an amount from fields.
+func parseAmountField(fields map[string]any, key string) decimal.Decimal {
+	if val, ok := fields[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			return decimal.NewFromFloat(v)
+		case int:
+			return decimal.NewFromInt(int64(v))
+		case int64:
+			return decimal.NewFromInt(v)
+		case string:
+			// Remove common unit suffixes like "L", "kg", etc.
+			cleaned := v
+			for _, suffix := range []string{"L", "l", "kg", "Kg", "KG", "g", "G", "ml", "ML", "mL"} {
+				cleaned = strings.TrimSuffix(cleaned, suffix)
+			}
+			cleaned = strings.TrimSpace(cleaned)
+			if d, err := decimal.NewFromString(cleaned); err == nil {
+				return d
+			}
+		}
+	}
+	return decimal.Zero
+}
+
+// parseDateField extracts a date from fields or returns current time.
+func parseDateField(fields map[string]any, key string) time.Time {
+	if val, ok := fields[key]; ok {
+		if dateStr, ok := val.(string); ok && dateStr != "" {
+			// Try various date formats
+			for _, layout := range []string{"2006-01-02", time.RFC3339, "2006-01-02T15:04:05Z"} {
+				if parsed, err := time.Parse(layout, dateStr); err == nil {
+					return parsed
+				}
+			}
+		}
+	}
+	return time.Now()
 }

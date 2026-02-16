@@ -35,12 +35,14 @@ var allowedImageTypes = map[string]string{
 }
 
 // MilestonePhotoResponse represents a milestone photo in API responses.
+// SECURITY FIX (S3A-H1): Returns API-relative URLs instead of internal file paths
+// to prevent exposing internal filesystem structure.
 type MilestonePhotoResponse struct {
 	ID            string  `json:"id"`
 	MilestoneType string  `json:"milestone_type"`
 	ReferenceID   *string `json:"reference_id,omitempty"`
-	FilePath      string  `json:"file_path"`
-	ThumbnailPath *string `json:"thumbnail_path,omitempty"`
+	PhotoURL      string  `json:"photo_url"`
+	ThumbnailURL  *string `json:"thumbnail_url,omitempty"`
 	Caption       *string `json:"caption,omitempty"`
 	CreatedAt     string  `json:"created_at"`
 }
@@ -62,13 +64,20 @@ type MilestoneFlagsResponse struct {
 }
 
 // milestonePhotoToResponse converts a storage.MilestonePhoto to a MilestonePhotoResponse.
+// SECURITY FIX (S3A-H1): Returns API-relative URLs instead of raw file paths.
 func milestonePhotoToResponse(p *storage.MilestonePhoto) MilestonePhotoResponse {
+	photoURL := fmt.Sprintf("/api/milestones/photos/%s/image", p.ID)
+	var thumbnailURL *string
+	if p.ThumbnailPath != nil {
+		u := fmt.Sprintf("/api/milestones/photos/%s/thumbnail", p.ID)
+		thumbnailURL = &u
+	}
 	return MilestonePhotoResponse{
 		ID:            p.ID,
 		MilestoneType: p.MilestoneType,
 		ReferenceID:   p.ReferenceID,
-		FilePath:      p.FilePath,
-		ThumbnailPath: p.ThumbnailPath,
+		PhotoURL:      photoURL,
+		ThumbnailURL:  thumbnailURL,
 		Caption:       p.Caption,
 		CreatedAt:     p.CreatedAt.Format(time.RFC3339),
 	}
@@ -108,11 +117,23 @@ func UploadMilestonePhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate file type by checking content type
-	contentType := header.Header.Get("Content-Type")
-	ext, ok := allowedImageTypes[contentType]
+	// Validate file type by sniffing actual content (not trusting Content-Type header)
+	// This prevents malicious uploads with spoofed Content-Type headers
+	sniffBuffer := make([]byte, 512)
+	n, err := file.Read(sniffBuffer)
+	if err != nil && err != io.EOF {
+		respondError(w, "Failed to read file", http.StatusBadRequest)
+		return
+	}
+	detectedType := http.DetectContentType(sniffBuffer[:n])
+	ext, ok := allowedImageTypes[detectedType]
 	if !ok {
 		respondError(w, "Invalid file type. Only JPEG, PNG, and WebP images are allowed", http.StatusBadRequest)
+		return
+	}
+	// Seek back to beginning for full file copy
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		respondError(w, "Failed to process file", http.StatusInternalServerError)
 		return
 	}
 
@@ -139,6 +160,12 @@ func UploadMilestonePhoto(w http.ResponseWriter, r *http.Request) {
 
 	referenceID := r.FormValue("reference_id")
 	caption := r.FormValue("caption")
+
+	// FIX (S3A-L6): Validate caption length to prevent excessive database storage.
+	if len(caption) > 500 {
+		respondError(w, "Caption must not exceed 500 characters", http.StatusBadRequest)
+		return
+	}
 
 	// Generate unique ID for the photo
 	photoID := uuid.New().String()
@@ -176,23 +203,13 @@ func UploadMilestonePhoto(w http.ResponseWriter, r *http.Request) {
 		Str("path", photoPath).
 		Msg("Milestone photo saved")
 
-	// Generate thumbnail (simple copy for now, could use ImageMagick/ffmpeg later)
-	thumbPath := filepath.Join(photoDir, photoID+"_thumb"+ext)
-	// For simplicity, just copy the original as thumbnail
-	// In production, you'd use an image processing library to resize
-	thumbSrc, err := os.Open(photoPath)
-	if err == nil {
-		thumbDst, err := os.Create(thumbPath)
-		if err == nil {
-			io.Copy(thumbDst, thumbSrc)
-			thumbDst.Close()
-		}
-		thumbSrc.Close()
-	}
+	// Note: Thumbnail generation intentionally omitted.
+	// The frontend handles responsive images via CSS max-width/object-fit.
+	// This avoids storing duplicate files and simplifies the codebase.
+	// If real thumbnails are needed later, use an image processing library.
 
-	// Construct relative paths for database storage
+	// Construct relative path for database storage
 	relativePhotoPath := filepath.Join("/clips", tenantID, "milestones", photoID+ext)
-	relativeThumbPath := filepath.Join("/clips", tenantID, "milestones", photoID+"_thumb"+ext)
 
 	// Prepare input
 	var refIDPtr *string
@@ -209,16 +226,15 @@ func UploadMilestonePhoto(w http.ResponseWriter, r *http.Request) {
 		MilestoneType: milestoneType,
 		ReferenceID:   refIDPtr,
 		FilePath:      relativePhotoPath,
-		ThumbnailPath: &relativeThumbPath,
+		ThumbnailPath: nil, // No separate thumbnail - frontend handles responsive images
 		Caption:       captionPtr,
 	}
 
 	photo, err := storage.CreateMilestonePhoto(r.Context(), conn, tenantID, input)
 	if err != nil {
 		log.Error().Err(err).Str("tenant_id", tenantID).Msg("handler: failed to create milestone photo record")
-		// Clean up files on database error
+		// Clean up file on database error
 		os.Remove(photoPath)
-		os.Remove(thumbPath)
 		respondError(w, "Failed to save milestone photo", http.StatusInternalServerError)
 		return
 	}
@@ -298,17 +314,22 @@ func DeleteMilestonePhoto(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete files from disk
+	// SECURITY FIX (S3A-H3): Validate file path before deletion to prevent path traversal
 	basePath := getMilestoneStoragePath()
 	// Convert relative path back to absolute
 	filePath := strings.Replace(photo.FilePath, "/clips/", basePath+"/", 1)
-	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-		log.Warn().Err(err).Str("path", filePath).Msg("Failed to delete milestone photo file")
+	if !ValidateFilePath(filePath, basePath) {
+		log.Error().Str("path", filePath).Str("base", basePath).Msg("handler: path traversal attempt in milestone deletion")
+	} else if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+		log.Warn().Err(err).Msg("Failed to delete milestone photo file")
 	}
 
 	if photo.ThumbnailPath != nil {
 		thumbPath := strings.Replace(*photo.ThumbnailPath, "/clips/", basePath+"/", 1)
-		if err := os.Remove(thumbPath); err != nil && !os.IsNotExist(err) {
-			log.Warn().Err(err).Str("path", thumbPath).Msg("Failed to delete milestone thumbnail file")
+		if !ValidateFilePath(thumbPath, basePath) {
+			log.Error().Str("path", thumbPath).Str("base", basePath).Msg("handler: path traversal attempt in milestone thumbnail deletion")
+		} else if err := os.Remove(thumbPath); err != nil && !os.IsNotExist(err) {
+			log.Warn().Err(err).Msg("Failed to delete milestone thumbnail file")
 		}
 	}
 

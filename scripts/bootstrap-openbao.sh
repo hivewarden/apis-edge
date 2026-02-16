@@ -13,15 +13,20 @@
 #   - bao CLI or curl
 #   - sops + age (only if using --from-sops)
 #
+# SECURITY NOTE: This script intentionally suppresses output that could
+# expose secrets. Do not add echo/log statements that print credential values.
 # =============================================================================
 
 set -euo pipefail
 
-# Configuration
+# Configuration - read from environment variables (do not log these values)
+# Defaults are for local development only - production should use explicit values
 OPENBAO_ADDR="${OPENBAO_ADDR:-http://localhost:8200}"
 OPENBAO_TOKEN="${OPENBAO_TOKEN:-apis-dev-token}"
 SECRET_PATH="${OPENBAO_SECRET_PATH:-secret/data/apis}"
 SECRETS_DIR="$(dirname "$0")/../secrets"
+APIS_DB_USER="${APIS_DB_USER:-apis}"
+APIS_DB_PASSWORD="${APIS_DB_PASSWORD:-apisdev}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -45,18 +50,18 @@ check_openbao() {
 }
 
 # Write secrets to OpenBao using curl (no bao CLI needed)
+# SECURITY: Suppress all output to avoid leaking secrets in logs
 write_secret() {
     local path="$1"
     local data="$2"
 
-    curl -sf \
+    # Suppress stdout/stderr to prevent secret leakage in logs
+    if curl -sf \
         -H "X-Vault-Token: ${OPENBAO_TOKEN}" \
         -H "Content-Type: application/json" \
         -X POST \
         -d "{\"data\": ${data}}" \
-        "${OPENBAO_ADDR}/v1/${path}" > /dev/null
-
-    if [ $? -eq 0 ]; then
+        "${OPENBAO_ADDR}/v1/${path}" >/dev/null 2>&1; then
         log_info "Written: ${path}"
     else
         log_error "Failed to write: ${path}"
@@ -73,21 +78,21 @@ bootstrap_defaults() {
         "host": "yugabytedb",
         "port": "5433",
         "name": "apis",
-        "user": "apis",
-        "password": "apisdev"
+        "user": "'"${APIS_DB_USER}"'",
+        "password": "'"${APIS_DB_PASSWORD}"'"
     }'
 
-    # Zitadel secrets
-    write_secret "${SECRET_PATH}/zitadel" '{
-        "masterkey": "MasterkeyNeedsToHave32Chars!!",
+    # Keycloak secrets
+    write_secret "${SECRET_PATH}/keycloak" '{
         "admin_username": "admin",
-        "admin_password": "Admin123!"
+        "admin_password": "Admin123!",
+        "client_id": "apis-dashboard"
     }'
 
     # API configuration
     write_secret "${SECRET_PATH}/api" '{
         "port": "3000",
-        "zitadel_issuer": "http://localhost:8080"
+        "keycloak_issuer": "http://keycloak:8080/realms/honeybee"
     }'
 
     log_info "Default secrets written successfully"
@@ -132,22 +137,22 @@ bootstrap_from_sops() {
         \"password\": \"${db_pass}\"
     }"
 
-    # Extract and write Zitadel secrets
-    local zit_masterkey zit_admin_user zit_admin_pass
-    zit_masterkey=$(echo "$dec_content" | grep -A10 "^zitadel:" | grep "masterkey:" | awk '{print $2}')
-    zit_admin_user=$(echo "$dec_content" | grep -A10 "^zitadel:" | grep "admin_username:" | awk '{print $2}')
-    zit_admin_pass=$(echo "$dec_content" | grep -A10 "^zitadel:" | grep "admin_password:" | awk '{print $2}')
+    # Extract and write Keycloak secrets
+    local kc_admin_user kc_admin_pass kc_client_id
+    kc_admin_user=$(echo "$dec_content" | grep -A10 "^keycloak:" | grep "admin_username:" | awk '{print $2}')
+    kc_admin_pass=$(echo "$dec_content" | grep -A10 "^keycloak:" | grep "admin_password:" | awk '{print $2}')
+    kc_client_id=$(echo "$dec_content" | grep -A10 "^keycloak:" | grep "client_id:" | awk '{print $2}')
 
-    write_secret "${SECRET_PATH}/zitadel" "{
-        \"masterkey\": \"${zit_masterkey}\",
-        \"admin_username\": \"${zit_admin_user:-admin}\",
-        \"admin_password\": \"${zit_admin_pass}\"
+    write_secret "${SECRET_PATH}/keycloak" "{
+        \"admin_username\": \"${kc_admin_user:-admin}\",
+        \"admin_password\": \"${kc_admin_pass}\",
+        \"client_id\": \"${kc_client_id:-apis-dashboard}\"
     }"
 
     # API config (non-sensitive, can use defaults)
     write_secret "${SECRET_PATH}/api" '{
         "port": "3000",
-        "zitadel_issuer": "http://localhost:8080"
+        "keycloak_issuer": "http://keycloak:8080/realms/honeybee"
     }'
 
     log_info "SOPS secrets written successfully"
@@ -172,8 +177,8 @@ main() {
     log_info "Bootstrap complete!"
     log_info "Secrets are available at: ${SECRET_PATH}/*"
     echo ""
-    echo "To verify:"
-    echo "  curl -H \"X-Vault-Token: ${OPENBAO_TOKEN}\" ${OPENBAO_ADDR}/v1/${SECRET_PATH}/database"
+    # SECURITY: Do not include example commands that could expose tokens in shell history
+    echo "To verify secrets were written, check OpenBao UI or use bao CLI with appropriate auth."
 }
 
 main "$@"

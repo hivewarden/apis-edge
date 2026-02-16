@@ -5,6 +5,7 @@
  */
 
 #include "targeting.h"
+#include "safety_layer.h"
 #include "log.h"
 #include "platform.h"
 
@@ -74,7 +75,33 @@ static SemaphoreHandle_t g_target_mutex = NULL;
 // Utility Functions
 // ============================================================================
 
+// Time injection for testing - allows tests to advance time without sleeping
+#ifdef APIS_PLATFORM_TEST
+static uint64_t g_mock_time_ms = 0;
+static bool g_use_mock_time = false;
+
+void targeting_test_set_mock_time(uint64_t time_ms) {
+    g_mock_time_ms = time_ms;
+    g_use_mock_time = true;
+}
+
+void targeting_test_advance_time(uint64_t delta_ms) {
+    g_mock_time_ms += delta_ms;
+    g_use_mock_time = true;
+}
+
+void targeting_test_reset_mock_time(void) {
+    g_mock_time_ms = 0;
+    g_use_mock_time = false;
+}
+#endif
+
 static uint64_t get_time_ms(void) {
+#ifdef APIS_PLATFORM_TEST
+    if (g_use_mock_time) {
+        return g_mock_time_ms;
+    }
+#endif
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
@@ -103,15 +130,31 @@ const char *target_status_name(target_status_t status) {
     }
 }
 
-static void set_state(target_state_t new_state) {
+/**
+ * Set targeting state (must be called with TARGET_LOCK held).
+ * C7-H4 fix: Does NOT invoke the state callback directly.
+ * Instead, copies callback pointer and data into the provided output parameters.
+ * Caller must invoke the callback AFTER releasing the lock.
+ *
+ * @param new_state  New targeting state
+ * @param out_cb     Output: callback function pointer (set if state changed, NULL otherwise)
+ * @param out_data   Output: callback user data (set if state changed)
+ */
+static void set_state(target_state_t new_state,
+                      target_state_callback_t *out_cb, void **out_data) {
+    if (out_cb) *out_cb = NULL;
+    if (out_data) *out_data = NULL;
+
     if (g_state != new_state) {
         target_state_t old_state = g_state;
         g_state = new_state;
         LOG_DEBUG("Targeting state: %s -> %s",
                   target_state_name(old_state), target_state_name(new_state));
 
-        if (g_state_callback != NULL) {
-            g_state_callback(new_state, g_state_callback_data);
+        // C7-H4 fix: Copy callback under lock for deferred invocation
+        if (g_state_callback != NULL && out_cb) {
+            *out_cb = g_state_callback;
+            if (out_data) *out_data = g_state_callback_data;
         }
     }
 }
@@ -121,8 +164,73 @@ static void set_state(target_state_t new_state) {
 // ============================================================================
 
 /**
+ * Validate detection box coordinates against camera frame bounds.
+ * SAFETY-001-8 fix: Ensures detection coordinates are within valid frame dimensions.
+ *
+ * @param det Detection box to validate
+ * @return true if detection is valid and within frame bounds, false otherwise
+ */
+static bool validate_detection(const detection_box_t *det) {
+    if (det == NULL) {
+        return false;
+    }
+
+    // Get current camera parameters for frame bounds
+    camera_params_t params;
+    if (coord_mapper_get_camera_params(&params) != COORD_OK) {
+        // If we can't get camera params, use defaults
+        params.width = COORD_DEFAULT_WIDTH;
+        params.height = COORD_DEFAULT_HEIGHT;
+    }
+
+    // Validate bounding box has positive dimensions
+    if (det->width <= 0 || det->height <= 0) {
+        LOG_DEBUG("Detection rejected: invalid dimensions (w=%d, h=%d)",
+                  det->width, det->height);
+        return false;
+    }
+
+    // Validate x coordinate is within frame
+    if (det->x < 0 || det->x >= (int32_t)params.width) {
+        LOG_DEBUG("Detection rejected: x=%d out of bounds [0, %u)",
+                  det->x, params.width);
+        return false;
+    }
+
+    // Validate y coordinate is within frame
+    if (det->y < 0 || det->y >= (int32_t)params.height) {
+        LOG_DEBUG("Detection rejected: y=%d out of bounds [0, %u)",
+                  det->y, params.height);
+        return false;
+    }
+
+    // Validate bounding box doesn't extend beyond frame
+    if ((det->x + det->width) > (int32_t)params.width) {
+        LOG_DEBUG("Detection rejected: x+width=%d exceeds frame width %u",
+                  det->x + det->width, params.width);
+        return false;
+    }
+
+    if ((det->y + det->height) > (int32_t)params.height) {
+        LOG_DEBUG("Detection rejected: y+height=%d exceeds frame height %u",
+                  det->y + det->height, params.height);
+        return false;
+    }
+
+    // Validate confidence is in valid range
+    if (det->confidence < 0.0f || det->confidence > 1.0f) {
+        LOG_DEBUG("Detection rejected: confidence=%.2f out of range [0.0, 1.0]",
+                  det->confidence);
+        return false;
+    }
+
+    return true;
+}
+
+/**
  * Select best target from detections.
  * Priority: largest bounding box area.
+ * Only considers detections that pass validation.
  */
 static int select_best_target(const detection_box_t *detections, uint32_t count) {
     if (detections == NULL || count == 0) {
@@ -133,6 +241,11 @@ static int select_best_target(const detection_box_t *detections, uint32_t count)
     int32_t best_area = TARGET_MIN_AREA_PX;
 
     for (uint32_t i = 0; i < count; i++) {
+        // SAFETY-001-8 fix: Validate detection before processing
+        if (!validate_detection(&detections[i])) {
+            continue;  // Skip invalid detections
+        }
+
         int32_t area = detections[i].width * detections[i].height;
         if (area > best_area) {
             best_area = area;
@@ -171,8 +284,15 @@ static float calculate_sweep_offset(uint64_t time_ms) {
     // Time since sweep started
     uint64_t elapsed = time_ms - g_sweep_start_time;
 
+    // C7-MED-006: Defensive guard against zero/near-zero frequency causing
+    // division by zero or extremely large period values
+    float freq = g_sweep_frequency;
+    if (freq < 0.1f) {
+        freq = 0.5f;  // Fallback to safe default
+    }
+
     // Calculate phase (0 to 2π over one cycle)
-    float period_ms = 1000.0f / g_sweep_frequency;
+    float period_ms = 1000.0f / freq;
     float phase = (float)(elapsed % (uint64_t)period_ms) / period_ms * 2.0f * (float)M_PI;
 
     // Count cycles for statistics
@@ -194,7 +314,10 @@ static servo_position_t apply_sweep(servo_position_t base, uint64_t time_ms) {
 
     servo_position_t swept;
     swept.pan_deg = base.pan_deg + offset;
-    swept.tilt_deg = base.tilt_deg;  // Only horizontal sweep
+    // Per AC3: "Horizontal sweep: ±10°" - tilt remains fixed.
+    // Future enhancement: Add sweep pattern enum (HORIZONTAL, VERTICAL, CROSS)
+    // to targeting_set_sweep_pattern() for configurable sweep behavior.
+    swept.tilt_deg = base.tilt_deg;
 
     // Clamp to safe limits
     swept.pan_deg = servo_controller_clamp_angle(SERVO_AXIS_PAN, swept.pan_deg);
@@ -211,6 +334,20 @@ target_status_t targeting_init(void) {
     if (g_initialized) {
         LOG_WARN("Targeting system already initialized");
         return TARGET_OK;
+    }
+
+    // Validate that required subsystems are initialized
+    if (!servo_controller_is_initialized()) {
+        LOG_ERROR("Targeting requires servo controller to be initialized first");
+        return TARGET_ERROR_HARDWARE;
+    }
+    if (!coord_mapper_is_initialized()) {
+        LOG_ERROR("Targeting requires coordinate mapper to be initialized first");
+        return TARGET_ERROR_HARDWARE;
+    }
+    if (!laser_controller_is_initialized()) {
+        LOG_ERROR("Targeting requires laser controller to be initialized first");
+        return TARGET_ERROR_HARDWARE;
     }
 
 #if !defined(APIS_PLATFORM_PI) && !defined(APIS_PLATFORM_TEST)
@@ -267,29 +404,37 @@ target_status_t targeting_process_detections(const detection_box_t *detections, 
 
             if (since_last > TARGET_LOST_TIMEOUT_MS) {
                 // Target lost
-                uint32_t track_duration = (uint32_t)(now - g_current_target.first_seen);
+                uint64_t track_duration = now - g_current_target.first_seen;
                 g_total_track_time += track_duration;
                 g_lost_count++;
 
-                LOG_INFO("Target lost after %u ms", track_duration);
+                LOG_INFO("Target lost after %llu ms", (unsigned long long)track_duration);
 
-                // Deactivate laser
-                laser_controller_off();
+                // C7-CRIT-005 fix: Use safety wrapper instead of direct laser call
+                safety_laser_off();
 
                 // Return to home
                 servo_controller_home();
 
                 g_current_target.active = false;
-                set_state(TARGET_STATE_LOST);
+                target_state_callback_t cb1 = NULL; void *cb1_data = NULL;
+                set_state(TARGET_STATE_LOST, &cb1, &cb1_data);
 
-                // Invoke callback
-                if (g_lost_callback != NULL) {
-                    TARGET_UNLOCK();
-                    g_lost_callback(track_duration, g_lost_callback_data);
-                    TARGET_LOCK();
-                }
+                // Invoke lost callback
+                target_lost_callback_t lost_cb = g_lost_callback;
+                void *lost_cb_data = g_lost_callback_data;
 
-                set_state(TARGET_STATE_IDLE);
+                target_state_callback_t cb2 = NULL; void *cb2_data = NULL;
+                set_state(TARGET_STATE_IDLE, &cb2, &cb2_data);
+
+                TARGET_UNLOCK();
+
+                // C7-H4 fix: Invoke callbacks outside the lock
+                if (cb1) cb1(TARGET_STATE_LOST, cb1_data);
+                if (lost_cb) lost_cb((uint32_t)track_duration, lost_cb_data);
+                if (cb2) cb2(TARGET_STATE_IDLE, cb2_data);
+
+                return TARGET_OK;
             }
         }
 
@@ -307,6 +452,10 @@ target_status_t targeting_process_detections(const detection_box_t *detections, 
 
     bool new_target = !g_current_target.active;
 
+    // C7-H4 fix: Collect state callbacks for deferred invocation
+    target_state_callback_t deferred_cb1 = NULL; void *deferred_cb1_data = NULL;
+    target_state_callback_t deferred_cb2 = NULL; void *deferred_cb2_data = NULL;
+
     if (new_target) {
         // New target acquired
         g_current_target.first_seen = now;
@@ -317,7 +466,7 @@ target_status_t targeting_process_detections(const detection_box_t *detections, 
         LOG_INFO("Target acquired at pixel (%d, %d) -> angle (%.1f, %.1f)",
                  centroid.x, centroid.y, target_angle.pan_deg, target_angle.tilt_deg);
 
-        set_state(TARGET_STATE_ACQUIRING);
+        set_state(TARGET_STATE_ACQUIRING, &deferred_cb1, &deferred_cb1_data);
     }
 
     // Update target info
@@ -333,25 +482,45 @@ target_status_t targeting_process_detections(const detection_box_t *detections, 
     // Move servos
     servo_controller_move(g_current_target.sweep_angle);
 
-    // Activate laser if armed
+    // Activate laser if armed - MUST go through safety layer (SAFETY-001-1 fix)
+    // Direct calls to laser_controller_on() bypass critical safety checks including:
+    // tilt validation, detection active check, kill switch, and watchdog
     if (laser_controller_is_armed()) {
         if (!laser_controller_is_active() && !laser_controller_is_in_cooldown()) {
-            laser_controller_on();
+            safety_status_t safety_result = safety_laser_on();
+            if (safety_result != SAFETY_OK) {
+                // Safety layer blocked laser activation - this is expected behavior
+                // when safety conditions are not met. Log for debugging only.
+                LOG_DEBUG("Laser activation blocked by safety layer: %s",
+                          safety_status_name(safety_result));
+            }
         }
 
         if (g_state != TARGET_STATE_TRACKING) {
-            set_state(TARGET_STATE_TRACKING);
+            set_state(TARGET_STATE_TRACKING, &deferred_cb2, &deferred_cb2_data);
         }
     }
 
-    // Invoke acquired callback for new targets
+    // C7-H4 fix: Copy acquired callback under lock for deferred invocation
+    // C7-MED-002: No unlock/relock pattern remains - all callbacks are now
+    // deferred via copy-under-lock-invoke-outside pattern, eliminating the
+    // stale-state-after-relock risk identified in the review.
+    target_acquired_callback_t acq_cb = NULL;
+    void *acq_cb_data = NULL;
+    target_info_t acq_target_copy = {0};
     if (new_target && g_acquired_callback != NULL) {
-        TARGET_UNLOCK();
-        g_acquired_callback(&g_current_target, g_acquired_callback_data);
-        TARGET_LOCK();
+        acq_cb = g_acquired_callback;
+        acq_cb_data = g_acquired_callback_data;
+        acq_target_copy = g_current_target;
     }
 
     TARGET_UNLOCK();
+
+    // C7-H4 fix: Invoke all callbacks outside the lock
+    if (deferred_cb1) deferred_cb1(TARGET_STATE_ACQUIRING, deferred_cb1_data);
+    if (deferred_cb2) deferred_cb2(TARGET_STATE_TRACKING, deferred_cb2_data);
+    if (acq_cb) acq_cb(&acq_target_copy, acq_cb_data);
+
     return TARGET_OK;
 }
 
@@ -365,31 +534,42 @@ void targeting_update(void) {
     // Update laser controller
     laser_controller_update();
 
+    // C7-H4 fix: Collect callbacks for deferred invocation
+    target_state_callback_t st_cb1 = NULL; void *st_cb1_data = NULL;
+    target_state_callback_t st_cb2 = NULL; void *st_cb2_data = NULL;
+    target_state_callback_t st_cb3 = NULL; void *st_cb3_data = NULL;
+    target_lost_callback_t lost_cb = NULL; void *lost_cb_data = NULL;
+    uint32_t lost_duration = 0;
+    bool had_lost_event = false;
+
     // Check for lost target
     if (g_current_target.active) {
         uint64_t since_last = now - g_current_target.last_seen;
 
         if (since_last > TARGET_LOST_TIMEOUT_MS) {
             // Target lost
-            uint32_t track_duration = (uint32_t)(now - g_current_target.first_seen);
+            uint64_t track_duration = now - g_current_target.first_seen;
             g_total_track_time += track_duration;
             g_lost_count++;
 
-            LOG_INFO("Target lost (timeout) after %u ms", track_duration);
+            LOG_INFO("Target lost (timeout) after %llu ms", (unsigned long long)track_duration);
 
-            laser_controller_off();
+            // C7-CRIT-005 fix: Use safety wrapper instead of direct laser call
+            safety_laser_off();
             servo_controller_home();
 
             g_current_target.active = false;
-            set_state(TARGET_STATE_LOST);
+            set_state(TARGET_STATE_LOST, &st_cb1, &st_cb1_data);
 
+            // Copy lost callback under lock
             if (g_lost_callback != NULL) {
-                TARGET_UNLOCK();
-                g_lost_callback(track_duration, g_lost_callback_data);
-                TARGET_LOCK();
+                lost_cb = g_lost_callback;
+                lost_cb_data = g_lost_callback_data;
+                lost_duration = (uint32_t)track_duration;
+                had_lost_event = true;
             }
 
-            set_state(TARGET_STATE_IDLE);
+            set_state(TARGET_STATE_IDLE, &st_cb2, &st_cb2_data);
         } else {
             // Still tracking - update sweep
             g_current_target.sweep_angle = apply_sweep(g_current_target.target_angle, now);
@@ -399,18 +579,28 @@ void targeting_update(void) {
 
     // Update state based on cooldown
     if (g_state == TARGET_STATE_TRACKING && laser_controller_is_in_cooldown()) {
-        set_state(TARGET_STATE_COOLDOWN);
+        set_state(TARGET_STATE_COOLDOWN, &st_cb3, &st_cb3_data);
     } else if (g_state == TARGET_STATE_COOLDOWN && !laser_controller_is_in_cooldown()) {
         if (g_current_target.active) {
-            set_state(TARGET_STATE_TRACKING);
-            // Re-activate laser
-            laser_controller_on();
+            set_state(TARGET_STATE_TRACKING, &st_cb3, &st_cb3_data);
+            // Re-activate laser - MUST go through safety layer (SAFETY-001-1 fix)
+            safety_status_t safety_result = safety_laser_on();
+            if (safety_result != SAFETY_OK) {
+                LOG_DEBUG("Laser re-activation after cooldown blocked by safety: %s",
+                          safety_status_name(safety_result));
+            }
         } else {
-            set_state(TARGET_STATE_IDLE);
+            set_state(TARGET_STATE_IDLE, &st_cb3, &st_cb3_data);
         }
     }
 
     TARGET_UNLOCK();
+
+    // C7-H4 fix: Invoke all callbacks outside the lock
+    if (st_cb1) st_cb1(TARGET_STATE_LOST, st_cb1_data);
+    if (had_lost_event && lost_cb) lost_cb(lost_duration, lost_cb_data);
+    if (st_cb2) st_cb2(TARGET_STATE_IDLE, st_cb2_data);
+    if (st_cb3) st_cb3(g_state, st_cb3_data);
 }
 
 target_status_t targeting_get_current_target(target_info_t *target) {
@@ -455,19 +645,24 @@ void targeting_cancel(void) {
     TARGET_LOCK();
 
     if (g_current_target.active) {
-        uint32_t track_duration = (uint32_t)(get_time_ms() - g_current_target.first_seen);
+        uint64_t track_duration = get_time_ms() - g_current_target.first_seen;
         g_total_track_time += track_duration;
 
-        LOG_INFO("Targeting cancelled after %u ms", track_duration);
+        LOG_INFO("Targeting cancelled after %llu ms", (unsigned long long)track_duration);
     }
 
-    laser_controller_off();
+    // C7-CRIT-005 fix: Use safety wrapper instead of direct laser call
+    safety_laser_off();
     servo_controller_home();
 
     g_current_target.active = false;
-    set_state(TARGET_STATE_IDLE);
+    target_state_callback_t cb = NULL; void *cb_data = NULL;
+    set_state(TARGET_STATE_IDLE, &cb, &cb_data);
 
     TARGET_UNLOCK();
+
+    // C7-H4 fix: Invoke callback outside the lock
+    if (cb) cb(TARGET_STATE_IDLE, cb_data);
 }
 
 void targeting_set_sweep_amplitude(float amplitude_deg) {
@@ -560,8 +755,9 @@ void targeting_cleanup(void) {
     TARGET_LOCK();
 
     // Cancel any active tracking
+    // C7-CRIT-005 fix: Use safety wrapper instead of direct laser call
     if (g_current_target.active) {
-        laser_controller_off();
+        safety_laser_off();
         servo_controller_home();
         g_current_target.active = false;
     }

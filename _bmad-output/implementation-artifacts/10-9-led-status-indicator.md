@@ -309,6 +309,11 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
    - HTTP server arm/disarm handlers call LED state changes
    - Detection flash available via led_controller_flash_detection()
 
+5. **Platform Notes**:
+   - Pi GPIO functions are placeholders (ready for gpiod integration)
+   - AC1-AC6 verified on TEST platform; Pi hardware verification deferred to hardware integration story
+   - ESP32 single LED limitation documented in code
+
 ## Change Log
 
 | Date | Author | Changes |
@@ -316,3 +321,4 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 | 2026-01-23 | Claude | Story created with comprehensive context |
 | 2026-01-23 | Claude | Implementation complete, 50 tests passing |
 | 2026-01-23 | Claude | Code review: Fixed ESP32 cleanup race condition |
+| 2026-01-26 | Claude | Remediation: Fixed 7 issues from code review (1 code fix, 4 documentation, 2 false positives) |

@@ -409,6 +409,75 @@ static void test_persistence(void) {
 }
 
 /**
+ * Test auto-pruning on storage warning (AC3).
+ *
+ * This test verifies that when storage is low (warning flag set),
+ * the event_logger_log() function automatically triggers pruning
+ * of old synced events.
+ *
+ * Note: In a real scenario, storage low condition would be detected
+ * via statvfs. This test verifies the logic flow is correct.
+ */
+static void test_auto_prune_on_storage_warning(void) {
+    printf("\n--- Test: Auto-Prune on Storage Warning ---\n");
+
+    event_logger_close();
+    cleanup_test_db();
+
+    // Configure with very high min_free_mb to simulate "low storage" condition
+    // This will cause storage warning to trigger on most systems
+    event_logger_config_t config = event_logger_config_defaults();
+    snprintf(config.db_path, sizeof(config.db_path), "%s", TEST_DB_PATH);
+    config.min_free_mb = 999999; // 999 GB - will always trigger warning
+    config.prune_days = 0;       // Prune all synced events immediately
+
+    event_logger_init(&config);
+
+    // Log several events and mark them as synced
+    classified_detection_t det = {
+        .detection = {.x = 100, .y = 100, .w = 30, .h = 25, .area = 750,
+                      .centroid_x = 115, .centroid_y = 112},
+        .confidence = CONFIDENCE_HIGH,
+    };
+
+    int64_t ids[3];
+    for (int i = 0; i < 3; i++) {
+        ids[i] = event_logger_log(&det, false, NULL);
+        // Mark as synced so they're eligible for pruning
+        event_logger_mark_synced(ids[i]);
+    }
+
+    storage_status_t status;
+    event_logger_get_status(&status);
+    printf("  Before auto-prune: %d total events, warning=%d\n",
+           status.total_events, status.warning);
+
+    TEST_ASSERT(status.total_events == 3, "Should have 3 events before auto-prune");
+    TEST_ASSERT(status.warning, "Storage warning should be true (min_free_mb=999999)");
+
+    // Log one more event - this should trigger auto-prune
+    // because storage is "low" (warning flag set) and prune_days=0
+    int64_t new_id = event_logger_log(&det, true, NULL);
+    TEST_ASSERT(new_id > 0, "Should log new event");
+
+    // Give it a moment for the prune to complete
+    usleep(50000); // 50ms
+
+    // Check that old synced events were pruned
+    event_logger_get_status(&status);
+    printf("  After auto-prune trigger: %d total events\n", status.total_events);
+
+    // The 3 old synced events should have been pruned, leaving only the new one
+    // Note: The new event is unsynced, so it won't be pruned
+    TEST_ASSERT(status.total_events == 1, "Should have 1 event after auto-prune (old synced ones pruned)");
+    TEST_ASSERT(status.unsynced_events == 1, "The remaining event should be unsynced (the new one)");
+
+    event_logger_close();
+    cleanup_test_db();
+    TEST_PASS("Auto-Prune on Storage Warning");
+}
+
+/**
  * Test error handling.
  */
 static void test_error_handling(void) {
@@ -500,6 +569,7 @@ int main(void) {
     test_date_filtering();
     test_sync_marking();
     test_pruning();
+    test_auto_prune_on_storage_warning();
     test_persistence();
     test_error_handling();
     test_status_strings();

@@ -12,6 +12,7 @@
 #include "http_server.h"
 #include "config_manager.h"
 #include "log.h"
+#include "platform.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +24,17 @@
 #include <pthread.h>
 
 #include "cJSON.h"
+#include "event_logger.h"
+
+// ============================================================================
+// Stubs for event_logger (avoid pulling in sqlite3 dependency)
+// ============================================================================
+
+bool event_logger_is_initialized(void) { return false; }
+int event_logger_get_status(storage_status_t *status) {
+    (void)status;
+    return -1;
+}
 
 // ============================================================================
 // Test Framework
@@ -456,7 +468,7 @@ static void test_server_lifecycle(void) {
     TEST_ASSERT(http_server_is_running(), "Server is running");
 
     // Give server time to start
-    usleep(100000); // 100ms
+    apis_sleep_ms(100);
 
     // Run endpoint tests
     test_status_endpoint(port);

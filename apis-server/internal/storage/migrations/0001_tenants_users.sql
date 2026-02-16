@@ -9,8 +9,10 @@ CREATE TABLE IF NOT EXISTS tenants (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     plan TEXT DEFAULT 'free',
+    status TEXT DEFAULT 'active',
     settings JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Users table (synced from Zitadel Users)

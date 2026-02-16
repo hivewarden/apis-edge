@@ -1,49 +1,39 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Typography, Row, Col, Empty, Spin, Button, message, Divider, Select, Alert } from 'antd';
-import { PlusOutlined, ReloadOutlined, EnvironmentOutlined, TrophyOutlined } from '@ant-design/icons';
-import { UnitStatusCard, Unit } from '../components/UnitStatusCard';
+import { Typography, Row, Col, Empty, Spin, Button, message, Divider, Select, Alert, Card, Badge, Space } from 'antd';
+import {
+  PlusOutlined,
+  ReloadOutlined,
+  TrophyOutlined,
+  ApiOutlined,
+  EnvironmentOutlined,
+  ClockCircleOutlined,
+} from '@ant-design/icons';
 import { TodayActivityCard } from '../components/TodayActivityCard';
 import { WeatherCard } from '../components/WeatherCard';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
-import { ActivityClockCard } from '../components/ActivityClockCard';
-import { TemperatureCorrelationCard } from '../components/TemperatureCorrelationCard';
-import { TrendChartCard } from '../components/TrendChartCard';
-import { NestEstimatorCard } from '../components/NestEstimatorCard';
 import { BeeBrainCard } from '../components/BeeBrainCard';
 import { SyncStatus } from '../components/SyncStatus';
 import { ProactiveInsightBanner } from '../components/ProactiveInsightBanner';
+import { OverwinteringPrompt } from '../components/OverwinteringPrompt';
+import { ActivityFeedCard } from '../components/ActivityFeedCard';
 import { TimeRangeProvider } from '../context';
-import { apiClient } from '../providers/apiClient';
 import { colors } from '../theme/apisTheme';
 import { getLastSyncTime, calculateStorageSize } from '../services/offlineCache';
-import { useRecapTime } from '../hooks/useSeasonRecap';
+import { useRecapTime, useSites, useUnits, useAuth } from '../hooks';
+import { POLL_INTERVAL_MS } from '../constants';
 
-const { Title, Paragraph } = Typography;
+// LAZY LOADED CHART AND MAP COMPONENTS
+// These import heavy dependencies (@ant-design/charts ~150KB, leaflet ~50KB)
+// Using lazy wrappers keeps them out of the initial bundle
+import {
+  ActivityClockCardLazy as ActivityClockCard,
+  TemperatureCorrelationCardLazy as TemperatureCorrelationCard,
+  TrendChartCardLazy as TrendChartCard,
+  NestEstimatorCardLazy as NestEstimatorCard,
+} from '../components/lazy';
 
-interface Site {
-  id: string;
-  name: string;
-  latitude: number | null;
-  longitude: number | null;
-  timezone: string;
-}
-
-interface SitesResponse {
-  data: Site[];
-  meta: {
-    total: number;
-  };
-}
-
-interface UnitsResponse {
-  data: Unit[];
-  meta: {
-    total: number;
-  };
-}
-
-const POLL_INTERVAL_MS = 30000; // 30 seconds
+const { Title, Text, Paragraph } = Typography;
 
 /**
  * Dashboard Page
@@ -60,21 +50,25 @@ const POLL_INTERVAL_MS = 30000; // 30 seconds
  * - Unit status cards with auto-refresh every 30 seconds
  *
  * Part of Epic 2, Story 2.4 (base), Epic 3, Stories 3.1-3.7
+ * Refactored for Layered Hooks Architecture
  */
 function DashboardContent() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Site selection
-  const [sites, setSites] = useState<Site[]>([]);
+  // Site selection state
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(
     searchParams.get('site_id')
   );
-  const [sitesLoading, setSitesLoading] = useState(true);
 
-  // Units
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [loading, setLoading] = useState(true);
+  // SECURITY (S5-L1): Get user name from auth context instead of hardcoded value
+  const { user } = useAuth();
+
+  // Use hooks for data fetching
+  const { sites, loading: sitesLoading } = useSites();
+  const { units, loading: unitsLoading, refetch: refetchUnits } = useUnits(selectedSiteId);
+
+  // Manual refresh state
   const [refreshing, setRefreshing] = useState(false);
 
   // Offline sync status (Epic 7, Story 7.2)
@@ -85,50 +79,16 @@ function DashboardContent() {
   const { isRecapTime, currentSeason } = useRecapTime('northern');
   const [recapBannerDismissed, setRecapBannerDismissed] = useState(false);
 
-  // Fetch sites for selector
-  const fetchSites = useCallback(async () => {
-    try {
-      const response = await apiClient.get<SitesResponse>('/sites');
-      const sitesData = response.data.data || [];
-      setSites(sitesData);
-
-      // If no site selected but sites exist, select the first one
-      if (!selectedSiteId && sitesData.length > 0) {
-        const firstSiteId = sitesData[0].id;
-        setSelectedSiteId(firstSiteId);
-        setSearchParams({ site_id: firstSiteId });
-      }
-    } catch {
-      // Sites fetch error is non-critical
-    } finally {
-      setSitesLoading(false);
+  // Auto-select first site on initial load only (when no URL param exists)
+  const hasInitialized = useRef(false);
+  useEffect(() => {
+    if (!hasInitialized.current && !selectedSiteId && sites.length > 0 && !sitesLoading) {
+      hasInitialized.current = true;
+      const firstSiteId = sites[0].id;
+      setSelectedSiteId(firstSiteId);
+      setSearchParams({ site_id: firstSiteId });
     }
-  }, [selectedSiteId, setSearchParams]);
-
-  // Fetch units
-  const fetchUnits = useCallback(async (isRefresh = false) => {
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      }
-
-      // If a site is selected, filter units by site
-      const url = selectedSiteId
-        ? `/units?site_id=${selectedSiteId}`
-        : '/units';
-
-      const response = await apiClient.get<UnitsResponse>(url);
-      setUnits(response.data.data || []);
-    } catch {
-      // Only show error on manual refresh, not on polling
-      if (isRefresh) {
-        message.error('Failed to refresh units');
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [selectedSiteId]);
+  }, [sites, selectedSiteId, sitesLoading, setSearchParams]);
 
   // Load offline sync status
   useEffect(() => {
@@ -143,27 +103,30 @@ function DashboardContent() {
     loadSyncStatus();
   }, []);
 
-  // Initial fetch
-  useEffect(() => {
-    fetchSites();
-  }, [fetchSites]);
+  // Polling for units - set up interval for auto-refresh
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Reset loading when site changes
-    setLoading(true);
-    fetchUnits();
+    // Clear any existing interval
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
 
     // Set up polling interval
-    const interval = setInterval(() => {
-      fetchUnits();
+    pollIntervalRef.current = setInterval(() => {
+      refetchUnits();
     }, POLL_INTERVAL_MS);
 
     // Cleanup on unmount
-    return () => clearInterval(interval);
-  }, [fetchUnits]);
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [refetchUnits]);
 
-  const handleSiteChange = (siteId: string | null) => {
-    setSelectedSiteId(siteId);
+  const handleSiteChange = (siteId: string | undefined) => {
+    setSelectedSiteId(siteId ?? null);
     // Preserve existing params (range, date) when changing site
     const newParams = new URLSearchParams(searchParams);
     if (siteId) {
@@ -182,51 +145,94 @@ function DashboardContent() {
     navigate('/units/register');
   };
 
-  const handleManualRefresh = () => {
-    fetchUnits(true);
-  };
+  const handleManualRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refetchUnits();
+    } catch {
+      message.error('Failed to refresh units');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchUnits]);
 
   const selectedSite = sites.find((s) => s.id === selectedSiteId);
 
+  // Get user name from auth context (S5-L1: replaced hardcoded 'Sam')
+  const userName = user?.name || 'Beekeeper';
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <Title level={2} style={{ margin: 0 }}>Dashboard</Title>
-        <SyncStatus
-          lastSynced={lastSynced}
-          storageUsedMB={storageMB}
-          compact
-        />
-      </div>
-      <Paragraph>
-        Welcome to APIS Dashboard. Your hornet detection and deterrent system overview.
-      </Paragraph>
+      {/* Header per mockup: Welcome greeting + site/time selectors */}
+      <header style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        gap: 16,
+        marginBottom: 24,
+      }}>
+        <div>
+          <Title
+            level={2}
+            style={{
+              margin: 0,
+              fontSize: 30,
+              fontWeight: 900,
+              letterSpacing: '-0.03em',
+              color: colors.brownBramble,
+            }}
+          >
+            Welcome back, {userName}
+          </Title>
+          <Paragraph style={{ margin: 0, marginTop: 4, color: '#8a5025', fontSize: 14 }}>
+            Here is your apiary overview for today.
+          </Paragraph>
+        </div>
 
-      {/* Site Selector */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <EnvironmentOutlined style={{ fontSize: 18, color: colors.seaBuckthorn }} />
+        {/* Site + Time range selector row per mockup */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          background: '#ffffff',
+          padding: '6px 16px',
+          borderRadius: 9999,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
+          border: '1px solid #ece8d6',
+          flexShrink: 0,
+        }}>
+          {/* Site selector */}
           <Select
-            placeholder="Select a site"
+            placeholder="All Sites"
             loading={sitesLoading}
             value={selectedSiteId}
             onChange={handleSiteChange}
-            style={{ width: 250 }}
             allowClear
+            style={{ minWidth: 180 }}
+            bordered={false}
             options={sites.map((site) => ({
               value: site.id,
               label: site.name,
             }))}
           />
-          {selectedSite && (
-            <Paragraph type="secondary" style={{ margin: 0 }}>
-              {selectedSite.latitude && selectedSite.longitude
-                ? `${selectedSite.latitude.toFixed(4)}, ${selectedSite.longitude.toFixed(4)}`
-                : 'No GPS coordinates'}
-            </Paragraph>
-          )}
+
+          {/* Divider */}
+          <div style={{ height: 24, width: 1, background: '#ece8d6' }} />
+
+          {/* Time range selector */}
+          <TimeRangeSelector />
         </div>
-      </div>
+
+        <SyncStatus
+          lastSynced={lastSynced}
+          storageUsedMB={storageMB}
+          compact
+        />
+      </header>
+
+      {/* Overwintering Prompt - Story 9.5 - Shows in March (Northern) */}
+      <OverwinteringPrompt hemisphere="northern" />
 
       {/* Season Recap Prompt Banner - Story 9.4 - Shows in November (Northern) */}
       {isRecapTime && !recapBannerDismissed && (
@@ -252,14 +258,9 @@ function DashboardContent() {
       {/* Proactive Insights Banner - Story 8.4 - Positioned at top for visibility */}
       <ProactiveInsightBanner siteId={selectedSiteId} />
 
-      <Divider />
+      <Divider style={{ margin: '16px 0' }} />
 
-      {/* Time Range Selector */}
-      <div style={{ marginBottom: 16 }}>
-        <TimeRangeSelector />
-      </div>
-
-      {/* Detection Activity Section */}
+      {/* Detection Activity Section - per mockup: 4-column grid of cards */}
       <div style={{ marginBottom: 24 }}>
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12} lg={8}>
@@ -272,14 +273,17 @@ function DashboardContent() {
             />
           </Col>
           <Col xs={24} lg={8}>
+            {/* Lazy loaded - shows skeleton while chart library loads */}
             <ActivityClockCard siteId={selectedSiteId} />
           </Col>
         </Row>
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col xs={24} lg={12}>
+            {/* Lazy loaded - shows skeleton while chart library loads */}
             <TemperatureCorrelationCard siteId={selectedSiteId} />
           </Col>
           <Col xs={24} lg={12}>
+            {/* Lazy loaded - shows skeleton while chart library loads */}
             <TrendChartCard siteId={selectedSiteId} />
           </Col>
         </Row>
@@ -288,11 +292,18 @@ function DashboardContent() {
             <BeeBrainCard siteId={selectedSiteId} />
           </Col>
           <Col xs={24} lg={12}>
+            {/* Lazy loaded - shows skeleton while leaflet loads */}
             <NestEstimatorCard
               siteId={selectedSiteId}
               latitude={selectedSite?.latitude ?? null}
               longitude={selectedSite?.longitude ?? null}
             />
+          </Col>
+        </Row>
+        {/* Activity Feed Card - Epic 13, Story 13.17 */}
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={24} lg={12}>
+            <ActivityFeedCard siteId={selectedSiteId} limit={5} />
           </Col>
         </Row>
       </div>
@@ -322,7 +333,7 @@ function DashboardContent() {
           </div>
         </div>
 
-        {loading ? (
+        {unitsLoading ? (
           <div style={{ textAlign: 'center', padding: '48px 0' }}>
             <Spin size="large" />
           </div>
@@ -337,11 +348,89 @@ function DashboardContent() {
           </Empty>
         ) : (
           <Row gutter={[16, 16]}>
-            {units.map((unit) => (
-              <Col xs={24} sm={12} lg={8} xl={6} key={unit.id}>
-                <UnitStatusCard unit={unit} onClick={handleUnitClick} />
-              </Col>
-            ))}
+            {units.map((unit) => {
+              const statusBadge = unit.status === 'online'
+                ? <Badge status="success" text="Online" />
+                : unit.status === 'error'
+                  ? <Badge status="error" text="Error" />
+                  : <Badge status="default" text="Offline" />;
+
+              const formatLastSeen = (lastSeen: string | null) => {
+                if (!lastSeen) return 'Never';
+                const date = new Date(lastSeen);
+                const now = new Date();
+                const diff = now.getTime() - date.getTime();
+                const minutes = Math.floor(diff / 60000);
+                const hours = Math.floor(diff / 3600000);
+                const days = Math.floor(diff / 86400000);
+                if (minutes < 1) return 'Just now';
+                if (minutes < 60) return `${minutes}m ago`;
+                if (hours < 24) return `${hours}h ago`;
+                if (days < 7) return `${days}d ago`;
+                return date.toLocaleDateString();
+              };
+
+              return (
+                <Col xs={24} sm={12} lg={8} xl={6} key={unit.id}>
+                  <Card
+                    onClick={() => handleUnitClick(unit.id)}
+                    style={{
+                      height: '100%',
+                      borderLeft: `4px solid ${colors.seaBuckthorn}`,
+                      boxShadow: '0 1px 3px rgba(102, 38, 4, 0.08)',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.boxShadow = '0 4px 16px rgba(247, 162, 43, 0.15)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(102, 38, 4, 0.08)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <Space size={8}>
+                          <div style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 8,
+                            backgroundColor: 'rgba(247, 164, 45, 0.1)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: colors.seaBuckthorn,
+                            fontSize: 20,
+                          }}>
+                            <ApiOutlined />
+                          </div>
+                          <Title level={4} style={{ margin: 0 }}>
+                            {unit.name || unit.serial}
+                          </Title>
+                        </Space>
+                        {statusBadge}
+                      </div>
+
+                      {unit.site_name && (
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          <EnvironmentOutlined style={{ marginRight: 4 }} />
+                          {unit.site_name}
+                        </Text>
+                      )}
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          <ClockCircleOutlined style={{ marginRight: 4 }} />
+                          {formatLastSeen(unit.last_seen)}
+                        </Text>
+                      </div>
+                    </Space>
+                  </Card>
+                </Col>
+              );
+            })}
           </Row>
         )}
       </div>

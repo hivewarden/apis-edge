@@ -8,6 +8,7 @@
  *
  * @module hooks/usePendingSync
  */
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../services/db';
 import type { PendingInspection, SyncQueueItem } from '../services/db';
@@ -54,6 +55,8 @@ export interface UsePendingSyncResult {
   errorItems: PendingInspection[];
   /** Count of items currently syncing */
   syncingCount: number;
+  /** Error if IndexedDB operations fail */
+  dbError: Error | null;
 }
 
 // ============================================================================
@@ -84,22 +87,51 @@ export interface UsePendingSyncResult {
  * ```
  */
 export function usePendingSync(): UsePendingSyncResult {
-  // Query pending inspections reactively
+  // Track IndexedDB errors
+  const [dbError, setDbError] = useState<Error | null>(null);
+
+  // Query pending inspections reactively with error handling
   // Dexie stores booleans as 1/0 in indexed columns
   const pendingInspections = useLiveQuery(
-    () => db.inspections.filter(i => i.pending_sync === true).toArray(),
+    async () => {
+      try {
+        const result = await db.inspections.filter(i => i.pending_sync === true).toArray();
+        // Clear any previous error on successful query
+        setDbError(null);
+        return result;
+      } catch (e) {
+        const error = e instanceof Error ? e : new Error('Failed to query pending inspections');
+        console.error('[usePendingSync] Error querying pending inspections:', error);
+        setDbError(error);
+        return [];
+      }
+    },
     []
   );
 
-  // Query sync queue items
+  // Query sync queue items with error handling
   const syncQueueItems = useLiveQuery(
-    () => db.sync_queue.toArray(),
+    async () => {
+      try {
+        return await db.sync_queue.toArray();
+      } catch (e) {
+        console.error('[usePendingSync] Error querying sync queue:', e);
+        return [];
+      }
+    },
     []
   );
 
-  // Query items currently syncing
+  // Query items currently syncing with error handling
   const syncingItems = useLiveQuery(
-    () => db.sync_queue.where('status').equals('syncing').count(),
+    async () => {
+      try {
+        return await db.sync_queue.where('status').equals('syncing').count();
+      } catch (e) {
+        console.error('[usePendingSync] Error querying syncing items:', e);
+        return 0;
+      }
+    },
     [],
     0
   );
@@ -147,6 +179,7 @@ export function usePendingSync(): UsePendingSyncResult {
     hasErrors,
     errorItems: errorItems as PendingInspection[],
     syncingCount: syncingItems ?? 0,
+    dbError,
   };
 }
 

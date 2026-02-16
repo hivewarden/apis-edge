@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Mobile Navigation Refined</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a42d", // Sea Buckthorn
+                        "coconut": "#fbf9e7", // Coconut Cream
+                        "bramble": "#662604", // Brown Bramble
+                        "pure-white": "#ffffff",
+                        "background-light": "#fbf9e7",
+                        "background-dark": "#221b10",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem", 
+                        "lg": "0.5rem", 
+                        "xl": "0.75rem", 
+                        "card": "16px",
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        "soft": "0 4px 20px -2px rgba(102, 38, 4, 0.08)",
+                        "nav": "0 -4px 24px rgba(102, 38, 4, 0.06)"
+                    }
+                },
+            },
+        }
+    </script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }.no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }.icon-thin {
+            font-variation-settings: 'wght' 300;
+        }
+        .icon-regular {
+            font-variation-settings: 'wght' 400;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+<div class="relative flex h-[844px] w-full max-w-[390px] flex-col overflow-hidden rounded-[2.5rem] bg-coconut dark:bg-background-dark shadow-2xl ring-8 ring-gray-900/5 group/design-root text-bramble">
+<header class="flex items-center justify-between whitespace-nowrap px-6 pt-6 pb-2 bg-coconut dark:bg-background-dark z-10 sticky top-0">
+<div class="flex items-center gap-3">
+<div class="size-6 text-primary">
+<svg class="w-full h-full" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M42.1739 20.1739L27.8261 5.82609C29.1366 7.13663 28.3989 10.1876 26.2002 13.7654C24.8538 15.9564 22.9595 18.3449 20.6522 20.6522C18.3449 22.9595 15.9564 24.8538 13.7654 26.2002C10.1876 28.3989 7.13663 29.1366 5.82609 27.8261L20.1739 42.1739C21.4845 43.4845 24.5355 42.7467 28.1133 40.548C30.3042 39.2016 32.6927 37.3073 35 35C37.3073 32.6927 39.2016 30.3042 40.548 28.1133C42.7467 24.5355 43.4845 21.4845 42.1739 20.1739Z" fill="currentColor"></path>
+<path clip-rule="evenodd" d="M7.24189 26.4066C7.31369 26.4411 7.64204 26.5637 8.52504 26.3738C9.59462 26.1438 11.0343 25.5311 12.7183 24.4963C14.7583 23.2426 17.0256 21.4503 19.238 19.238C21.4503 17.0256 23.2426 14.7583 24.4963 12.7183C25.5311 11.0343 26.1438 9.59463 26.3738 8.52504C26.5637 7.64204 26.4411 7.31369 26.4066 7.24189C26.345 7.21246 26.143 7.14535 25.6664 7.1918C24.9745 7.25925 23.9954 7.5498 22.7699 8.14278C20.3369 9.32007 17.3369 11.4915 14.4142 14.4142C11.4915 17.3369 9.32007 20.3369 8.14278 22.7699C7.5498 23.9954 7.25925 24.9745 7.1918 25.6664C7.14534 26.143 7.21246 26.345 7.24189 26.4066ZM29.9001 10.7285C29.4519 12.0322 28.7617 13.4172 27.9042 14.8126C26.465 17.1544 24.4686 19.6641 22.0664 22.0664C19.6641 24.4686 17.1544 26.465 14.8126 27.9042C13.4172 28.7617 12.0322 29.4519 10.7285 29.9001L21.5754 40.747C21.6001 40.7606 21.8995 40.931 22.8729 40.7217C23.9424 40.4916 25.3821 39.879 27.0661 38.8441C29.1062 37.5904 31.3734 35.7982 33.5858 33.5858C35.7982 31.3734 37.5904 29.1062 38.8441 27.0661C39.879 25.3821 40.4916 23.9425 40.7216 22.8729C40.931 21.8995 40.7606 21.6001 40.747 21.5754L29.9001 10.7285ZM29.2403 4.41187L43.5881 18.7597C44.9757 20.1473 44.9743 22.1235 44.6322 23.7139C44.2714 25.3919 43.4158 27.2666 42.252 29.1604C40.8128 31.5022 38.8165 34.012 36.4142 36.4142C34.012 38.8165 31.5022 40.8128 29.1604 42.252C27.2666 43.4158 25.3919 44.2714 23.7139 44.6322C22.1235 44.9743 20.1473 44.9757 18.7597 43.5881L4.41187 29.2403C3.29027 28.1187 3.08209 26.5973 3.21067 25.2783C3.34099 23.9415 3.8369 22.4852 4.54214 21.0277C5.96129 18.0948 8.43335 14.7382 11.5858 11.5858C14.7382 8.43335 18.0948 5.9613 21.0277 4.54214C22.4852 3.8369 23.9415 3.34099 25.2783 3.21067C26.5973 3.08209 28.1187 3.29028 29.2403 4.41187Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h2 class="text-bramble dark:text-gray-100 text-lg font-bold leading-tight tracking-[-0.015em]">APIS</h2>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined icon-thin text-bramble dark:text-gray-300">notifications</span>
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-8 ring-2 ring-white" data-alt="User profile picture of a beekeeper" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBzN2cGcz8gSwoX_zIQHU_lgEpI019rs2T3_qeO8Fj1QjwG481WrDFJKUdk1MSelxtchUI13HsNxNC93V2RXn8nMdtrfHgiCibG86JVsX8AuwsVj98yS3LVunfCHYvjTNVDlKZVEt0LLfzXC4kLQqsl3gC6sl-smJF47xPOTB_wiS2z-Qhuof9rOhN0QDJXOHr5wADcjH7z3cduyDKS6jmCEhCh5KJCHmISWl7YkEOwoGF6I3O3FmpCQtVwXycyoZkraqzo9ecRUOg");'></div>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto no-scrollbar pb-[100px] bg-coconut dark:bg-background-dark">
+<div class="px-5 py-6 flex flex-col gap-6">
+<div>
+<h1 class="text-2xl font-bold text-bramble dark:text-white">Morning, Keeper</h1>
+<p class="text-sm text-bramble/70 dark:text-gray-400 font-medium">Weather: 72°F, Sunny. Perfect foraging.</p>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="p-5 rounded-card bg-white dark:bg-[#2e261d] shadow-soft dark:border-[#3e3426]">
+<div class="flex items-center gap-2 mb-2 text-bramble/60 dark:text-gray-400">
+<span class="material-symbols-outlined icon-thin text-[22px]">hexagon</span>
+<span class="text-[11px] font-semibold uppercase tracking-wider">Active Hives</span>
+</div>
+<p class="text-[32px] font-bold text-bramble dark:text-white leading-none">12</p>
+</div>
+<div class="p-5 rounded-card bg-white dark:bg-[#2e261d] shadow-soft dark:border-[#3e3426]">
+<div class="flex items-center gap-2 mb-2 text-bramble/60 dark:text-gray-400">
+<span class="material-symbols-outlined icon-thin text-[22px]">water_drop</span>
+<span class="text-[11px] font-semibold uppercase tracking-wider">Yield</span>
+</div>
+<p class="text-[32px] font-bold text-bramble dark:text-white leading-none">48<span class="text-base font-medium text-bramble/40 ml-1">lbs</span></p>
+</div>
+</div>
+<div class="p-6 rounded-card bg-white dark:bg-[#2e261d] shadow-soft dark:border-[#3e3426]">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-bold text-bramble dark:text-white">Activity Levels</h3>
+<span class="text-xs text-primary font-semibold uppercase tracking-wide">This Week</span>
+</div>
+<div class="h-32 w-full relative">
+<svg class="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 300 100">
+<defs>
+<linearGradient id="splineGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#f7a42d" stop-opacity="0.35"></stop>
+<stop offset="100%" stop-color="#f7a42d" stop-opacity="0"></stop>
+</linearGradient>
+</defs>
+<path d="M0,80 C40,80 50,40 90,40 S140,70 180,60 S240,10 300,20 V100 H0 Z" fill="url(#splineGradient)" stroke="none"></path>
+<path d="M0,80 C40,80 50,40 90,40 S140,70 180,60 S240,10 300,20" fill="none" stroke="#f7a42d" stroke-linecap="round" stroke-width="3"></path>
+<line stroke="#fbf9e7" stroke-width="1" x1="0" x2="300" y1="25" y2="25"></line>
+<line stroke="#fbf9e7" stroke-width="1" x1="0" x2="300" y1="50" y2="50"></line>
+<line stroke="#fbf9e7" stroke-width="1" x1="0" x2="300" y1="75" y2="75"></line>
+</svg>
+</div>
+</div>
+<div>
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-bold text-bramble dark:text-white">Recent Clips</h3>
+<a class="text-xs text-primary font-semibold uppercase tracking-wide" href="#">View All</a>
+</div>
+<div class="flex gap-4 overflow-x-auto no-scrollbar pb-2 -mx-5 px-5">
+<div class="flex-none w-40 aspect-[9/16] rounded-card bg-gray-200 dark:bg-gray-800 relative overflow-hidden group shadow-soft">
+<div class="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105" data-alt="Close up of bees on a honeycomb frame" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBxNzohntkyF572pqbyPQM86w3GVNhYmpKFibTp13Hx9r1OtbO3jzDt2mrL3-l_kjmj091cOsfpQr4T-R2QCQ2rQGZM-CkqgXC2h1thVdNIWSa-klMAags4SvHtQzDI-KuKIk9ErkRx7w_UgmBOvkAsQTIZRgX5zIDX0ZcZCLwHU67_cZGd203TGpVMKgccDegha0HUnZybWL8PUfM7eQr1sqqynrKfV5gVhUMdvV5dUchxJsCHtroUuQhpz9rP1Xp_zwOKz5zqzjQ");'></div>
+<div class="absolute inset-0 bg-black/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-white/90 icon-thin text-5xl drop-shadow-lg">play_circle</span>
+</div>
+</div>
+<div class="flex-none w-40 aspect-[9/16] rounded-card bg-gray-200 dark:bg-gray-800 relative overflow-hidden group shadow-soft">
+<div class="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105" data-alt="Beekeeper inspecting a hive in protective gear" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDQTXrD0EAFOKZuKSL8NbiRRjLX8_mfzY0UvOIdUil3IikTNBfOUjYUdIDTSy4ACbWxbGOm1jJuphiCYrVWl7x4JtzZpqlk1c4Rb6G-n88outOls-j3YkjW4q33guyExmVXhsIj8RVNjdoiRUm6Sbzb-vKvs1dTG3dId3TPMpRX4cv27_XQ-s39RrSPU4328KBqN_6Zc3-_bANxF-MzY4ysgr_8TOodYn1CVqFHRaPrPRaAj-ZnGXb-IlMwbYqcsJptCkan2RtGqdo");'></div>
+<div class="absolute inset-0 bg-black/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-white/90 icon-thin text-5xl drop-shadow-lg">play_circle</span>
+</div>
+</div>
+<div class="flex-none w-40 aspect-[9/16] rounded-card bg-gray-200 dark:bg-gray-800 relative overflow-hidden group shadow-soft">
+<div class="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105" data-alt="Macro shot of queen bee" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBmxNJwmJz6yVYbI_5uW9JGIOWGtq6EiHm66k6_eruAThHJEBUb-LQ8aSI75XAnevMeKpytf6MBwV-hOIHCB28eIcoXSKE7GMNgTVQ_HJmzxZjPDNADZS-uq5kgy7_e1SglUV_my5kAjKXIu4crs2Ep-FTnliY72w5mCGduAYN96edwv4mZ6EKNHU5aPyOQTZRsJiMxZ6u12LRa7-KsuAoBHFbo0CmHErJmdAZ4k0KQZG1JNIGYmieDSHnGA8yIN2k_FEVHcrlJzGg");'></div>
+<div class="absolute inset-0 bg-black/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-white/90 icon-thin text-5xl drop-shadow-lg">play_circle</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<nav class="absolute bottom-0 left-0 w-full bg-pure-white dark:bg-[#1a150e] shadow-nav z-50">
+<div class="h-16 flex items-stretch justify-between px-2 pb-1">
+<button class="flex flex-1 flex-col items-center justify-center gap-1 min-h-[64px] group active:scale-95 transition-transform">
+<div class="relative">
+<span class="material-symbols-outlined text-[28px] text-primary icon-thin">dashboard</span>
+</div>
+<span class="text-[11px] font-semibold text-primary tracking-wide">Dashboard</span>
+</button>
+<button class="flex flex-1 flex-col items-center justify-center gap-1 min-h-[64px] group active:scale-95 transition-transform">
+<div class="relative">
+<span class="material-symbols-outlined text-[28px] text-bramble/40 dark:text-gray-500 group-hover:text-bramble/60 dark:group-hover:text-gray-300 transition-colors icon-thin">hexagon</span>
+</div>
+<span class="text-[11px] font-medium text-bramble/40 dark:text-gray-500 group-hover:text-bramble/60 dark:group-hover:text-gray-300 transition-colors tracking-wide">Hives</span>
+</button>
+<button class="flex flex-1 flex-col items-center justify-center gap-1 min-h-[64px] group active:scale-95 transition-transform">
+<div class="relative">
+<span class="material-symbols-outlined text-[28px] text-bramble/40 dark:text-gray-500 group-hover:text-bramble/60 dark:group-hover:text-gray-300 transition-colors icon-thin">smart_display</span>
+</div>
+<span class="text-[11px] font-medium text-bramble/40 dark:text-gray-500 group-hover:text-bramble/60 dark:group-hover:text-gray-300 transition-colors tracking-wide">Clips</span>
+</button>
+<button class="flex flex-1 flex-col items-center justify-center gap-1 min-h-[64px] group active:scale-95 transition-transform">
+<div class="relative">
+<span class="material-symbols-outlined text-[28px] text-bramble/40 dark:text-gray-500 group-hover:text-bramble/60 dark:group-hover:text-gray-300 transition-colors icon-thin">handyman</span>
+</div>
+<span class="text-[11px] font-medium text-bramble/40 dark:text-gray-500 group-hover:text-bramble/60 dark:group-hover:text-gray-300 transition-colors tracking-wide">Maint.</span>
+</button>
+<button class="flex flex-1 flex-col items-center justify-center gap-1 min-h-[64px] group active:scale-95 transition-transform">
+<div class="relative">
+<span class="material-symbols-outlined text-[28px] text-bramble/40 dark:text-gray-500 group-hover:text-bramble/60 dark:group-hover:text-gray-300 transition-colors icon-thin">menu</span>
+</div>
+<span class="text-[11px] font-medium text-bramble/40 dark:text-gray-500 group-hover:text-bramble/60 dark:group-hover:text-gray-300 transition-colors tracking-wide">More</span>
+</button>
+</div>
+<div class="h-4 w-full bg-pure-white dark:bg-[#1a150e]"></div>
+</nav>
+</div>
+
+</body></html>

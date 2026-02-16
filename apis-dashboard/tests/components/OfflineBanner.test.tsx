@@ -152,4 +152,38 @@ describe('OfflineBanner', () => {
     const alert = screen.getByRole('alert');
     expect(alert.querySelector('.anticon-wifi')).toBeInTheDocument();
   });
+
+  it('handles rapid online/offline toggling without errors', () => {
+    Object.defineProperty(navigator, 'onLine', {
+      value: true,
+      configurable: true,
+      writable: true,
+    });
+
+    render(<OfflineBanner />);
+
+    // Rapidly toggle online/offline multiple times
+    expect(() => {
+      for (let i = 0; i < 10; i++) {
+        act(() => {
+          Object.defineProperty(navigator, 'onLine', {
+            value: i % 2 === 1, // alternate between online and offline
+            configurable: true,
+            writable: true,
+          });
+          window.dispatchEvent(new Event(i % 2 === 1 ? 'online' : 'offline'));
+          vi.advanceTimersByTime(50); // Small time advancement between toggles
+        });
+      }
+    }).not.toThrow();
+
+    // Finish all pending timers to ensure cleanup
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    // Final state should be stable based on last toggle (offline since 10 % 2 === 0)
+    // The component should either show or not show based on final state
+    // The key test is that no errors occurred during rapid toggling
+  });
 });

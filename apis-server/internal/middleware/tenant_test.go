@@ -24,7 +24,7 @@ func TestGetUser(t *testing.T) {
 		expectedUser := &storage.User{
 			ID:            "user-123",
 			TenantID:      "tenant-456",
-			ZitadelUserID: "zitadel-789",
+			ExternalUserID: "keycloak-sub-789", // External OIDC user ID (Keycloak sub claim)
 			Email:         "test@example.com",
 			Name:          "Test User",
 			CreatedAt:     time.Now(),
@@ -36,7 +36,7 @@ func TestGetUser(t *testing.T) {
 		require.NotNil(t, user)
 		assert.Equal(t, expectedUser.ID, user.ID)
 		assert.Equal(t, expectedUser.TenantID, user.TenantID)
-		assert.Equal(t, expectedUser.ZitadelUserID, user.ZitadelUserID)
+		assert.Equal(t, expectedUser.ExternalUserID, user.ExternalUserID)
 		assert.Equal(t, expectedUser.Email, user.Email)
 		assert.Equal(t, expectedUser.Name, user.Name)
 	})
@@ -112,7 +112,7 @@ func TestRespondTenantError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			respondTenantError(w, tt.message, tt.code)
+			respondErrorJSON(w, tt.message, tt.code)
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
 			assert.Equal(t, "application/json", w.Header().Get("Content-Type"))

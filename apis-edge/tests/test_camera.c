@@ -377,20 +377,26 @@ static int run_test(const test_config_t *config) {
 
     printf("\nValidation:\n");
 
-    // Check minimum FPS
-    if (avg_fps >= 5.0f) {
-        printf("  [PASS] FPS >= 5 (%.1f)\n", avg_fps);
+    // Check minimum FPS (5.0 is absolute minimum per AC, 8.0 is healthy target)
+    if (avg_fps >= 8.0f) {
+        printf("  [PASS] FPS >= 8 (%.1f) - healthy performance\n", avg_fps);
+    } else if (avg_fps >= 5.0f) {
+        printf("  [WARN] FPS >= 5 but < 8 (%.1f) - marginal performance, consider checking CPU load or camera connection\n", avg_fps);
+        // Still passes but warns about potential issues
     } else {
-        printf("  [FAIL] FPS < 5 (%.1f)\n", avg_fps);
+        printf("  [FAIL] FPS < 5 (%.1f) - below minimum requirement\n", avg_fps);
         passed = false;
     }
 
-    // Check error rate
+    // Check error rate (2% is healthy, 10% is maximum acceptable)
     float error_rate = (float)error_count / (float)(frame_count + error_count) * 100.0f;
-    if (error_rate < 10.0f) {
-        printf("  [PASS] Error rate < 10%% (%.1f%%)\n", error_rate);
+    if (error_rate < 2.0f) {
+        printf("  [PASS] Error rate < 2%% (%.1f%%) - healthy performance\n", error_rate);
+    } else if (error_rate < 10.0f) {
+        printf("  [WARN] Error rate >= 2%% but < 10%% (%.1f%%) - potential issues, check camera stability\n", error_rate);
+        // Still passes but warns about potential issues
     } else {
-        printf("  [FAIL] Error rate >= 10%% (%.1f%%)\n", error_rate);
+        printf("  [FAIL] Error rate >= 10%% (%.1f%%) - too many frame errors\n", error_rate);
         passed = false;
     }
 

@@ -39,14 +39,27 @@ The troubleshooting and safety guide exists in:
 
 ## Dev Agent Record
 
+### File List
+
+| File | Action |
+|------|--------|
+| docs/hardware-specification.md | VERIFIED & ENHANCED - Sections 9.1, 13, 14 contain required content. Added 14.6 Software-Related Symptoms and 14.7 General Debugging Workflow |
+
 ### Completion Notes
 
 Story already implemented in hardware-specification.md. The comprehensive troubleshooting
 section covers all major failure modes with symptom-based diagnostic tables. Laser safety
 section includes multiple prominent warnings throughout the document.
 
+Enhanced with:
+- Cross-reference to Section 13 testing at start of troubleshooting
+- Improved servo calibration reference with explicit section link
+- New Section 14.6 for software-related symptoms
+- New Section 14.7 for general debugging workflow
+
 ## Change Log
 
 | Date | Author | Changes |
 |------|--------|---------|
 | 2026-01-23 | Claude | Story marked done - documentation already exists |
+| 2026-01-26 | Claude | Remediation: Fixed 5 issues from code review - enhanced troubleshooting sections |

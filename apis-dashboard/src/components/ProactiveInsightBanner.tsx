@@ -8,7 +8,7 @@
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { CSSProperties } from 'react';
-import { Skeleton, Typography, Button, Space } from 'antd';
+import { Skeleton, Typography, Button, Space, Row, Col } from 'antd';
 import { BulbOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
 import { useProactiveInsights } from '../hooks/useProactiveInsights';
 import { ProactiveInsightNotification } from './ProactiveInsightNotification';
@@ -79,8 +79,14 @@ export function ProactiveInsightBanner({ siteId }: ProactiveInsightBannerProps) 
 
   /**
    * Handle dismiss with animation delay.
+   * Prevents duplicate clicks by checking if animation is already in progress.
    */
   const handleDismiss = useCallback(async (id: string) => {
+    // Prevent duplicate clicks during animation
+    if (removingIds.has(id)) {
+      return;
+    }
+
     // Start removal animation
     setRemovingIds(prev => new Set(prev).add(id));
 
@@ -96,12 +102,18 @@ export function ProactiveInsightBanner({ siteId }: ProactiveInsightBannerProps) 
       next.delete(id);
       return next;
     });
-  }, [dismissInsight]);
+  }, [dismissInsight, removingIds]);
 
   /**
    * Handle snooze with animation delay.
+   * Prevents duplicate clicks by checking if animation is already in progress.
    */
   const handleSnooze = useCallback(async (id: string, days: number) => {
+    // Prevent duplicate clicks during animation
+    if (removingIds.has(id)) {
+      return;
+    }
+
     // Start removal animation
     setRemovingIds(prev => new Set(prev).add(id));
 
@@ -117,7 +129,7 @@ export function ProactiveInsightBanner({ siteId }: ProactiveInsightBannerProps) 
       next.delete(id);
       return next;
     });
-  }, [snoozeInsight]);
+  }, [snoozeInsight, removingIds]);
 
   // No site selected - don't show banner
   if (!siteId) {
@@ -131,7 +143,7 @@ export function ProactiveInsightBanner({ siteId }: ProactiveInsightBannerProps) 
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
           <BulbOutlined style={{ fontSize: 18, color: colors.brownBramble }} />
           <Text strong style={{ color: colors.brownBramble }}>
-            BeeBrain Insights
+            BeeBrain Alerts
           </Text>
         </div>
         <Skeleton active paragraph={{ rows: 1 }} />
@@ -172,7 +184,7 @@ export function ProactiveInsightBanner({ siteId }: ProactiveInsightBannerProps) 
         <Space size={8}>
           <BulbOutlined style={{ fontSize: 20, color: colors.brownBramble }} />
           <Text strong style={{ color: colors.brownBramble, fontSize: 16 }}>
-            BeeBrain Insights
+            BeeBrain Alerts
           </Text>
         </Space>
         {(visibleInsights.length + hiddenCount) > 0 && (
@@ -182,13 +194,11 @@ export function ProactiveInsightBanner({ siteId }: ProactiveInsightBannerProps) 
         )}
       </div>
 
-      {/* Insight cards - stacked vertically */}
-      <div
-        id="proactive-insights-list"
-        style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}
-      >
+      {/* Insight cards - responsive grid */}
+      <Row gutter={[12, 12]} id="proactive-insights-list">
         {visibleInsights.map(insight => (
-          <div
+          <Col
+            xs={24} sm={12} lg={8}
             key={insight.id}
             ref={(el) => {
               if (el) {
@@ -205,9 +215,9 @@ export function ProactiveInsightBanner({ siteId }: ProactiveInsightBannerProps) 
               onSnooze={handleSnooze}
               isRemoving={removingIds.has(insight.id)}
             />
-          </div>
+          </Col>
         ))}
-      </div>
+      </Row>
 
       {/* Show more/less toggle */}
       {(hiddenCount > 0 || showAll) && (
@@ -244,9 +254,9 @@ const bannerContainerStyle: CSSProperties = {
   padding: spacing.md,
   marginBottom: spacing.lg,
   borderRadius: 12,
-  background: colors.coconutCream,
-  border: `1px solid ${colors.border}`,
-  // Responsive: full width on mobile, max-width on desktop
+  background: '#ffffff',
+  border: `1px solid #f3efe8`,
+  boxShadow: '0 1px 3px rgba(102, 38, 4, 0.08)',
   maxWidth: '100%',
 };
 

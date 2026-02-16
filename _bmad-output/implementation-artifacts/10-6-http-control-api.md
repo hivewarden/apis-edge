@@ -412,3 +412,4 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 | 2026-01-23 | Claude | Story created with comprehensive context |
 | 2026-01-23 | Claude | Implementation complete, 53 tests passing |
 | 2026-01-23 | Claude | Code review fixes: MSG_NOSIGNAL portability, ESP32 mutex support, SO_NOSIGPIPE for macOS |
+| 2026-01-26 | Claude | Remediation: Fixed 8 issues from code review (race condition, metrics integration, stream limit, security, CORS) |

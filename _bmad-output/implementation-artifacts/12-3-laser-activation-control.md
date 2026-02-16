@@ -58,13 +58,15 @@ So that the laser only fires when appropriate.
 
 ### Implementation Notes
 
-Files created:
-- `include/laser_controller.h`
-- `src/laser/laser_controller.c`
-- `tests/test_laser_controller.c`
+Files created/modified:
+- `apis-edge/include/laser_controller.h`
+- `apis-edge/src/laser/laser_controller.c`
+- `apis-edge/tests/test_laser_controller.c`
+- `apis-edge/CMakeLists.txt` (modified - added test_laser_controller target)
 
 ## Change Log
 
 | Date | Author | Changes |
 |------|--------|---------|
 | 2026-01-23 | Claude | Story created and implementation started |
+| 2026-01-26 | Claude | Remediation: Fixed 7 issues from code review (Pi GPIO, event logging, tests, docs) |

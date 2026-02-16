@@ -150,7 +150,11 @@ func (s *ExportService) aggregateHiveData(ctx context.Context, hiveID string, in
 	}
 
 	// Get harvests if requested
-	if containsAny(include.Financial, "harvest_revenue") || containsAny(include.Analysis, "season_comparison") {
+	// NOTE: Financial fields implementation status:
+	// - harvest_revenue: IMPLEMENTED (via Harvests data)
+	// - costs: NOT YET IMPLEMENTED - requires cost tracking feature (deferred to future epic)
+	// - roi_per_hive: NOT YET IMPLEMENTED - requires costs to calculate ROI (deferred to future epic)
+	if containsAny(include.Financial, "harvest_revenue", "costs", "roi_per_hive") || containsAny(include.Analysis, "season_comparison") {
 		harvests, err := storage.ListHarvestsByHive(ctx, s.conn, hiveID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get harvests: %w", err)
@@ -176,7 +180,11 @@ func (s *ExportService) aggregateHiveData(ctx context.Context, hiveID string, in
 	}
 
 	// Get BeeBrain insights if requested
-	if containsAny(include.Analysis, "beebrain_insights") {
+	// NOTE: Analysis fields implementation status:
+	// - beebrain_insights: IMPLEMENTED (via Insights data)
+	// - health_summary: NOT YET IMPLEMENTED - requires health scoring algorithm (deferred to future epic)
+	// - season_comparison: NOT YET IMPLEMENTED - requires historical season data comparison (deferred to future epic)
+	if containsAny(include.Analysis, "beebrain_insights", "health_summary", "season_comparison") {
 		insights, err := storage.ListInsightsByHive(ctx, s.conn, hiveID)
 		if err != nil {
 			// Non-critical, continue without insights

@@ -52,10 +52,10 @@ So that I can see exactly what the system detected.
   - [x] 5.2 Pass selected clip and clip list to modal
   - [x] 5.3 Handle clip navigation from modal
 
-- [ ] Task 6: Testing
-  - [ ] 6.1 Test video streaming with Range headers
-  - [ ] 6.2 Test modal open/close behavior
-  - [ ] 6.3 Test keyboard navigation
+- [x] Task 6: Testing
+  - [x] 6.1 Test video streaming with Range headers
+  - [x] 6.2 Test modal open/close behavior
+  - [x] 6.3 Test keyboard navigation
 
 ## Dev Notes
 
@@ -193,6 +193,7 @@ return (
       currentIndex={selectedClipIndex ?? 0}
       onClose={() => setSelectedClipIndex(null)}
       onNavigate={setSelectedClipIndex}
+      onDeleteSuccess={refetch}
     />
   </>
 );
@@ -214,10 +215,29 @@ return (
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.5
 
 ### Debug Log References
 
 ### Completion Notes List
 
+- Video playback modal implemented with cinematic dark theme
+- HTTP Range header support via http.ServeContent for seeking
+- Video loading and error states fully handled
+- Keyboard navigation with race condition guard
+- Download button uses proper anchor tag for accessibility
+- File size mismatch logging added for corruption detection
+
+### Change Log
+
+- [2026-01-25] Remediation: Fixed 8 issues from code review
+
 ### File List
+
+- `apis-dashboard/src/components/ClipPlayerModal.tsx` (created) - Video player modal component
+- `apis-dashboard/src/pages/Clips.tsx` (modified) - Integrated ClipPlayerModal
+- `apis-dashboard/src/components/index.ts` (modified) - Added ClipPlayerModal export
+- `apis-server/internal/handlers/clips.go` (modified) - Added GetClipVideo handler with Range support
+- `apis-server/cmd/server/main.go` (existing) - Route already existed
+- `apis-server/tests/handlers/clips_test.go` (modified) - Added GetClipVideo tests
+- `apis-dashboard/tests/components/ClipPlayerModal.test.tsx` (created) - Component tests

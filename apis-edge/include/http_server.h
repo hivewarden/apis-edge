@@ -39,6 +39,9 @@ typedef struct {
     size_t body_len;            // Actual body length
     char content_type[64];      // Content-Type header
     size_t content_length;      // Content-Length header value
+    char authorization[128];    // Authorization header (COMM-001-7)
+    char origin[256];           // Origin header (for CORS validation)
+    char client_ip[64];         // Client IP address (for rate limiting)
 } http_request_t;
 
 /**
@@ -47,7 +50,9 @@ typedef struct {
 typedef enum {
     HTTP_OK = 200,
     HTTP_BAD_REQUEST = 400,
+    HTTP_UNAUTHORIZED = 401,    // COMM-001-7: Added for auth failures
     HTTP_NOT_FOUND = 404,
+    HTTP_TOO_MANY_REQUESTS = 429,  // Rate limiting
     HTTP_METHOD_NOT_ALLOWED = 405,
     HTTP_INTERNAL_ERROR = 500,
 } http_status_t;

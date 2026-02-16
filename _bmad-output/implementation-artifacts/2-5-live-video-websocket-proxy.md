@@ -376,4 +376,5 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 - 2026-01-24: Story 2.5 created from epics definition
 - 2026-01-24: Implementation of Story 2.5 - Live video WebSocket proxy
-- 2026-01-24: Code review - Fixed HTTP timeout issue (10s → 0 for streaming)
+- 2026-01-24: Code review - Fixed HTTP timeout issue (10s -> 0 for streaming)
+- 2026-01-25: Remediation: Fixed 7 issues from code review (stale closure bug, memory leak, missing tests, exports, logging)

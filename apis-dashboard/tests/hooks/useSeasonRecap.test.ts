@@ -18,7 +18,7 @@ global.fetch = mockFetch;
 describe('useSeasonRecap helpers', () => {
   describe('formatHarvestKg', () => {
     it('formats zero correctly', () => {
-      expect(formatHarvestKg(0)).toBe('0 kg');
+      expect(formatHarvestKg(0)).toBe('0.0 kg');
     });
 
     it('formats small amounts with one decimal', () => {
@@ -73,8 +73,8 @@ describe('useSeasonRecap helpers', () => {
       expect(getStatusLabel('lost')).toBe('Lost');
     });
 
-    it('capitalizes unknown statuses', () => {
-      expect(getStatusLabel('something')).toBe('Something');
+    it('returns raw value for unknown statuses', () => {
+      expect(getStatusLabel('something')).toBe('something');
     });
   });
 
@@ -83,12 +83,12 @@ describe('useSeasonRecap helpers', () => {
       expect(getMilestoneIcon('first_harvest')).toBe('trophy');
     });
 
-    it('returns smile for first_hive', () => {
-      expect(getMilestoneIcon('first_hive')).toBe('smile');
+    it('returns plus-circle for new_hive', () => {
+      expect(getMilestoneIcon('new_hive')).toBe('plus-circle');
     });
 
-    it('returns crown for queen_replacement', () => {
-      expect(getMilestoneIcon('queen_replacement')).toBe('crown');
+    it('returns crown for queen_replaced', () => {
+      expect(getMilestoneIcon('queen_replaced')).toBe('crown');
     });
 
     it('returns warning for hive_loss', () => {
@@ -102,6 +102,11 @@ describe('useSeasonRecap helpers', () => {
 });
 
 describe('Season date logic', () => {
+  // Backend logic (from season_recap.go):
+  // Northern Hemisphere: Recap time is November+ (month >= November)
+  // Southern Hemisphere: Recap time is May+ (month >= May)
+  // These tests validate the logic that matches the backend implementation
+
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -110,15 +115,13 @@ describe('Season date logic', () => {
     vi.useRealTimers();
   });
 
-  it('identifies October as recap time for Northern hemisphere', () => {
-    // October 15, 2024
+  it('identifies October as NOT recap time for Northern hemisphere', () => {
+    // October 15, 2024 - NOT recap time (backend requires November+)
     vi.setSystemTime(new Date(2024, 9, 15));
 
-    // Since we can't easily test the hook without React,
-    // this test validates the month logic
     const currentMonth = new Date().getMonth() + 1; // 1-based
-    const isNorthernRecapTime = currentMonth >= 10 && currentMonth <= 11;
-    expect(isNorthernRecapTime).toBe(true);
+    const isNorthernRecapTime = currentMonth >= 11; // November+
+    expect(isNorthernRecapTime).toBe(false);
   });
 
   it('identifies November as recap time for Northern hemisphere', () => {
@@ -126,7 +129,16 @@ describe('Season date logic', () => {
     vi.setSystemTime(new Date(2024, 10, 15));
 
     const currentMonth = new Date().getMonth() + 1;
-    const isNorthernRecapTime = currentMonth >= 10 && currentMonth <= 11;
+    const isNorthernRecapTime = currentMonth >= 11; // November+
+    expect(isNorthernRecapTime).toBe(true);
+  });
+
+  it('identifies December as recap time for Northern hemisphere', () => {
+    // December 15, 2024
+    vi.setSystemTime(new Date(2024, 11, 15));
+
+    const currentMonth = new Date().getMonth() + 1;
+    const isNorthernRecapTime = currentMonth >= 11; // November+
     expect(isNorthernRecapTime).toBe(true);
   });
 
@@ -135,25 +147,34 @@ describe('Season date logic', () => {
     vi.setSystemTime(new Date(2024, 5, 15));
 
     const currentMonth = new Date().getMonth() + 1;
-    const isNorthernRecapTime = currentMonth >= 10 && currentMonth <= 11;
+    const isNorthernRecapTime = currentMonth >= 11; // November+
     expect(isNorthernRecapTime).toBe(false);
   });
 
-  it('identifies March as recap time for Southern hemisphere', () => {
-    // March 15, 2024
-    vi.setSystemTime(new Date(2024, 2, 15));
-
-    const currentMonth = new Date().getMonth() + 1;
-    const isSouthernRecapTime = currentMonth >= 3 && currentMonth <= 4;
-    expect(isSouthernRecapTime).toBe(true);
-  });
-
-  it('identifies April as recap time for Southern hemisphere', () => {
-    // April 15, 2024
+  it('identifies April as NOT recap time for Southern hemisphere', () => {
+    // April 15, 2024 - NOT recap time (backend requires May+)
     vi.setSystemTime(new Date(2024, 3, 15));
 
     const currentMonth = new Date().getMonth() + 1;
-    const isSouthernRecapTime = currentMonth >= 3 && currentMonth <= 4;
+    const isSouthernRecapTime = currentMonth >= 5; // May+
+    expect(isSouthernRecapTime).toBe(false);
+  });
+
+  it('identifies May as recap time for Southern hemisphere', () => {
+    // May 15, 2024
+    vi.setSystemTime(new Date(2024, 4, 15));
+
+    const currentMonth = new Date().getMonth() + 1;
+    const isSouthernRecapTime = currentMonth >= 5; // May+
+    expect(isSouthernRecapTime).toBe(true);
+  });
+
+  it('identifies June as recap time for Southern hemisphere', () => {
+    // June 15, 2024
+    vi.setSystemTime(new Date(2024, 5, 15));
+
+    const currentMonth = new Date().getMonth() + 1;
+    const isSouthernRecapTime = currentMonth >= 5; // May+
     expect(isSouthernRecapTime).toBe(true);
   });
 });

@@ -15,6 +15,7 @@
 #include <math.h>
 #include <time.h>
 #include <errno.h>
+#include <unistd.h>
 
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 #include <pthread.h>
@@ -117,9 +118,12 @@ static void apply_calibration(servo_position_t *angles) {
  * Map angle to pixel (inverse of pixel_to_raw_angle).
  */
 static void raw_angle_to_pixel(servo_position_t angles, pixel_coord_t *pixel) {
-    // Reverse calibration
-    float uncal_pan = (angles.pan_deg - g_calibration.offset_pan_deg) / g_calibration.scale_pan;
-    float uncal_tilt = (angles.tilt_deg - g_calibration.offset_tilt_deg) / g_calibration.scale_tilt;
+    // Reverse calibration - use safe scale factors to prevent division by zero
+    // (Scale factors are validated on load/set but add safety check here)
+    float safe_scale_pan = (g_calibration.scale_pan > 0.0001f) ? g_calibration.scale_pan : 1.0f;
+    float safe_scale_tilt = (g_calibration.scale_tilt > 0.0001f) ? g_calibration.scale_tilt : 1.0f;
+    float uncal_pan = (angles.pan_deg - g_calibration.offset_pan_deg) / safe_scale_pan;
+    float uncal_tilt = (angles.tilt_deg - g_calibration.offset_tilt_deg) / safe_scale_tilt;
 
     // Reverse angle to normalized
     float norm_x = uncal_pan / g_camera.fov_h_deg;
@@ -277,18 +281,34 @@ coord_status_t coord_mapper_save_calibration(const char *path) {
         return COORD_ERROR_NO_MEMORY;
     }
 
-    FILE *fp = fopen(path, "w");
+    // C7-MED-005: Atomic write using write-then-rename pattern.
+    // Write to a temporary file first, then rename to the final path.
+    // This prevents corrupted calibration files if power is lost mid-write.
+    char tmp_path[256];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
+
+    FILE *fp = fopen(tmp_path, "w");
     if (fp == NULL) {
         free(str);
-        LOG_ERROR("Failed to open calibration file for writing: %s", path);
+        LOG_ERROR("Failed to open temp calibration file for writing: %s", tmp_path);
         return COORD_ERROR_IO;
     }
 
-    size_t written = fwrite(str, 1, strlen(str), fp);
+    size_t len = strlen(str);
+    size_t written = fwrite(str, 1, len, fp);
+    int flush_err = fflush(fp);
     fclose(fp);
     free(str);
 
-    if (written == 0) {
+    if (written != len || flush_err != 0) {
+        unlink(tmp_path);
+        return COORD_ERROR_IO;
+    }
+
+    // Atomic rename: on POSIX, rename() is atomic within the same filesystem
+    if (rename(tmp_path, path) != 0) {
+        LOG_ERROR("Failed to rename temp calibration file: %s -> %s", tmp_path, path);
+        unlink(tmp_path);
         return COORD_ERROR_IO;
     }
 
@@ -306,6 +326,10 @@ coord_status_t coord_mapper_init(const camera_params_t *params) {
         return COORD_OK;
     }
 
+    // Platform-specific mutex initialization:
+    // - ESP32 (FreeRTOS): Create mutex dynamically at runtime via xSemaphoreCreateMutex()
+    // - Pi/Test (pthreads): Uses static initializer PTHREAD_MUTEX_INITIALIZER at declaration
+    //   which doesn't require runtime initialization, so no code needed here
 #if !defined(APIS_PLATFORM_PI) && !defined(APIS_PLATFORM_TEST)
     if (g_coord_mutex == NULL) {
         g_coord_mutex = xSemaphoreCreateMutex();
@@ -521,8 +545,11 @@ coord_status_t coord_mapper_compute_calibration(void) {
     g_calibration.offset_pan_deg = p->angle.pan_deg - expected.pan_deg;
     g_calibration.offset_tilt_deg = p->angle.tilt_deg - expected.tilt_deg;
 
-    // If we have 2+ points, could compute scale as well
-    // For now, just use offsets from first point
+    // NOTE: Multi-point scale computation is NOT implemented yet.
+    // Currently only offset calibration is supported using the first point.
+    // Scale factors remain at 1.0 regardless of how many calibration points
+    // are added. Future enhancement could use least-squares fitting with
+    // multiple points to compute scale corrections. See issue I1 in code review.
     g_calibration.scale_pan = 1.0f;
     g_calibration.scale_tilt = 1.0f;
 
@@ -579,6 +606,14 @@ coord_status_t coord_mapper_set_camera_params(const camera_params_t *params) {
     }
 
     if (params == NULL) {
+        return COORD_ERROR_INVALID_PARAM;
+    }
+
+    // Validate camera parameters to prevent division by zero in mapping functions
+    if (params->width == 0 || params->height == 0 ||
+        params->fov_h_deg <= 0.0f || params->fov_v_deg <= 0.0f) {
+        LOG_ERROR("Invalid camera params: width=%u, height=%u, fov_h=%.1f, fov_v=%.1f",
+                  params->width, params->height, params->fov_h_deg, params->fov_v_deg);
         return COORD_ERROR_INVALID_PARAM;
     }
 

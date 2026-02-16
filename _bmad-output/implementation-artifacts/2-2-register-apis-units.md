@@ -423,3 +423,10 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
   - HIGH: Added api_key_prefix column for indexed lookup (O(1) instead of O(n) bcrypt)
   - HIGH: Added SET LOCAL app.tenant_id to UnitAuth middleware for RLS
   - LOW: Replaced custom contains function with strings.Contains
+- 2026-01-25: Remediation: Fixed 7 issues from code review
+  - HIGH: Improved connection lifecycle in UnitAuth middleware with explicit panic safety
+  - MEDIUM: Fixed N+1 query in ListUnits using JOIN query (ListUnitsWithSiteNames)
+  - MEDIUM: Added TrustProxyHeaders flag to prevent IP spoofing
+  - LOW: Added telemetry fields to UnitResponse
+  - LOW: Added serial number format validation
+  - LOW: Created ErrorBoundary component for Units page

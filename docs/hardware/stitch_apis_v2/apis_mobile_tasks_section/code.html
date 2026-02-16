@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS - Mobile Tasks View</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#f7a42d", // Sea Buckthorn
+              "background-light": "#fbf9e7", // Coconut Cream
+              "background-dark": "#221b10",
+              "bramble": "#662604", // Brown Bramble
+              "salomie": "#fcd483", // Salomie
+              "muted-rose": "#c4857a",
+              "soft-blue": "#e3f2fd",
+              "soft-blue-dark": "#0d47a1",
+            },
+            fontFamily: {
+              "display": ["Plus Jakarta Sans", "sans-serif"]
+            },
+            borderRadius: {
+                "DEFAULT": "0.5rem", 
+                "lg": "1rem", 
+                "xl": "1.5rem",
+                "2xl": "16px", // Explicit 16px radius for cards
+                "full": "9999px"
+            },
+            boxShadow: {
+                "soft": "0 8px 24px -6px rgba(102, 38, 4, 0.08), 0 4px 12px -4px rgba(102, 38, 4, 0.04)"
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 1,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24
+        }::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #e5e7eb;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-bramble dark:text-white">
+<div class="flex min-h-screen w-full overflow-x-hidden">
+<aside class="hidden lg:flex w-72 flex-col border-r border-bramble/10 bg-white p-4 dark:bg-[#1a150d] dark:border-[#332b21]">
+<div class="flex h-full flex-col justify-between">
+<div class="flex flex-col gap-6">
+<div class="flex items-center gap-3 px-2">
+<div class="flex items-center justify-center size-10 rounded-full bg-primary/20 text-primary">
+<span class="material-symbols-outlined">hive</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-lg font-bold leading-normal text-bramble dark:text-white">APIS</h1>
+<p class="text-sm font-normal text-bramble/70">Hive Management</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 rounded-xl px-3 py-3 text-bramble/80 hover:bg-background-light dark:text-[#a1998e] dark:hover:bg-[#2c2419]" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 rounded-xl bg-salomie px-3 py-3 text-bramble dark:bg-primary/20 dark:text-white" href="#">
+<span class="material-symbols-outlined text-bramble dark:text-primary">check_box</span>
+<span class="text-sm font-bold">Tasks</span>
+</a>
+<a class="flex items-center gap-3 rounded-xl px-3 py-3 text-bramble/80 hover:bg-background-light dark:text-[#a1998e] dark:hover:bg-[#2c2419]" href="#">
+<span class="material-symbols-outlined">map</span>
+<span class="text-sm font-medium">Apiary Map</span>
+</a>
+<a class="flex items-center gap-3 rounded-xl px-3 py-3 text-bramble/80 hover:bg-background-light dark:text-[#a1998e] dark:hover:bg-[#2c2419]" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="text-sm font-medium">Inventory</span>
+</a>
+<a class="flex items-center gap-3 rounded-xl px-3 py-3 text-bramble/80 hover:bg-background-light dark:text-[#a1998e] dark:hover:bg-[#2c2419]" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="text-sm font-medium">Reports</span>
+</a>
+</nav>
+</div>
+<div class="flex items-center gap-3 px-3 py-4 border-t border-bramble/10 dark:border-[#332b21]">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Portrait of a beekeeper" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDlQmsnSHDKwDduNGYYEsHZykIBD70_YASNJ4Lkhj0gEp_nZKDCl49beICzsjlaHuN5nnFUI5B4yuQfilN_j2QCDFpLIkKcQUcP3QfOd4i4XjRFZuBu-oeymlHty8c1XiTs2n4KntZw3TpbRZtEL_5BTSJpb0bdkOO0cHbaXdwOj6feVv3gQMF8I99n0YfeU5vFLnzTyUEK8B9E9xDdeCtEr_ZsfKJcgCVQOyLTxF3FT-4TalKc6RAmvctNLbBfCYQBDrIh0J-TsuA");'></div>
+<div class="flex flex-col">
+<p class="text-sm font-bold text-bramble dark:text-white">Maya B.</p>
+<p class="text-xs text-bramble/70">Lead Apiarist</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex flex-1 flex-col bg-background-light dark:bg-background-dark">
+<header class="sticky top-0 z-10 flex items-center justify-between border-b border-bramble/10 bg-background-light/95 backdrop-blur px-6 py-4 dark:border-[#332b21] dark:bg-background-dark/95">
+<div class="flex items-center gap-4 lg:hidden">
+<button class="text-bramble dark:text-white">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h2 class="text-lg font-bold text-bramble dark:text-white">APIS Tasks</h2>
+</div>
+<div class="hidden lg:flex items-center gap-2">
+<span class="text-bramble/70 text-sm font-medium">Operations</span>
+<span class="text-bramble/70 text-sm">/</span>
+<span class="text-bramble dark:text-white text-sm font-bold">Mobile Tasks View</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden sm:flex items-center rounded-xl bg-white px-4 py-2 dark:bg-[#2c2419] shadow-sm">
+<span class="material-symbols-outlined text-bramble/50">search</span>
+<input class="ml-2 w-64 bg-transparent text-sm text-bramble placeholder-bramble/50 focus:outline-none dark:text-white border-none focus:ring-0 p-0" placeholder="Search hives, tasks..." type="text"/>
+</div>
+<button class="relative text-bramble dark:text-white">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute right-0 top-0 size-2 rounded-full bg-red-500"></span>
+</button>
+</div>
+</header>
+<div class="flex flex-1 justify-center p-4 lg:p-8 overflow-y-auto">
+<div class="flex w-full max-w-[480px] flex-col gap-6">
+<div>
+<h1 class="text-3xl font-bold tracking-tight text-bramble dark:text-white">Today's Field Tasks</h1>
+<p class="text-bramble/80 mt-1">4 Urgent • 12 Pending</p>
+</div>
+<div class="relative overflow-hidden rounded-2xl bg-soft-blue p-5 dark:bg-[#1e2837] border border-blue-100 dark:border-blue-900 shadow-soft">
+<div class="flex items-start gap-4">
+<div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm dark:bg-[#0f172a] dark:text-blue-400">
+<span class="material-symbols-outlined">smart_toy</span>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<h3 class="text-sm font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">BeeBrain Insight</h3>
+<span class="animate-pulse rounded-full bg-blue-500 size-2"></span>
+</div>
+<p class="text-base font-medium leading-relaxed text-blue-900 dark:text-blue-100">
+                                    High mite counts predicted in Zone 4. Prioritize Varroa checks immediately.
+                                </p>
+</div>
+</div>
+<div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-blue-400 opacity-10"></div>
+</div>
+<div class="flex flex-col gap-3">
+<h2 class="px-1 text-sm font-bold uppercase tracking-wider text-muted-rose dark:text-[#e0a69b]">Overdue</h2>
+<div class="group relative flex flex-col gap-4 rounded-2xl border border-muted-rose/30 bg-muted-rose/10 p-4 transition-all hover:bg-muted-rose/15 dark:bg-muted-rose/20 dark:hover:bg-muted-rose/25">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-muted-rose text-[20px]">warning</span>
+<h3 class="text-lg font-bold text-bramble dark:text-white">Queen Inspection</h3>
+</div>
+<p class="text-sm font-medium text-bramble/80 dark:text-[#dccbc7]">Hive #04 • Central Apiary</p>
+<p class="text-xs font-semibold text-red-600 dark:text-red-400 mt-1">Due Yesterday</p>
+</div>
+<div class="size-12 rounded-lg bg-cover bg-center" data-alt="Close up of queen bee on comb" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDWTK9kej3eVmWvD-1j8Opl6YFIKs31aElKYkB4ZxhvyXwOa-_DyDIBn4-LvgqRmuFnT9C89clVv0QjDJqSu0xE1JOJNtb_DXCbzNfFjw9dTYrHwavO974mC-_HJHXSUiVnLTm4USY0XU23li-2C8lhVvZMsePumrai9rtvluaOjV8f4AwrWA2ZoW8Jo1hQUls_XMbEMOSz32AOsz5WeFcgZfxb34iQQ9CyF-pVcpBYjplGh20gRHPowpHWkCGW85Ki2XHn9E7npBc');"></div>
+</div>
+<button class="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-primary text-white shadow-md transition-transform active:scale-[0.98] hover:brightness-105">
+<span class="material-symbols-outlined">check_circle</span>
+<span class="text-lg font-bold">Complete Task</span>
+</button>
+</div>
+</div>
+<div class="flex flex-col gap-3 pb-8">
+<div class="flex items-center justify-between px-1">
+<h2 class="text-sm font-bold uppercase tracking-wider text-bramble/70">Pending</h2>
+<button class="text-xs font-bold text-primary">Sort by Priority</button>
+</div>
+<div class="flex flex-col gap-4 rounded-2xl border border-bramble/5 bg-white p-4 shadow-soft dark:border-[#332b21] dark:bg-[#1a150d]">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<div class="size-3 rounded-full bg-red-500 ring-2 ring-red-100 dark:ring-red-900/30"></div>
+<h3 class="text-lg font-bold text-bramble dark:text-white">Harvest Honey Supers</h3>
+</div>
+<p class="text-sm font-medium text-bramble/70">Hive #12 • East Ridge</p>
+</div>
+<div class="flex items-center justify-center size-10 rounded-full bg-background-light dark:bg-[#2c2419]">
+<span class="material-symbols-outlined text-bramble/60 dark:text-[#a1998e]">more_vert</span>
+</div>
+</div>
+<div class="flex gap-2">
+<span class="inline-flex items-center rounded-md bg-background-light px-2 py-1 text-xs font-medium text-bramble/80 dark:bg-[#2c2419] dark:text-[#a1998e]">Heavy Load</span>
+<span class="inline-flex items-center rounded-md bg-background-light px-2 py-1 text-xs font-medium text-bramble/80 dark:bg-[#2c2419] dark:text-[#a1998e]">2 Staff Req</span>
+</div>
+<button class="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-primary text-white shadow-md transition-transform active:scale-[0.98] hover:brightness-105">
+<span class="text-lg font-bold">Complete Task</span>
+</button>
+</div>
+<div class="flex flex-col gap-4 rounded-2xl border border-bramble/5 bg-white p-4 shadow-soft dark:border-[#332b21] dark:bg-[#1a150d]">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<div class="size-3 rounded-full bg-orange-400 ring-2 ring-orange-100 dark:ring-orange-900/30"></div>
+<h3 class="text-lg font-bold text-bramble dark:text-white">Frame Replacement</h3>
+</div>
+<p class="text-sm font-medium text-bramble/70">Hive #08 • North Garden</p>
+</div>
+<div class="size-12 rounded-lg bg-cover bg-center" data-alt="Wooden bee hive frames" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuASA6UPDRDNRpKM43wvSWrEBxcPLI37C0_l9cYqDcX967U7yEHsPgS840LZockxH6QWZfaPH8i_C2s-g1k2JfYCtWVxMVZJIMo5dmfnZ7IWPo-FLP1BFtZnuOCpYGJhkvR-0H7g7IiJ0veynGxm__mDnvlbUdqt4XsoH0QI5fqxgsWS5LY-FN_XegbRue-HE_n_gyGoCh3eCmWFEbv6dVGVMU2tI3HTmhJCwxJCa2pO0ZxUqSIxT4otTdVtQuKND2myrKYTMJALwUI');"></div>
+</div>
+<button class="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-primary text-white shadow-md transition-transform active:scale-[0.98] hover:brightness-105">
+<span class="text-lg font-bold">Complete Task</span>
+</button>
+</div>
+<div class="flex flex-col gap-4 rounded-2xl border border-bramble/5 bg-white p-4 shadow-soft dark:border-[#332b21] dark:bg-[#1a150d]">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<div class="size-3 rounded-full bg-green-500 ring-2 ring-green-100 dark:ring-green-900/30"></div>
+<h3 class="text-lg font-bold text-bramble dark:text-white">General Observation</h3>
+</div>
+<p class="text-sm font-medium text-bramble/70">Hive #02 • Zone 1</p>
+</div>
+</div>
+<button class="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-primary text-white shadow-md transition-transform active:scale-[0.98] hover:brightness-105">
+<span class="text-lg font-bold">Complete Task</span>
+</button>
+</div>
+<div class="flex flex-col gap-4 rounded-2xl border border-bramble/5 bg-white p-4 shadow-soft dark:border-[#332b21] dark:bg-[#1a150d] opacity-80">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<div class="size-3 rounded-full bg-gray-300 ring-2 ring-gray-100 dark:bg-gray-600 dark:ring-gray-800"></div>
+<h3 class="text-lg font-bold text-bramble dark:text-white">Update Mite Logs</h3>
+</div>
+<p class="text-sm font-medium text-bramble/70">General • All Zones</p>
+</div>
+</div>
+<button class="flex h-16 w-full items-center justify-center gap-2 rounded-full border-2 border-primary text-primary bg-transparent hover:bg-primary/5 transition-colors">
+<span class="text-lg font-bold">Log Data</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

@@ -34,6 +34,8 @@ typedef struct {
     int fd;
     uint8_t *buffers[NUM_BUFFERS];
     size_t buffer_lengths[NUM_BUFFERS];
+    uint16_t capture_width;
+    uint16_t capture_height;
 
     // Frame tracking
     uint32_t sequence;
@@ -201,10 +203,22 @@ camera_status_t camera_open(void) {
     }
 
     g_camera.pixel_format = fmt.fmt.pix.pixelformat;
+    g_camera.capture_width = (uint16_t)fmt.fmt.pix.width;
+    g_camera.capture_height = (uint16_t)fmt.fmt.pix.height;
+
+    size_t capture_pixels = (size_t)g_camera.capture_width * (size_t)g_camera.capture_height;
+    size_t frame_pixels = (size_t)FRAME_WIDTH * (size_t)FRAME_HEIGHT;
+    if (capture_pixels > frame_pixels) {
+        LOG_ERROR("Camera negotiated %ux%u which exceeds frame buffer %dx%d",
+                  g_camera.capture_width, g_camera.capture_height, FRAME_WIDTH, FRAME_HEIGHT);
+        close(g_camera.fd);
+        g_camera.fd = -1;
+        return CAMERA_ERROR_CONFIG_FAILED;
+    }
 
     // Log actual format
     LOG_INFO("Format: %dx%d, pixelformat: %c%c%c%c",
-             fmt.fmt.pix.width, fmt.fmt.pix.height,
+             g_camera.capture_width, g_camera.capture_height,
              (fmt.fmt.pix.pixelformat >> 0) & 0xFF,
              (fmt.fmt.pix.pixelformat >> 8) & 0xFF,
              (fmt.fmt.pix.pixelformat >> 16) & 0xFF,
@@ -354,15 +368,42 @@ camera_status_t camera_read(frame_t *frame, uint32_t timeout_ms) {
         return CAMERA_ERROR_DISCONNECTED;
     }
 
+    size_t capture_pixels = (size_t)g_camera.capture_width * (size_t)g_camera.capture_height;
+    size_t frame_pixels = (size_t)FRAME_WIDTH * (size_t)FRAME_HEIGHT;
+    if (capture_pixels > frame_pixels) {
+        LOG_ERROR("Frame dimensions %ux%u exceed frame buffer bounds",
+                  g_camera.capture_width, g_camera.capture_height);
+        g_camera.frames_dropped++;
+        (void)ioctl(g_camera.fd, VIDIOC_QBUF, &buf);
+        return CAMERA_ERROR_READ_FAILED;
+    }
+
     // Convert/copy frame data
     if (g_camera.pixel_format == V4L2_PIX_FMT_BGR24) {
+        size_t expected_bytes = capture_pixels * FRAME_CHANNELS;
+        if (buf.bytesused < expected_bytes) {
+            LOG_ERROR("Short BGR frame: got %u bytes, need %zu",
+                      buf.bytesused, expected_bytes);
+            g_camera.frames_dropped++;
+            (void)ioctl(g_camera.fd, VIDIOC_QBUF, &buf);
+            return CAMERA_ERROR_READ_FAILED;
+        }
+
         // Direct copy
-        size_t copy_size = buf.bytesused < FRAME_SIZE ? buf.bytesused : FRAME_SIZE;
-        memcpy(frame->data, g_camera.buffers[buf.index], copy_size);
+        memcpy(frame->data, g_camera.buffers[buf.index], expected_bytes);
     } else if (g_camera.pixel_format == V4L2_PIX_FMT_YUYV) {
+        size_t required_input_bytes = capture_pixels * 2;
+        if (buf.bytesused < required_input_bytes) {
+            LOG_ERROR("Short YUYV frame: got %u bytes, need %zu",
+                      buf.bytesused, required_input_bytes);
+            g_camera.frames_dropped++;
+            (void)ioctl(g_camera.fd, VIDIOC_QBUF, &buf);
+            return CAMERA_ERROR_READ_FAILED;
+        }
+
         // Convert YUYV to BGR
         yuyv_to_bgr(g_camera.buffers[buf.index], frame->data,
-                    g_camera.config.width, g_camera.config.height);
+                    g_camera.capture_width, g_camera.capture_height);
     } else {
         // Unknown format - just copy raw data
         size_t copy_size = buf.bytesused < FRAME_SIZE ? buf.bytesused : FRAME_SIZE;
@@ -372,8 +413,8 @@ camera_status_t camera_read(frame_t *frame, uint32_t timeout_ms) {
     // Set frame metadata
     frame->timestamp_ms = (uint32_t)(get_time_ms() - g_camera.open_time_ms);
     frame->sequence = g_camera.sequence++;
-    frame->width = g_camera.config.width;
-    frame->height = g_camera.config.height;
+    frame->width = g_camera.capture_width;
+    frame->height = g_camera.capture_height;
     frame->valid = true;
 
     g_camera.frames_captured++;

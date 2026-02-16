@@ -7,20 +7,30 @@
  *
  * Part of Epic 3, Story 3.6: Temperature Correlation Chart
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '../providers/apiClient';
 
 /**
  * A single correlation data point.
- * For daily aggregates: date is set, hour is undefined
- * For hourly aggregates: hour is set (0-23), date is undefined
+ * Uses discriminated union for type safety:
+ * - DailyCorrelationPoint: has date field (YYYY-MM-DD)
+ * - HourlyCorrelationPoint: has hour field (0-23)
  */
-export interface CorrelationPoint {
-  date?: string;
-  hour?: number;
+interface DailyCorrelationPoint {
+  date: string;
+  hour?: never;
   avg_temp: number;
   detection_count: number;
 }
+
+interface HourlyCorrelationPoint {
+  date?: never;
+  hour: number;
+  avg_temp: number;
+  detection_count: number;
+}
+
+export type CorrelationPoint = DailyCorrelationPoint | HourlyCorrelationPoint;
 
 interface CorrelationMeta {
   range: string;
@@ -76,6 +86,8 @@ export function useTemperatureCorrelation(
   const [isHourly, setIsHourly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // SECURITY (S5-H1): isMountedRef prevents state updates after unmount
+  const isMountedRef = useRef(true);
 
   // Convert date to stable string for dependency array
   const dateStr = formatDateParam(date);
@@ -96,20 +108,28 @@ export function useTemperatureCorrelation(
       }
 
       const response = await apiClient.get<TemperatureCorrelationResponse>(url);
-      setPoints(response.data.data || []);
-      setIsHourly(response.data.meta.is_hourly);
-      setError(null);
+      if (isMountedRef.current) {
+        setPoints(response.data.data || []);
+        setIsHourly(response.data.meta.is_hourly);
+        setError(null);
+      }
     } catch (err) {
-      setError(err as Error);
+      if (isMountedRef.current) {
+        setError(err as Error);
+      }
       // Keep showing previous data on error
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [siteId, range, dateStr]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     setLoading(true);
     fetchCorrelation();
+    return () => { isMountedRef.current = false; };
   }, [fetchCorrelation]);
 
   return { points, isHourly, loading, error, refetch: fetchCorrelation };

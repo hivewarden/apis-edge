@@ -1,5 +1,5 @@
 # Build stage
-# Using Go 1.24+ as required by go.mod
+# Using Go 1.24 as specified in go.mod
 FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
@@ -27,10 +27,13 @@ FROM alpine:3.20
 WORKDIR /app
 
 # Add ca-certificates for HTTPS calls and wget for health checks
-RUN apk --no-cache add ca-certificates wget
+RUN apk --no-cache add ca-certificates wget tzdata
 
 # Copy binary from builder
 COPY --from=builder /apis-server /app/apis-server
+
+# Copy BeeBrain rules configuration
+COPY --from=builder /app/internal/beebrain/rules.yaml /app/internal/beebrain/rules.yaml
 
 # Non-root user for security
 RUN adduser -D -H appuser

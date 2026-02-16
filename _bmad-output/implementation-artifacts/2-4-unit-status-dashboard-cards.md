@@ -266,3 +266,4 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 - 2026-01-24: Story 2.4 created from epics definition
 - 2026-01-24: Implementation of Story 2.4 - Unit status dashboard cards with polling
+- 2026-01-25: Remediation: Fixed 7 issues from code review (test coverage, accessibility, deprecation, memory leak, type exports, documentation)

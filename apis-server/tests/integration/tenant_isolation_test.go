@@ -36,6 +36,7 @@ func TestTenantIsolationE2E(t *testing.T) {
 	if os.Getenv("DATABASE_URL") == "" {
 		t.Skip("DATABASE_URL not set - skipping integration test")
 	}
+	t.Setenv("SECRETS_SOURCE", "env")
 
 	ctx := context.Background()
 	err := storage.InitDB(ctx)

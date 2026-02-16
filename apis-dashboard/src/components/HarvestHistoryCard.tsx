@@ -140,15 +140,23 @@ export function HarvestHistoryCard({
     {
       title: '',
       key: 'actions',
-      width: 80,
+      width: 96,
       render: (_: unknown, record: Harvest) => (
-        <Space size={0}>
+        <Space size={4}>
           {onEdit && (
             <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
+              type="default"
+              shape="circle"
+              icon={<EditOutlined style={{ fontSize: 14 }} />}
               onClick={() => onEdit(record)}
+              style={{
+                minWidth: 36,
+                width: 36,
+                height: 36,
+                color: '#9d7a48',
+                borderColor: 'rgba(157, 122, 72, 0.45)',
+                backgroundColor: 'rgba(157, 122, 72, 0.1)',
+              }}
             />
           )}
           <Popconfirm
@@ -160,11 +168,18 @@ export function HarvestHistoryCard({
             cancelText="Cancel"
           >
             <Button
-              type="text"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
+              type="default"
+              shape="circle"
+              icon={<DeleteOutlined style={{ fontSize: 14 }} />}
               loading={deleting}
+              style={{
+                minWidth: 36,
+                width: 36,
+                height: 36,
+                color: '#c4857a',
+                borderColor: 'rgba(196, 133, 122, 0.45)',
+                backgroundColor: 'rgba(196, 133, 122, 0.1)',
+              }}
             />
           </Popconfirm>
         </Space>

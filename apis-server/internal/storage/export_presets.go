@@ -88,13 +88,15 @@ func ListExportPresets(ctx context.Context, conn *pgxpool.Conn, tenantID string)
 }
 
 // GetExportPresetByID retrieves an export preset by its ID.
-func GetExportPresetByID(ctx context.Context, conn *pgxpool.Conn, id string) (*ExportPreset, error) {
+// SECURITY: Requires tenant_id to prevent IDOR vulnerability (DB-002-F1).
+// Only returns presets that belong to the specified tenant.
+func GetExportPresetByID(ctx context.Context, conn *pgxpool.Conn, tenantID, id string) (*ExportPreset, error) {
 	var preset ExportPreset
 	err := conn.QueryRow(ctx,
 		`SELECT id, tenant_id, name, config, created_at
 		 FROM export_presets
-		 WHERE id = $1`,
-		id,
+		 WHERE id = $1 AND tenant_id = $2`,
+		id, tenantID,
 	).Scan(&preset.ID, &preset.TenantID, &preset.Name, &preset.Config, &preset.CreatedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -107,8 +109,9 @@ func GetExportPresetByID(ctx context.Context, conn *pgxpool.Conn, id string) (*E
 }
 
 // DeleteExportPreset deletes an export preset by its ID.
-func DeleteExportPreset(ctx context.Context, conn *pgxpool.Conn, id string) error {
-	result, err := conn.Exec(ctx, `DELETE FROM export_presets WHERE id = $1`, id)
+// Only deletes if the preset belongs to the specified tenant (prevents IDOR).
+func DeleteExportPreset(ctx context.Context, conn *pgxpool.Conn, tenantID, id string) error {
+	result, err := conn.Exec(ctx, `DELETE FROM export_presets WHERE id = $1 AND tenant_id = $2`, id, tenantID)
 	if err != nil {
 		return fmt.Errorf("storage: failed to delete export preset: %w", err)
 	}

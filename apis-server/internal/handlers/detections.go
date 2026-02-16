@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jermoo/apis/apis-server/internal/middleware"
+	"github.com/jermoo/apis/apis-server/internal/services"
 	"github.com/jermoo/apis/apis-server/internal/storage"
 	"github.com/rs/zerolog/log"
 )
@@ -111,6 +113,18 @@ func CreateDetection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate size_pixels is non-negative if provided
+	if req.SizePixels != nil && *req.SizePixels < 0 {
+		respondError(w, "size_pixels cannot be negative", http.StatusBadRequest)
+		return
+	}
+
+	// Validate hover_duration_ms is non-negative if provided
+	if req.HoverDurationMs != nil && *req.HoverDurationMs < 0 {
+		respondError(w, "hover_duration_ms cannot be negative", http.StatusBadRequest)
+		return
+	}
+
 	// Require unit to be assigned to a site
 	if unit.SiteID == nil {
 		log.Warn().Str("unit_id", unit.ID).Msg("handler: unit not assigned to site, cannot create detection")
@@ -128,8 +142,18 @@ func CreateDetection(w http.ResponseWriter, r *http.Request) {
 		ClipFilename:    req.ClipFilename,
 	}
 
-	// TODO: Get current temperature from weather cache if available (Story 3.3)
+	// Get current temperature from weather cache if available (AC4)
 	var temperatureC *float64 = nil
+	site, err := storage.GetSiteByID(r.Context(), conn, *unit.SiteID)
+	if err == nil && site.Latitude != nil && site.Longitude != nil {
+		temperatureC = services.GetCachedTemperature(*site.Latitude, *site.Longitude)
+		if temperatureC != nil {
+			log.Debug().
+				Str("unit_id", unit.ID).
+				Float64("temperature_c", *temperatureC).
+				Msg("handler: captured temperature from weather cache")
+		}
+	}
 
 	// Create the detection
 	detection, err := storage.CreateDetection(r.Context(), conn, unit.TenantID, unit.ID, *unit.SiteID, input, temperatureC)
@@ -167,7 +191,9 @@ func ListDetections(w http.ResponseWriter, r *http.Request) {
 	// Validate site exists and belongs to tenant (RLS will enforce, but give better error)
 	_, err := storage.GetSiteByID(r.Context(), conn, siteID)
 	if err != nil {
-		if err == storage.ErrNotFound {
+		// FIX (S3A-L1): Use errors.Is() instead of direct comparison for consistency
+		// with the rest of the codebase and to support wrapped errors.
+		if errors.Is(err, storage.ErrNotFound) {
 			respondError(w, "Site not found", http.StatusNotFound)
 			return
 		}
@@ -237,6 +263,18 @@ func GetDetectionStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate site exists and belongs to tenant (consistent with ListDetections)
+	site, err := storage.GetSiteByID(r.Context(), conn, siteID)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			respondError(w, "Site not found", http.StatusNotFound)
+			return
+		}
+		log.Error().Err(err).Str("site_id", siteID).Msg("handler: failed to get site")
+		respondError(w, "Failed to validate site", http.StatusInternalServerError)
+		return
+	}
+
 	// Get range type and validate
 	rangeType := r.URL.Query().Get("range")
 	if rangeType == "" {
@@ -259,10 +297,9 @@ func GetDetectionStats(w http.ResponseWriter, r *http.Request) {
 	// Calculate date range
 	from, to := calculateDateRange(rangeType, referenceDate)
 
-	// Get site timezone (default to UTC)
+	// Get site timezone (default to UTC), validate before passing to SQL
 	timezone := "UTC"
-	site, err := storage.GetSiteByID(r.Context(), conn, siteID)
-	if err == nil && site.Timezone != "" {
+	if site.Timezone != "" && isValidTimezone(site.Timezone) {
 		timezone = site.Timezone
 	}
 
@@ -331,10 +368,10 @@ func GetTemperatureCorrelation(w http.ResponseWriter, r *http.Request) {
 	// Calculate date range
 	from, to := calculateDateRange(rangeType, referenceDate)
 
-	// Get site timezone (default to UTC)
+	// Get site timezone (default to UTC), validate before passing to SQL
 	timezone := "UTC"
 	site, err := storage.GetSiteByID(r.Context(), conn, siteID)
-	if err == nil && site.Timezone != "" {
+	if err == nil && site.Timezone != "" && isValidTimezone(site.Timezone) {
 		timezone = site.Timezone
 	}
 
@@ -411,10 +448,10 @@ func GetTrendData(w http.ResponseWriter, r *http.Request) {
 	// Calculate date range
 	from, to := calculateDateRange(rangeType, referenceDate)
 
-	// Get site timezone (default to UTC)
+	// Get site timezone (default to UTC), validate before passing to SQL
 	timezone := "UTC"
 	site, err := storage.GetSiteByID(r.Context(), conn, siteID)
-	if err == nil && site.Timezone != "" {
+	if err == nil && site.Timezone != "" && isValidTimezone(site.Timezone) {
 		timezone = site.Timezone
 	}
 
@@ -522,7 +559,11 @@ func calculateDateRange(rangeType string, referenceDate time.Time) (from, to tim
 		to = from.AddDate(0, 1, 0)
 	case "season":
 		// Hornet season: Aug 1 - Nov 30
+		// If before Aug 1, show previous year's season (per story spec)
 		year := referenceDate.Year()
+		if referenceDate.Month() < 8 {
+			year-- // Before Aug, show previous season
+		}
 		from = time.Date(year, 8, 1, 0, 0, 0, 0, loc)
 		to = time.Date(year, 12, 1, 0, 0, 0, 0, loc)
 	case "year":

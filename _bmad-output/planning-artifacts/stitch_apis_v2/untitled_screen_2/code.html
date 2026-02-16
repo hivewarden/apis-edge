@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Stats Overview Refined Master Style</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;700&amp;family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --coconut-cream: #fbf9e7;
+            --pure-white: #ffffff;
+            --salomie: #fcd483;
+            --sea-buckthorn: #f7a42d;
+            --brown-bramble: #662604;
+            --text-muted: #9c7c66;
+            --card-border: #ebdcb2;
+            --hover-bg: #fffbf0;
+            --shadow-soft: 0 4px 20px -5px rgba(102, 38, 4, 0.06);
+            --diffused-shadow: 0 10px 30px -10px rgba(102, 38, 4, 0.08);
+        }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            color: var(--brown-bramble);
+            background-color: var(--coconut-cream);
+        }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Playfair Display', serif;
+            color: var(--brown-bramble);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .chart-grid {
+            background-image: radial-gradient(#ebdcb2 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ebdcb2;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d4c59b;
+        }
+    </style>
+</head>
+<body class="bg-[var(--coconut-cream)] h-screen overflow-hidden flex">
+<aside class="w-72 bg-[var(--pure-white)] h-full flex flex-col border-r border-[var(--card-border)] shadow-[2px_0_24px_-12px_rgba(102,38,4,0.05)] shrink-0 z-20">
+<div class="p-8 pb-6 flex items-center gap-3">
+<div class="w-10 h-10 bg-[var(--sea-buckthorn)] rounded-xl flex items-center justify-center text-white shadow-md transform rotate-3 hover:rotate-6 transition-transform">
+<span class="material-symbols-outlined">hive</span>
+</div>
+<h1 class="text-3xl font-bold tracking-tight text-[var(--brown-bramble)]">APIS</h1>
+</div>
+<nav class="flex-1 px-5 py-4 space-y-2">
+<a class="flex items-center gap-3 px-4 py-3.5 text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--brown-bramble)] rounded-xl transition-all group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3.5 text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--brown-bramble)] rounded-xl transition-all group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">grid_view</span>
+<span class="font-medium">My Hives</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3.5 bg-[var(--salomie)] text-[var(--brown-bramble)] rounded-xl transition-all shadow-sm" href="#">
+<span class="material-symbols-outlined text-[20px] fill-1">bar_chart</span>
+<span class="font-medium">Statistics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3.5 text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--brown-bramble)] rounded-xl transition-all group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">notifications</span>
+<span class="font-medium">Alerts</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3.5 text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--brown-bramble)] rounded-xl transition-all group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">calendar_month</span>
+<span class="font-medium">Schedule</span>
+</a>
+</nav>
+<div class="p-5 border-t border-[var(--card-border)]">
+<a class="flex items-center gap-3 px-4 py-3 text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--brown-bramble)] rounded-xl transition-colors mb-2" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span class="font-medium">Settings</span>
+</a>
+<div class="mt-2 flex items-center gap-3 px-4 py-3 bg-[var(--hover-bg)] rounded-2xl border border-[var(--card-border)]">
+<img alt="User" class="w-10 h-10 rounded-full object-cover ring-2 ring-[var(--salomie)] shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAqS875LLcKz5kim2HNI1i8VK3yWonf-VaRlUAmANXgb799RJcwiXD1Y_bgxeHBba-9ujIuEdiZjxWNeCq3DoV58Qm7jBipz6E3xgEEczSwSs7GW1NaXCgYagwYVP2kUoShxPGeKhFV4EFNVcU50ViD49SIFUlf2bylklaK34tK8UbYeUgW1fHrX_fU7fYj3uzxJJELCKtpAOJihULRL3S1ns76Oz6oOGoKtGI5Df3NKKJwuGrUUWxTqMqZlQ9zMzgRoukekL6ieAw"/>
+<div>
+<p class="text-sm font-bold text-[var(--brown-bramble)]">Elara Vance</p>
+<p class="text-xs text-[var(--text-muted)]">Master Beekeeper</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 h-full overflow-y-auto p-8 lg:p-12 relative bg-[var(--coconut-cream)]">
+<div class="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
+<div>
+<h2 class="text-4xl md:text-5xl font-bold text-[var(--brown-bramble)] mb-3">Detection Analytics</h2>
+<p class="text-[var(--text-muted)] font-medium">Real-time artisan insights from your apiary sensors.</p>
+</div>
+<div class="bg-[var(--pure-white)] rounded-full p-1.5 shadow-sm inline-flex border border-[var(--card-border)] self-start md:self-auto">
+<button class="px-6 py-2.5 rounded-full text-sm font-medium text-[var(--text-muted)] hover:text-[var(--brown-bramble)] hover:bg-[#fff9ed] transition-colors">Day</button>
+<button class="px-6 py-2.5 bg-[var(--sea-buckthorn)] text-white rounded-full text-sm font-medium shadow-[0_4px_12px_rgba(247,164,45,0.3)]">Week</button>
+<button class="px-6 py-2.5 rounded-full text-sm font-medium text-[var(--text-muted)] hover:text-[var(--brown-bramble)] hover:bg-[#fff9ed] transition-colors">Month</button>
+<button class="px-6 py-2.5 rounded-full text-sm font-medium text-[var(--text-muted)] hover:text-[var(--brown-bramble)] hover:bg-[#fff9ed] transition-colors">Year</button>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-auto">
+<div class="lg:col-span-4 bg-[var(--pure-white)] p-8 rounded-[16px] shadow-[var(--diffused-shadow)] border border-white flex flex-col h-[28rem]">
+<div class="flex justify-between items-start mb-4">
+<h3 class="text-xl font-semibold text-[var(--brown-bramble)] flex items-center gap-3">
+<span class="w-8 h-8 rounded-full bg-[#fff5e0] flex items-center justify-center text-[var(--sea-buckthorn)]">
+<span class="material-symbols-outlined text-[18px]">schedule</span>
+</span>
+                        Activity by Hour
+                    </h3>
+<button class="text-[var(--text-muted)] hover:text-[var(--sea-buckthorn)] transition-colors w-8 h-8 flex items-center justify-center hover:bg-[#fff9ed] rounded-full">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</div>
+<div class="flex-1 flex items-center justify-center relative">
+<div class="relative w-64 h-64">
+<div class="absolute inset-0 m-auto w-24 h-24 bg-[var(--coconut-cream)] rounded-full flex flex-col items-center justify-center z-10 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] border border-[#f0e6cc]">
+<span class="text-2xl font-bold text-[var(--brown-bramble)] font-serif">14:00</span>
+<span class="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-bold mt-1">Peak Time</span>
+</div>
+<div class="absolute inset-0 rounded-full border-[24px] border-[#fbf9e7]" style="clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);"></div>
+<div class="absolute inset-0 rounded-full border-[24px] border-[var(--sea-buckthorn)] opacity-10 blur-[1px] transform rotate-45"></div>
+<div class="absolute inset-0 rounded-full border-[24px] border-[var(--sea-buckthorn)] border-l-transparent border-b-transparent transform rotate-[60deg] rounded-e-full rounded-s-full" style="clip-path: inset(0 0 50% 50%); stroke-linecap: round;"></div>
+<div class="absolute inset-6 rounded-full border-[24px] border-[#fff5e0] transform rotate-12"></div>
+<div class="absolute inset-6 rounded-full border-[24px] border-[var(--salomie)] transform -rotate-[120deg] opacity-80" style="clip-path: polygon(50% 0, 100% 0, 100% 50%, 50% 50%);"></div>
+<div class="absolute inset-12 rounded-full border-[24px] border-[#fffcf5]"></div>
+<div class="absolute inset-12 rounded-full border-[24px] border-[#ffeec2] transform rotate-[200deg]" style="clip-path: polygon(50% 50%, 0 100%, 0 0);"></div>
+</div>
+</div>
+<div class="mt-2 flex justify-center gap-6 text-xs font-medium text-[var(--text-muted)]">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-[var(--sea-buckthorn)] shadow-sm"></div>
+<span>Arrivals</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-[var(--salomie)] shadow-sm"></div>
+<span>Departures</span>
+</div>
+</div>
+</div>
+<div class="lg:col-span-8 bg-[var(--pure-white)] p-8 rounded-[16px] shadow-[var(--diffused-shadow)] border border-white flex flex-col h-[28rem]">
+<div class="flex justify-between items-start mb-6">
+<h3 class="text-xl font-semibold text-[var(--brown-bramble)] flex items-center gap-3">
+<span class="w-8 h-8 rounded-full bg-[#fff5e0] flex items-center justify-center text-[var(--sea-buckthorn)]">
+<span class="material-symbols-outlined text-[18px]">thermostat</span>
+</span>
+                        Temperature Correlation
+                    </h3>
+<div class="flex gap-2">
+<span class="text-xs font-bold px-3 py-1.5 bg-[var(--coconut-cream)] rounded-lg text-[var(--brown-bramble)] border border-[var(--card-border)]">Avg: 24°C</span>
+</div>
+</div>
+<div class="flex-1 w-full relative chart-grid rounded-2xl p-4 border border-[#f5efe0]">
+<div class="absolute left-0 top-0 h-full flex flex-col justify-between text-xs font-medium text-[var(--text-muted)] pr-3 py-2" style="transform: translateX(-100%); height: calc(100% - 30px);">
+<span>35°C</span>
+<span>30°C</span>
+<span>25°C</span>
+<span>20°C</span>
+<span>15°C</span>
+</div>
+<div class="absolute bottom-0 left-0 w-full flex justify-between text-xs font-medium text-[var(--text-muted)] pt-3 px-2" style="transform: translateY(100%);">
+<span>Mon</span>
+<span>Tue</span>
+<span>Wed</span>
+<span>Thu</span>
+<span>Fri</span>
+<span>Sat</span>
+<span>Sun</span>
+</div>
+<div class="relative w-full h-full">
+<div class="absolute left-[10%] top-[40%] w-3 h-3 bg-[var(--sea-buckthorn)] rounded-full shadow-md hover:scale-150 transition-all cursor-pointer opacity-80 ring-4 ring-[#fff5e0]"></div>
+<div class="absolute left-[12%] top-[35%] w-1.5 h-1.5 bg-[var(--sea-buckthorn)] rounded-full opacity-60"></div>
+<div class="absolute left-[25%] top-[20%] w-4 h-4 bg-[var(--sea-buckthorn)] rounded-full shadow-[0_4px_8px_rgba(247,164,45,0.3)] hover:scale-125 transition-all cursor-pointer z-10 border-2 border-white"></div>
+<div class="absolute left-[28%] top-[25%] w-2 h-2 bg-[#fcd483] rounded-full opacity-70"></div>
+<div class="absolute left-[40%] top-[30%] w-3 h-3 bg-[var(--sea-buckthorn)] rounded-full shadow-md hover:scale-150 transition-all cursor-pointer ring-4 ring-[#fff5e0]"></div>
+<div class="absolute left-[55%] top-[45%] w-3 h-3 bg-[var(--sea-buckthorn)] rounded-full shadow-md hover:scale-150 transition-all cursor-pointer opacity-90 ring-4 ring-[#fff5e0]"></div>
+<div class="absolute left-[58%] top-[50%] w-1.5 h-1.5 bg-[#fcd483] rounded-full opacity-60"></div>
+<div class="absolute left-[70%] top-[15%] group cursor-pointer z-20">
+<div class="w-6 h-6 bg-[var(--sea-buckthorn)] rounded-full shadow-[0_8px_16px_rgba(247,164,45,0.4)] border-[3px] border-white group-hover:scale-110 transition-transform relative z-10"></div>
+<div class="absolute top-8 left-1/2 -translate-x-1/2 bg-[var(--brown-bramble)] text-[#fbf9e7] text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Peak Activity</div>
+</div>
+<div class="absolute left-[85%] top-[60%] w-3 h-3 bg-[var(--sea-buckthorn)] rounded-full shadow-md hover:scale-150 transition-all cursor-pointer ring-4 ring-[#fff5e0]"></div>
+<div class="absolute left-[88%] top-[65%] w-1.5 h-1.5 bg-[#fcd483] rounded-full opacity-60"></div>
+<svg class="absolute inset-0 w-full h-full overflow-visible pointer-events-none">
+<defs>
+<linearGradient id="lineGradient" x1="0" x2="1" y1="0" y2="0">
+<stop offset="0%" stop-color="#f7a42d" stop-opacity="0.2"></stop>
+<stop offset="50%" stop-color="#f7a42d" stop-opacity="0.6"></stop>
+<stop offset="100%" stop-color="#f7a42d" stop-opacity="0.2"></stop>
+</linearGradient>
+</defs>
+<path d="M40 120 C 100 100, 150 80, 250 100 S 400 60, 500 50 S 600 100, 700 150" fill="none" stroke="url(#lineGradient)" stroke-dasharray="6 6" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+</div>
+</div>
+</div>
+<div class="lg:col-span-12 bg-[var(--pure-white)] p-8 rounded-[16px] shadow-[var(--diffused-shadow)] border border-white flex flex-col mt-2">
+<div class="flex justify-between items-start mb-8">
+<div>
+<h3 class="text-xl font-semibold text-[var(--brown-bramble)] flex items-center gap-3">
+<span class="w-8 h-8 rounded-full bg-[#fff5e0] flex items-center justify-center text-[var(--sea-buckthorn)]">
+<span class="material-symbols-outlined text-[18px]">trending_up</span>
+</span>
+                            Trend Line
+                        </h3>
+<p class="text-sm text-[var(--text-muted)] mt-2 pl-11">Total detections over the last 7 days compared to previous period.</p>
+</div>
+<div class="text-right">
+<span class="block text-4xl font-serif font-bold text-[var(--brown-bramble)]">2,451</span>
+<span class="text-sm font-medium text-[#5d804e] flex items-center justify-end gap-1 bg-[#eef7eb] px-2 py-0.5 rounded-full mt-1 border border-[#d6e8d0] inline-flex">
+<span class="material-symbols-outlined text-sm font-bold">arrow_upward</span>
+                            12.5%
+                        </span>
+</div>
+</div>
+<div class="h-72 w-full relative">
+<div class="absolute w-full h-full flex flex-col justify-between pointer-events-none">
+<div class="w-full h-px bg-[var(--card-border)] opacity-30 border-t border-dashed border-[var(--text-muted)]"></div>
+<div class="w-full h-px bg-[var(--card-border)] opacity-30 border-t border-dashed border-[var(--text-muted)]"></div>
+<div class="w-full h-px bg-[var(--card-border)] opacity-30 border-t border-dashed border-[var(--text-muted)]"></div>
+<div class="w-full h-px bg-[var(--card-border)] opacity-30 border-t border-dashed border-[var(--text-muted)]"></div>
+</div>
+<svg class="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 1000 300">
+<defs>
+<linearGradient id="gradientArea" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#f7a42d" stop-opacity="0.3"></stop>
+<stop offset="100%" stop-color="#f7a42d" stop-opacity="0"></stop>
+</linearGradient>
+<filter height="140%" id="glow" width="140%" x="-20%" y="-20%">
+<feGaussianBlur result="coloredBlur" stdDeviation="4"></feGaussianBlur>
+<feMerge>
+<feMergeNode in="coloredBlur"></feMergeNode>
+<feMergeNode in="SourceGraphic"></feMergeNode>
+</feMerge>
+</filter>
+</defs>
+<path d="M0,250 C150,230 250,140 350,170 S550,70 650,90 S850,10 1000,40 L1000,300 L0,300 Z" fill="url(#gradientArea)"></path>
+<path d="M0,250 C150,230 250,140 350,170 S550,70 650,90 S850,10 1000,40" fill="none" filter="url(#glow)" stroke="#f7a42d" stroke-linecap="round" stroke-width="4"></path>
+<circle cx="350" cy="170" fill="#ffffff" r="5" stroke="#f7a42d" stroke-width="3"></circle>
+<circle class="drop-shadow-md" cx="650" cy="90" fill="#ffffff" r="7" stroke="#f7a42d" stroke-width="4"></circle>
+</svg>
+<div class="absolute left-[65%] top-[25%] transform -translate-x-1/2 -translate-y-full bg-[var(--brown-bramble)] text-[#fbf9e7] text-xs font-medium py-1.5 px-4 rounded-xl shadow-lg mb-3">
+                        458 Detections
+                        <div class="absolute left-1/2 bottom-0 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2.5 h-2.5 bg-[var(--brown-bramble)] rounded-sm"></div>
+</div>
+</div>
+</div>
+<div class="mt-12 text-center text-xs font-medium text-[var(--text-muted)] flex items-center justify-center gap-2">
+<span class="w-1.5 h-1.5 bg-[#4caf50] rounded-full animate-pulse"></span>
+<p>© 2024 APIS Platform. Artisan data synced 2 minutes ago.</p>
+</div>
+</div></main>
+</body></html>

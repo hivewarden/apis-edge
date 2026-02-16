@@ -82,8 +82,14 @@ export function InspectionDetailModal({
   const [loading, setLoading] = useState(false);
 
   // Fetch full inspection data (with frames) when modal opens
+  // Only fetch if we don't already have frames data (optimization to avoid redundant requests)
   useEffect(() => {
     if (open && inspection) {
+      // Skip fetch if we already have this inspection's full data cached
+      if (fullInspection?.id === inspection.id && fullInspection?.frames !== undefined) {
+        return;
+      }
+      // Only fetch if frames data is needed (which isn't in the list response)
       setLoading(true);
       apiClient
         .get<{ data: Inspection }>(`/inspections/${inspection.id}`)
@@ -97,19 +103,24 @@ export function InspectionDetailModal({
         .finally(() => {
           setLoading(false);
         });
-    } else {
+    } else if (!open) {
+      // Only clear when modal closes, not when inspection changes
       setFullInspection(null);
     }
-  }, [open, inspection]);
+  }, [open, inspection, fullInspection?.id, fullInspection?.frames]);
 
   if (!inspection) return null;
 
   // Use full inspection data if available, otherwise fall back to list data
   const displayInspection = fullInspection || inspection;
+  const issues = Array.isArray(displayInspection.issues)
+    ? displayInspection.issues.filter((issue): issue is string => typeof issue === 'string' && issue.trim().length > 0)
+    : [];
 
   // Check if within 24-hour edit window
+  // Use 23.5 hours as buffer to prevent edge case timing issues between client/server clocks
   const createdAt = dayjs(displayInspection.created_at);
-  const isEditable = dayjs().diff(createdAt, 'hour') < 24;
+  const isEditable = dayjs().diff(createdAt, 'hour', true) < 23.5;
 
   const handleEdit = () => {
     onClose();
@@ -228,9 +239,9 @@ export function InspectionDetailModal({
 
         {/* Issues */}
         <Descriptions.Item label="Issues" span={2}>
-          {displayInspection.issues.length > 0 ? (
+          {issues.length > 0 ? (
             <Space wrap>
-              {displayInspection.issues.map((issue, idx) => (
+              {issues.map((issue, idx) => (
                 <Tag key={idx} color="warning">
                   {formatIssue(issue)}
                 </Tag>
@@ -292,7 +303,7 @@ export function InspectionDetailModal({
                       title: 'Brood',
                       dataIndex: 'brood_frames',
                       key: 'brood',
-                      render: (v: number) => v > 0 ? <Tag color="#8B4513">{v}</Tag> : '-',
+                      render: (v: number) => v > 0 ? <Tag color={colors.brownBramble}>{v}</Tag> : '-',
                     },
                     {
                       title: 'Honey',
@@ -304,7 +315,7 @@ export function InspectionDetailModal({
                       title: 'Pollen',
                       dataIndex: 'pollen_frames',
                       key: 'pollen',
-                      render: (v: number) => v > 0 ? <Tag color="#FFA500">{v}</Tag> : '-',
+                      render: (v: number) => v > 0 ? <Tag color={colors.warning}>{v}</Tag> : '-',
                     },
                   ]}
                 />
@@ -319,10 +330,10 @@ export function InspectionDetailModal({
           style={{
             marginTop: 16,
             padding: 8,
-            backgroundColor: 'rgba(255, 193, 7, 0.1)',
+            backgroundColor: colors.hoverOverlay,
             borderRadius: 4,
             fontSize: 12,
-            color: '#666',
+            color: colors.textMuted,
           }}
         >
           Note: This inspection was created more than 24 hours ago and can no longer be edited.

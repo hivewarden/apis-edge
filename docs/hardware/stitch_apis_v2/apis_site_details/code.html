@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS - West Orchard Site Details</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Noto+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#f7a42d", // Sea Buckthorn
+              "primary-light": "#fcd483", // Salomie
+              "background-light": "#fbf9e7", // Coconut Cream
+              "sidebar-light": "#ffffff", // Pure White
+              "brown-bramble": "#594a42", // Brown Bramble (implied dark brown)
+              "soft-sage": "#7c9082", // Soft Sage
+              "soft-sage-light": "#eef3f0",
+            },
+            fontFamily: {
+              "display": ["Plus Jakarta Sans", "sans-serif"],
+              "body": ["Noto Sans", "sans-serif"]
+            },
+            borderRadius: {
+              "card": "16px",
+            },
+            boxShadow: {
+              "soft": "0 4px 20px -2px rgba(89, 74, 66, 0.05)",
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e6e2d6;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d1d5db;
+        }
+    </style>
+</head>
+<body class="bg-background-light text-[#594a42] font-display min-h-screen flex overflow-hidden">
+<aside class="w-[240px] bg-sidebar-light border-r border-[#f0eee6] flex flex-col h-screen shrink-0 z-20 transition-all shadow-sm">
+<div class="p-8 flex flex-col items-center justify-center gap-3">
+<div class="size-14 rounded-xl bg-primary flex items-center justify-center text-white shadow-md">
+<span class="material-symbols-outlined" style="font-size: 32px; font-variation-settings: 'FILL' 1;">hive</span>
+</div>
+<div class="flex flex-col items-center">
+<h1 class="text-xl font-extrabold tracking-tight text-brown-bramble">APIS</h1>
+<p class="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mt-0.5">Beekeeping</p>
+</div>
+</div>
+<nav class="flex-1 px-4 py-4 flex flex-col gap-2 overflow-y-auto">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-[#fbf9e7] hover:text-primary transition-all group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">dashboard</span>
+<span class="font-medium text-sm">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary-light text-brown-bramble font-bold shadow-sm" href="#">
+<span class="material-symbols-outlined text-brown-bramble font-variation-settings-'FILL' 1">map</span>
+<span class="text-sm">Sites</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-[#fbf9e7] hover:text-primary transition-all group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">hexagon</span>
+<span class="font-medium text-sm">Hives</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-[#fbf9e7] hover:text-primary transition-all group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">content_paste</span>
+<span class="font-medium text-sm">Inspections</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-[#fbf9e7] hover:text-primary transition-all group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">bar_chart</span>
+<span class="font-medium text-sm">Reports</span>
+</a>
+</nav>
+<div class="p-4 mx-2 mb-2 border-t border-[#f0eee6]">
+<a class="flex items-center gap-3 p-3 rounded-xl hover:bg-[#fbf9e7] transition-colors" href="#">
+<div class="size-10 rounded-full bg-gray-200 bg-cover bg-center border-2 border-white shadow-sm" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDyGR0Ph1a_oxpNNXP-zkIN7jF4hcnOCt_kGbd4Opb69dLyOMu-bDw0TPuH6lROXKQB_1OE4HQKyakEZIUgVd-ZJofTXKGoiYERZ6CB47DcA9pgk01lcFjNMAViSyIXCC5qQVlI0--z5ue3DRcttEE1PYZ6qUVD1nmAqa--BFTRFEIpWZNiPC0MMB0ZbExw4mx8fGZJlgpqiFEkdVdZMKikcoDyq8obILnB898POJ9z2iYdY6Q_BGwEQVrwOkFNvQJfuR349sqHlzI')"></div>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-brown-bramble">Jane Beekeeper</span>
+<span class="text-xs text-gray-500 font-medium">Admin</span>
+</div>
+</a>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-screen overflow-hidden relative bg-background-light">
+<header class="h-20 flex items-center px-10 shrink-0">
+<div class="flex items-center text-sm font-medium">
+<a class="text-gray-400 hover:text-primary transition-colors" href="#">Sites</a>
+<span class="mx-3 text-gray-300 material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-brown-bramble font-bold">West Orchard</span>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto px-10 pb-10">
+<div class="max-w-7xl mx-auto space-y-8 pb-10">
+<div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+<div>
+<h1 class="text-4xl font-extrabold text-brown-bramble tracking-tight mb-2">West Orchard</h1>
+<p class="text-gray-500 flex items-center gap-2 font-medium">
+<span class="material-symbols-outlined text-primary text-lg">location_on</span>
+                            Primary Apiary Site
+                        </p>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#e6e2d6] rounded-xl text-sm font-bold text-brown-bramble hover:bg-[#fbf9e7] hover:border-primary/30 transition-all shadow-soft">
+<span class="material-symbols-outlined text-lg">edit</span>
+                            Edit
+                        </button>
+<button class="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#e6e2d6] rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 hover:border-red-200 transition-all shadow-soft group">
+<span class="material-symbols-outlined text-lg group-hover:text-red-600">delete</span>
+                            Delete
+                        </button>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<div class="lg:col-span-2 space-y-8">
+<div class="bg-white rounded-card overflow-hidden shadow-soft border border-white/50">
+<div class="relative h-[360px] w-full bg-gray-100">
+<div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDhEK70KkfFt4cB6xyMs_Xdj9mqcm9F19Z5XlBG5ZSCpW-p7Dcm1I6rkcPnJIlViV5-S1mktjIg-4XSLrtthK_wNvINGfYU6K8pI3JXjsN5DQO3RWQ83eE7fCZqss_R9QkadfAcgRTMnniBw4MdI3RLPbc2SjYylNo6l-coL8B1a3RiAl-StJ2EF4UPr-9xzrvIQbRX6-MlcmIFsM4GQjG__TyHwsJY7IXW-cbhItXsBoxyE-V-kG7YFiOAYyGVLF2xK6pzj-HD5Vs'); filter: contrast(0.95) sepia(0.1);"></div>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+<div class="relative group cursor-pointer">
+<div class="w-14 h-14 rounded-full bg-primary/20 animate-ping absolute top-0 left-0"></div>
+<div class="relative z-10 w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-lg transform transition-transform group-hover:-translate-y-2 border-4 border-white">
+<span class="material-symbols-outlined text-2xl">hive</span>
+</div>
+<div class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-primary rotate-45 transform border-b-4 border-r-4 border-white box-content"></div>
+</div>
+</div>
+<div class="absolute top-6 right-6 flex flex-col gap-3">
+<button class="w-10 h-10 bg-white rounded-xl shadow-md flex items-center justify-center hover:bg-gray-50 text-gray-600">
+<span class="material-symbols-outlined text-xl">add</span>
+</button>
+<button class="w-10 h-10 bg-white rounded-xl shadow-md flex items-center justify-center hover:bg-gray-50 text-gray-600">
+<span class="material-symbols-outlined text-xl">remove</span>
+</button>
+</div>
+</div>
+<div class="p-6 flex flex-wrap gap-8 items-center bg-white">
+<div class="flex flex-col gap-1.5">
+<span class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Coordinates</span>
+<div class="flex items-center gap-2 group cursor-pointer bg-[#fbf9e7] px-3 py-1.5 rounded-lg border border-transparent hover:border-primary/20 transition-colors">
+<span class="text-sm font-bold text-brown-bramble font-mono">45.5231° N, 122.6765° W</span>
+<button class="text-primary opacity-60 group-hover:opacity-100 transition-all" title="Copy coordinates">
+<span class="material-symbols-outlined text-sm">content_copy</span>
+</button>
+</div>
+</div>
+<div class="w-px h-10 bg-[#f0eee6] hidden sm:block"></div>
+<div class="flex flex-col gap-1.5">
+<span class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Timezone</span>
+<div class="flex items-baseline gap-2 px-3 py-1.5">
+<span class="text-sm font-bold text-brown-bramble">PST (UTC-8)</span>
+<span class="text-xs text-gray-500 font-medium">10:42 AM</span>
+</div>
+</div>
+<div class="w-px h-10 bg-[#f0eee6] hidden sm:block"></div>
+<div class="flex flex-col gap-1.5">
+<span class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Address</span>
+<div class="flex items-center px-3 py-1.5">
+<span class="text-sm font-medium text-brown-bramble truncate max-w-[240px]">128 Orchard Lane, Portland, OR</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-5">
+<div class="flex items-center justify-between px-1">
+<h2 class="text-xl font-bold text-brown-bramble">Active Hives</h2>
+<a class="text-sm font-bold text-primary hover:text-amber-600 transition-colors flex items-center gap-1" href="#">
+                                    View All
+                                    <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</a>
+</div>
+<div class="bg-white rounded-card overflow-hidden shadow-soft border border-white/50">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-[#f0eee6] bg-[#fdfcf6]">
+<th class="py-4 px-6 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Hive ID</th>
+<th class="py-4 px-6 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Queen</th>
+<th class="py-4 px-6 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Strength</th>
+<th class="py-4 px-6 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
+<th class="py-4 px-6 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#f0eee6]">
+<tr class="group hover:bg-[#fbf9e7] transition-colors">
+<td class="py-4 px-6">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-lg bg-white border border-[#f0eee6] text-primary flex items-center justify-center font-bold text-xs shadow-sm">H-01</div>
+<span class="font-bold text-sm text-brown-bramble">Hive #01</span>
+</div>
+</td>
+<td class="py-4 px-6 text-sm font-medium text-gray-600">Italian (Yellow)</td>
+<td class="py-4 px-6">
+<div class="flex items-center gap-3">
+<div class="h-2 w-20 bg-[#f0eee6] rounded-full overflow-hidden">
+<div class="h-full bg-soft-sage w-[85%] rounded-full"></div>
+</div>
+<span class="text-xs font-bold text-gray-500">85%</span>
+</div>
+</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-soft-sage-light text-soft-sage">
+<span class="size-1.5 rounded-full bg-soft-sage"></span>
+                                                    Productive
+                                                </span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="size-8 rounded-full bg-transparent hover:bg-white text-gray-400 hover:text-primary transition-all flex items-center justify-center">
+<span class="material-symbols-outlined text-xl">chevron_right</span>
+</button>
+</td>
+</tr>
+<tr class="group hover:bg-[#fbf9e7] transition-colors">
+<td class="py-4 px-6">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-lg bg-white border border-[#f0eee6] text-primary flex items-center justify-center font-bold text-xs shadow-sm">H-02</div>
+<span class="font-bold text-sm text-brown-bramble">Hive #02</span>
+</div>
+</td>
+<td class="py-4 px-6 text-sm font-medium text-gray-600">Carniolan (Red)</td>
+<td class="py-4 px-6">
+<div class="flex items-center gap-3">
+<div class="h-2 w-20 bg-[#f0eee6] rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[60%] rounded-full"></div>
+</div>
+<span class="text-xs font-bold text-gray-500">60%</span>
+</div>
+</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary">
+<span class="size-1.5 rounded-full bg-primary"></span>
+                                                    Check
+                                                </span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="size-8 rounded-full bg-transparent hover:bg-white text-gray-400 hover:text-primary transition-all flex items-center justify-center">
+<span class="material-symbols-outlined text-xl">chevron_right</span>
+</button>
+</td>
+</tr>
+<tr class="group hover:bg-[#fbf9e7] transition-colors">
+<td class="py-4 px-6">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-lg bg-white border border-[#f0eee6] text-primary flex items-center justify-center font-bold text-xs shadow-sm">H-03</div>
+<span class="font-bold text-sm text-brown-bramble">Hive #03</span>
+</div>
+</td>
+<td class="py-4 px-6 text-sm font-medium text-gray-600">Buckfast (Green)</td>
+<td class="py-4 px-6">
+<div class="flex items-center gap-3">
+<div class="h-2 w-20 bg-[#f0eee6] rounded-full overflow-hidden">
+<div class="h-full bg-soft-sage w-[92%] rounded-full"></div>
+</div>
+<span class="text-xs font-bold text-gray-500">92%</span>
+</div>
+</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-soft-sage-light text-soft-sage">
+<span class="size-1.5 rounded-full bg-soft-sage"></span>
+                                                    Productive
+                                                </span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="size-8 rounded-full bg-transparent hover:bg-white text-gray-400 hover:text-primary transition-all flex items-center justify-center">
+<span class="material-symbols-outlined text-xl">chevron_right</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="lg:col-span-1 space-y-8">
+<div class="flex flex-col gap-5">
+<h2 class="text-xl font-bold text-brown-bramble px-1">Connected Units</h2>
+<div class="bg-white rounded-card p-5 shadow-soft border border-white/50 hover:shadow-md transition-shadow cursor-pointer group">
+<div class="flex items-start justify-between mb-4">
+<div class="flex items-center gap-4">
+<div class="size-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500 group-hover:bg-blue-100 transition-colors">
+<span class="material-symbols-outlined">sensors</span>
+</div>
+<div>
+<h3 class="text-base font-bold text-brown-bramble group-hover:text-primary transition-colors">Scale Unit A</h3>
+<p class="text-xs text-gray-400 font-medium mt-0.5">ID: #SN-8821</p>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-2.5 py-1 bg-soft-sage-light rounded-full">
+<div class="size-1.5 rounded-full bg-soft-sage animate-pulse"></div>
+<span class="text-[10px] font-bold text-soft-sage uppercase tracking-wide">Online</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3 mt-3">
+<div class="bg-[#fbf9e7] p-3 rounded-xl border border-transparent group-hover:border-primary/10 transition-colors">
+<span class="text-[10px] text-gray-500 font-bold uppercase tracking-wide block mb-1">Battery</span>
+<span class="text-lg font-bold text-brown-bramble">94%</span>
+</div>
+<div class="bg-[#fbf9e7] p-3 rounded-xl border border-transparent group-hover:border-primary/10 transition-colors">
+<span class="text-[10px] text-gray-500 font-bold uppercase tracking-wide block mb-1">Signal</span>
+<span class="text-lg font-bold text-brown-bramble">-64 dBm</span>
+</div>
+</div>
+</div>
+<div class="bg-white rounded-card p-5 shadow-soft border border-white/50 hover:shadow-md transition-shadow cursor-pointer group">
+<div class="flex items-start justify-between mb-4">
+<div class="flex items-center gap-4">
+<div class="size-12 rounded-xl bg-orange-50 flex items-center justify-center text-orange-500 group-hover:bg-orange-100 transition-colors">
+<span class="material-symbols-outlined">thermostat</span>
+</div>
+<div>
+<h3 class="text-base font-bold text-brown-bramble group-hover:text-primary transition-colors">Env Sensor B</h3>
+<p class="text-xs text-gray-400 font-medium mt-0.5">ID: #ES-4412</p>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-2.5 py-1 bg-soft-sage-light rounded-full">
+<div class="size-1.5 rounded-full bg-soft-sage animate-pulse"></div>
+<span class="text-[10px] font-bold text-soft-sage uppercase tracking-wide">Online</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3 mt-3">
+<div class="bg-[#fbf9e7] p-3 rounded-xl border border-transparent group-hover:border-primary/10 transition-colors">
+<span class="text-[10px] text-gray-500 font-bold uppercase tracking-wide block mb-1">Temp</span>
+<span class="text-lg font-bold text-brown-bramble">24°C</span>
+</div>
+<div class="bg-[#fbf9e7] p-3 rounded-xl border border-transparent group-hover:border-primary/10 transition-colors">
+<span class="text-[10px] text-gray-500 font-bold uppercase tracking-wide block mb-1">Humidity</span>
+<span class="text-lg font-bold text-brown-bramble">55%</span>
+</div>
+</div>
+</div>
+<button class="w-full py-4 border-2 border-dashed border-[#e6e2d6] rounded-card text-gray-400 hover:border-primary hover:text-primary hover:bg-white transition-all flex items-center justify-center gap-2 font-bold text-sm group">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
+                                Add New Unit
+                            </button>
+</div>
+<div class="bg-[#fdfcf6] rounded-card p-6 shadow-soft border border-[#f0eee6]">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-base font-bold text-brown-bramble flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">sticky_note_2</span>
+                                    Site Notes
+                                </h3>
+<button class="text-primary text-xs font-bold hover:underline">Edit</button>
+</div>
+<div class="bg-white p-4 rounded-xl border border-[#f0eee6] mb-4">
+<p class="text-sm text-gray-600 leading-relaxed font-medium">
+                                    West Orchard has good sun exposure in the morning. Beware of the uneven ground near Hive #02. Last inspection showed strong brood patterns.
+                                </p>
+</div>
+<div class="flex items-center justify-end text-xs text-gray-400 font-medium">
+<span>Updated 2 days ago by Jane</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+
+</body></html>

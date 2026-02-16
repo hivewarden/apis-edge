@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Mobile Inline Task Form</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a42d", // Sea Buckthorn
+                        "primary-dark": "#d98d1e",
+                        "background-light": "#fcfaf8",
+                        "background-dark": "#23180f",
+                        "brown-bramble": "#662604", // Updated Brown Bramble
+                        "coconut-cream": "#fbf9e7", // Updated Coconut Cream
+                        "salomie": "#fcd483", // New Salomie color
+                        "text-main": "#1c130d",
+                        "text-secondary": "#9e6d47",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"],
+                        "sans": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "1.5rem",
+                        "xl": "2rem",
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(28, 19, 13, 0.08)',
+                    }
+                },
+            },
+        }
+    </script>
+<style>::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #e9d9ce;
+            border-radius: 20px;
+        }
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 300,
+            'GRAD' 0,
+            'opsz' 24
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen font-display p-4 sm:p-8" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAYZnNAL6CUdFKIvIg0YQViOOK3fnOyHv4UsPPdVMDO20kiAzNpe0AQcRhWtIXLUP_82gXfUrIc7bcbR_SlywnkXdePuKw7bUyuNG738Rp8pjOFZgpp5xBrxZkxV_NDn33pBEm_dW0lFZwUNlf5yoWVf83HMjmk9v5WB3iQeLri0moUpQro_Lpnw4la8wNdN5oNCCEzcxsGzi2F3ob9kgeDiP7XX0dhU99fBOhzY4xHhaYtd3bO1zrP6kHoSrhXXO4oSTe_1IsfigA'); background-size: cover; background-position: center;">
+<div class="w-full max-w-[420px] h-[850px] bg-coconut-cream dark:bg-background-dark rounded-[2.5rem] overflow-hidden shadow-2xl relative flex flex-col border-[8px] border-white/50 backdrop-blur-sm">
+<div class="h-12 w-full flex justify-between items-center px-6 pt-2 shrink-0">
+<span class="text-xs font-bold text-text-main dark:text-white">9:41</span>
+<div class="flex gap-1.5">
+<span class="block w-4 h-4 rounded-full bg-text-main dark:bg-white opacity-20"></span>
+<span class="block w-4 h-4 rounded-full bg-text-main dark:bg-white opacity-20"></span>
+<span class="material-symbols-outlined text-sm text-text-main dark:text-white">battery_full</span>
+</div>
+</div>
+<header class="flex items-center justify-between px-6 py-4 shrink-0">
+<div>
+<h1 class="text-2xl font-extrabold text-text-main dark:text-white tracking-tight">Hive Tasks</h1>
+<p class="text-text-secondary text-sm font-medium">Tuesday, June 24</p>
+</div>
+<div class="size-10 rounded-full bg-cover bg-center ring-2 ring-primary/20" data-alt="User profile picture of a beekeeper" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuB1Q4_-U_hiem0CQhJTodPsiVCZWAOIPGJ-kCpvfmauu9u0aGerF9nAZFnPlPfJj5LF9OVyIysIu1z8IZ_R46IX6Hmian5fIkPi2SFIWHHTmI6ltXY66bfz2RQ0ez8PYi7hzGzyj6mC9MVu1KZ_0Q7dyqhkN9bUcbqL906hEt53hUNX3UxFq2kYci63g5nvYhNljDlbi7mBkdk0lypXberfcURsAQFuvL5X0isLkV2OnQLi98a-AtYoOxROyUtq7R3LspyEUlMF-lU');">
+</div>
+</header>
+<main class="flex-1 overflow-y-auto px-4 pb-24 space-y-5 no-scrollbar">
+<div class="bg-white dark:bg-[#2f221a] rounded-[16px] border border-dashed border-brown-bramble p-5 shadow-soft transition-all duration-300">
+<div class="flex justify-between items-center mb-4">
+<h2 class="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">add_circle</span>
+                    New Task
+                </h2>
+<button class="text-text-secondary hover:text-text-main transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="space-y-4">
+<div class="relative group">
+<input class="w-full h-[56px] bg-background-light dark:bg-background-dark/50 border-0 rounded-[12px] px-4 text-text-main dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-primary/50 text-base font-medium transition-shadow shadow-sm" placeholder="Task Name (e.g. Inspect Frame 3)" type="text"/>
+</div>
+<div class="relative">
+<select class="w-full h-[56px] appearance-none bg-background-light dark:bg-background-dark/50 border-0 rounded-[12px] px-4 text-text-main dark:text-white focus:ring-2 focus:ring-primary/50 text-base font-medium shadow-sm cursor-pointer pr-10">
+<option disabled="" selected="" value="">Select Task Type</option>
+<option value="inspection">Hive Inspection</option>
+<option value="feeding">Feeding</option>
+<option value="harvest">Honey Harvest</option>
+<option value="maintenance">Maintenance</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-text-secondary">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+<div>
+<label class="text-xs font-bold text-text-secondary mb-2 block ml-1">Priority Level</label>
+<div class="bg-background-light dark:bg-background-dark/50 p-1.5 rounded-full flex relative">
+<label class="flex-1 text-center cursor-pointer relative z-10">
+<input class="peer sr-only" name="priority" type="radio" value="low"/>
+<span class="block py-2.5 px-2 rounded-full text-sm font-bold text-text-secondary transition-all peer-checked:bg-salomie dark:peer-checked:bg-[#3d2e24] peer-checked:text-text-main peer-checked:shadow-sm">Low</span>
+</label>
+<label class="flex-1 text-center cursor-pointer relative z-10">
+<input checked="" class="peer sr-only" name="priority" type="radio" value="med"/>
+<span class="block py-2.5 px-2 rounded-full text-sm font-bold text-text-secondary transition-all peer-checked:bg-salomie dark:peer-checked:bg-[#3d2e24] peer-checked:text-text-main peer-checked:shadow-sm">Med</span>
+</label>
+<label class="flex-1 text-center cursor-pointer relative z-10">
+<input class="peer sr-only" name="priority" type="radio" value="high"/>
+<span class="block py-2.5 px-2 rounded-full text-sm font-bold text-text-secondary transition-all peer-checked:bg-salomie dark:peer-checked:bg-[#3d2e24] peer-checked:text-text-main peer-checked:shadow-sm">High</span>
+</label>
+</div>
+</div>
+<button class="w-full h-[64px] bg-primary hover:bg-primary-dark text-white rounded-full font-bold text-lg shadow-lg shadow-primary/30 flex items-center justify-center gap-2 mt-2 transition-transform active:scale-[0.98]">
+<span class="material-symbols-outlined">add_task</span>
+                    Add Task
+                </button>
+</div>
+</div>
+<div class="flex items-end justify-between px-1 pt-2">
+<h3 class="text-lg font-bold text-text-main dark:text-white">Today's Queue</h3>
+<span class="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-lg">4 Pending</span>
+</div>
+<div class="group bg-white dark:bg-[#2f221a] p-4 rounded-2xl shadow-sm border border-transparent hover:border-primary/20 transition-all cursor-pointer flex items-center gap-4">
+<div class="size-12 rounded-xl bg-[#f4ece6] dark:bg-[#3d2e24] flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined">pest_control</span>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="font-bold text-text-main dark:text-white truncate">Check for Mites</h4>
+<p class="text-sm text-text-secondary truncate">Hive #4 • North Apiary</p>
+</div>
+<div class="size-6 rounded-full border-2 border-primary/30 group-hover:bg-primary group-hover:border-primary transition-colors"></div>
+</div>
+<div class="group bg-white dark:bg-[#2f221a] p-4 rounded-2xl shadow-sm border border-transparent hover:border-primary/20 transition-all cursor-pointer flex items-center gap-4">
+<div class="size-12 rounded-xl bg-[#f4ece6] dark:bg-[#3d2e24] flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined">water_drop</span>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="font-bold text-text-main dark:text-white truncate">Refill Sugar Syrup</h4>
+<p class="text-sm text-text-secondary truncate">All Brood Boxes</p>
+</div>
+<div class="size-6 rounded-full border-2 border-primary/30 group-hover:bg-primary group-hover:border-primary transition-colors"></div>
+</div>
+<div class="group bg-white/60 dark:bg-[#2f221a]/60 p-4 rounded-2xl border border-transparent flex items-center gap-4 opacity-70">
+<div class="size-12 rounded-xl bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-400 shrink-0">
+<span class="material-symbols-outlined">inventory_2</span>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="font-bold text-text-main/60 dark:text-white/60 line-through truncate">Order New Frames</h4>
+<p class="text-sm text-text-secondary/60 truncate">Supplier: BeeBest</p>
+</div>
+<div class="size-6 rounded-full bg-primary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm text-primary font-bold">check</span>
+</div>
+</div>
+</main>
+<nav class="absolute bottom-0 w-full bg-white dark:bg-[#23180f] border-t border-gray-100 dark:border-white/5 pb-6 pt-3 px-6 flex justify-between items-center z-10">
+<button class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined text-2xl">task_alt</span>
+<span class="text-[10px] font-bold">Tasks</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400 hover:text-text-secondary transition-colors">
+<span class="material-symbols-outlined text-2xl">hive</span>
+<span class="text-[10px] font-medium">Hives</span>
+</button>
+<div class="relative -top-6">
+<button class="size-14 bg-text-main dark:bg-primary text-white rounded-full shadow-lg shadow-text-main/30 dark:shadow-primary/40 flex items-center justify-center transform transition-transform hover:scale-110">
+<span class="material-symbols-outlined text-3xl">qr_code_scanner</span>
+</button>
+</div>
+<button class="flex flex-col items-center gap-1 text-gray-400 hover:text-text-secondary transition-colors">
+<span class="material-symbols-outlined text-2xl">analytics</span>
+<span class="text-[10px] font-medium">Data</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400 hover:text-text-secondary transition-colors">
+<span class="material-symbols-outlined text-2xl">settings</span>
+<span class="text-[10px] font-medium">Settings</span>
+</button>
+</nav>
+<div class="absolute bottom-[90px] left-0 right-0 h-12 bg-gradient-to-t from-coconut-cream dark:from-background-dark to-transparent pointer-events-none"></div>
+</div>
+
+</body></html>

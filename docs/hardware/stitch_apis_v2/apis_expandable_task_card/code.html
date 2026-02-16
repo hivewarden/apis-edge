@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Mobile Task Card</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#f7a42d", // Sea Buckthorn
+                        "brown-bramble": "#662604", // Brown Bramble
+                        "coconut-cream": "#fbf9e7", // Coconut Cream
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#2a2218",
+                    },
+                    fontFamily: {
+                        display: ["Plus Jakarta Sans", "sans-serif"],
+                    },
+                    boxShadow: {
+                        'soft': '0 8px 24px -6px rgba(102, 38, 4, 0.08)', // Soft diffused shadow with brown tint
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: "Plus Jakarta Sans", sans-serif;
+        }.mobile-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .mobile-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .mobile-scroll::-webkit-scrollbar-thumb {
+            background-color: rgba(102, 38, 4, 0.1);
+            border-radius: 4px;
+        }.material-symbols-outlined.icon-thin {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4 md:p-8">
+<div class="relative w-full max-w-[375px] h-[812px] bg-coconut-cream dark:bg-[#1c160d] rounded-[40px] shadow-2xl overflow-hidden border-[8px] border-white dark:border-[#333] flex flex-col">
+<div class="h-12 w-full flex justify-between items-center px-6 pt-2 select-none z-10">
+<span class="text-xs font-bold text-brown-bramble dark:text-white">9:41</span>
+<div class="flex gap-1.5">
+<div class="w-4 h-4 rounded-full bg-brown-bramble dark:bg-white opacity-20"></div>
+<div class="w-4 h-4 rounded-full bg-brown-bramble dark:bg-white opacity-20"></div>
+<div class="w-4 h-4 rounded-full bg-brown-bramble dark:bg-white opacity-20"></div>
+</div>
+</div>
+<header class="px-5 pb-4 pt-2 flex items-center justify-between z-10">
+<div>
+<h1 class="text-2xl font-bold text-brown-bramble dark:text-white tracking-tight">Hive #42</h1>
+<p class="text-sm text-brown-bramble/60 dark:text-gray-400 font-medium">3 Tasks Due</p>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-surface-dark shadow-sm border border-brown-bramble/10 dark:border-gray-800 text-brown-bramble dark:text-white">
+<span class="material-symbols-outlined icon-thin">more_horiz</span>
+</button>
+</header>
+<div class="flex-1 overflow-y-auto mobile-scroll px-5 pb-8 space-y-4">
+<div class="group relative bg-white dark:bg-surface-dark rounded-2xl p-4 shadow-soft border border-transparent transition-all duration-300">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+<span class="text-xs font-bold text-brown-bramble uppercase tracking-wider">High Priority</span>
+</div>
+<span class="text-xs font-medium text-brown-bramble/60 flex items-center gap-1">
+<span class="material-symbols-outlined icon-thin text-[18px]">calendar_today</span>
+                        Oct 15
+                    </span>
+</div>
+<h3 class="text-lg font-bold text-brown-bramble dark:text-white mb-5">Add Honey Super</h3>
+<button class="w-full h-16 flex items-center justify-center gap-2 bg-primary hover:bg-[#e8951e] text-white rounded-full transition-colors font-bold text-base shadow-md shadow-primary/20">
+<span class="material-symbols-outlined text-[24px]">check_circle</span>
+                    Complete Task
+                </button>
+</div>
+<div class="relative bg-white dark:bg-surface-dark rounded-2xl shadow-soft overflow-hidden">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+<div class="p-5 pl-6">
+<div class="flex justify-between items-start mb-2">
+<div class="flex flex-col gap-1">
+<h3 class="text-xl font-bold text-brown-bramble dark:text-white">Late Season Prep</h3>
+<span class="text-xs font-medium text-brown-bramble/50">Created Oct 12</span>
+</div>
+<button class="text-brown-bramble/40 hover:text-brown-bramble dark:hover:text-gray-200 transition-colors">
+<span class="material-symbols-outlined icon-thin">expand_less</span>
+</button>
+</div>
+<p class="text-brown-bramble/80 dark:text-gray-300 text-sm leading-relaxed mb-6 mt-3 font-medium">
+                        Add shallow super for late season flow to ensure the colony has enough space for honey storage before winter.
+                    </p>
+<div class="flex items-center gap-3 pt-4 border-t border-brown-bramble/5 dark:border-gray-800">
+<button class="flex-1 h-12 flex items-center justify-center gap-2 bg-primary text-white font-bold rounded-xl shadow-[0_4px_14px_rgba(247,162,43,0.4)] hover:brightness-105 transition-all">
+<span class="material-symbols-outlined">check</span>
+                            Complete
+                        </button>
+<button class="h-12 px-4 flex items-center justify-center text-brown-bramble dark:text-primary font-bold text-sm hover:bg-brown-bramble/5 dark:hover:bg-gray-800 rounded-xl transition-colors">
+                            Delete
+                        </button>
+</div>
+</div>
+</div>
+<div class="opacity-50 pointer-events-none">
+<div class="bg-white dark:bg-surface-dark rounded-2xl p-4 shadow-sm border border-brown-bramble/5 dark:border-gray-800 flex items-center justify-between">
+<div>
+<h3 class="text-base font-bold text-brown-bramble dark:text-white">Mite Treatment</h3>
+<p class="text-xs text-brown-bramble/50">Due Oct 20</p>
+</div>
+<span class="material-symbols-outlined text-brown-bramble/20 icon-thin">chevron_right</span>
+</div>
+</div>
+</div>
+<div class="absolute bottom-6 right-5 z-20">
+<button class="w-14 h-14 bg-brown-bramble dark:bg-white text-white dark:text-black rounded-full shadow-lg shadow-brown-bramble/20 flex items-center justify-center hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-2xl">add</span>
+</button>
+</div>
+<div class="h-[70px] bg-white dark:bg-surface-dark border-t border-brown-bramble/5 dark:border-gray-800 flex justify-around items-center px-2 pb-2 z-20">
+<button class="flex flex-col items-center gap-1 p-2 text-primary">
+<span class="material-symbols-outlined text-[24px] filled">grid_view</span>
+<span class="text-[10px] font-bold">Hives</span>
+</button>
+<button class="flex flex-col items-center gap-1 p-2 text-brown-bramble/40 dark:text-gray-500">
+<span class="material-symbols-outlined text-[24px] icon-thin">assignment</span>
+<span class="text-[10px] font-medium">Tasks</span>
+</button>
+<button class="flex flex-col items-center gap-1 p-2 text-brown-bramble/40 dark:text-gray-500">
+<span class="material-symbols-outlined text-[24px] icon-thin">analytics</span>
+<span class="text-[10px] font-medium">Stats</span>
+</button>
+<button class="flex flex-col items-center gap-1 p-2 text-brown-bramble/40 dark:text-gray-500">
+<span class="material-symbols-outlined text-[24px] icon-thin">settings</span>
+<span class="text-[10px] font-medium">Settings</span>
+</button>
+</div>
+<div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-32 h-1 bg-brown-bramble/20 dark:bg-gray-600 rounded-full z-30"></div>
+</div>
+
+</body></html>

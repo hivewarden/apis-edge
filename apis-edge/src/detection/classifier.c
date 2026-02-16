@@ -131,10 +131,12 @@ static bool analyze_hover(uint32_t track_id, uint32_t *duration_ms) {
     }
 
     // Movement "radius" is max of x and y range (bounding box approach).
-    // Note: This uses Chebyshev distance (max of |dx|, |dy|) rather than
+    // C7-LOW-006: This uses Chebyshev distance (max of |dx|, |dy|) rather than
     // Euclidean distance. This is intentional: a) it's faster (no sqrt),
     // b) it's more lenient for diagonal movement which matches real hornet
     // hovering patterns, and c) for small radii the difference is negligible.
+    // Note: Effective diagonal radius is hover_radius * sqrt(2) ~ 1.41x the
+    // configured value (e.g., 50px configured = ~71px effective diagonally).
     uint16_t movement_x = max_x - min_x;
     uint16_t movement_y = max_y - min_y;
     uint16_t movement_radius = (movement_x > movement_y) ? movement_x : movement_y;

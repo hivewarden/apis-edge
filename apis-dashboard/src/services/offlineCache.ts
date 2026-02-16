@@ -30,6 +30,7 @@ const RECORD_SIZES: Record<CacheableTable, number> = {
   detections: 300,
   units: 400,
   sync_queue: 500,
+  tasks: 800,
 };
 
 // ============================================================================
@@ -176,8 +177,8 @@ export async function getLastSyncTime(table?: CacheableTable): Promise<Date | nu
     return null;
   }
 
-  // Get most recent sync across all tables
-  const tables: CacheableTable[] = ['sites', 'hives', 'inspections', 'detections', 'units'];
+  // SECURITY (S6-M5): Include tasks table in last sync time calculation
+  const tables: CacheableTable[] = ['sites', 'hives', 'inspections', 'detections', 'units', 'tasks'];
   const times = await Promise.all(tables.map((t) => getLastSyncTime(t)));
 
   const validTimes = times.filter((t): t is Date => t !== null);
@@ -210,15 +211,17 @@ export async function updateAccessTime(table: CacheableTable, id: string): Promi
  * @returns Estimated storage size in megabytes
  */
 export async function calculateStorageSize(): Promise<number> {
+  // SECURITY (S6-M1): Include tasks table in storage estimation
   const counts = await Promise.all([
     db.sites.count(),
     db.hives.count(),
     db.inspections.count(),
     db.detections.count(),
     db.units.count(),
+    db.tasks.count(),
   ]);
 
-  const tables: CacheableTable[] = ['sites', 'hives', 'inspections', 'detections', 'units'];
+  const tables: CacheableTable[] = ['sites', 'hives', 'inspections', 'detections', 'units', 'tasks'];
   const totalBytes = counts.reduce(
     (sum, count, i) => sum + count * RECORD_SIZES[tables[i]],
     0
@@ -263,6 +266,7 @@ export async function pruneOldData(maxSizeMB: number = MAX_STORAGE_MB): Promise<
   }
 
   // Phase 2: Prune old inspections (keep at least 30 days)
+  // SECURITY (S6-M4): Never prune inspections that haven't been synced to server
   if ((await calculateStorageSize()) > targetSize) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - MIN_INSPECTION_DAYS);
@@ -271,6 +275,7 @@ export async function pruneOldData(maxSizeMB: number = MAX_STORAGE_MB): Promise<
       const oldInspections = await db.inspections
         .where('synced_at')
         .below(cutoffDate)
+        .filter(i => !i.pending_sync) // Never prune unsynced inspections
         .limit(50)
         .toArray();
 
@@ -328,6 +333,8 @@ export async function clearAllCache(): Promise<void> {
     db.inspections.clear(),
     db.detections.clear(),
     db.units.clear(),
+    db.tasks.clear(),
+    db.sync_queue.clear(),
     db.metadata.clear(),
   ]);
 
@@ -361,17 +368,20 @@ export async function getCacheStats(): Promise<{
   inspections: number;
   detections: number;
   units: number;
+  tasks: number;
   totalRecords: number;
   storageMB: number;
   lastSync: Date | null;
 }> {
-  const [sites, hives, inspections, detections, units, storageMB, lastSync] =
+  // SECURITY (S6-M2): Include tasks table in cache stats
+  const [sites, hives, inspections, detections, units, tasks, storageMB, lastSync] =
     await Promise.all([
       db.sites.count(),
       db.hives.count(),
       db.inspections.count(),
       db.detections.count(),
       db.units.count(),
+      db.tasks.count(),
       calculateStorageSize(),
       getLastSyncTime(),
     ]);
@@ -382,7 +392,8 @@ export async function getCacheStats(): Promise<{
     inspections,
     detections,
     units,
-    totalRecords: sites + hives + inspections + detections + units,
+    tasks,
+    totalRecords: sites + hives + inspections + detections + units + tasks,
     storageMB,
     lastSync,
   };

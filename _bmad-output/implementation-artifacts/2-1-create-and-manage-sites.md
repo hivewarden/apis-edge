@@ -344,3 +344,9 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
   - MEDIUM: Replaced hardcoded timezone list with time.LoadLocation() validation
   - MEDIUM: Added coordinate validation tests (boundary testing)
   - LOW: Fixed React useEffect dependency warnings with useCallback pattern
+- 2026-01-25: Code review remediation - Fixed 5 issues:
+  - MEDIUM: Implemented SiteMapThumbnail component with OpenStreetMap static tiles for AC3
+  - MEDIUM: Implemented SiteMapView component with static map for AC4
+  - MEDIUM: Added frontend component tests for all Sites pages
+  - LOW: Extracted TIMEZONES to shared constants file
+  - LOW: Fixed ListSites to return empty slice instead of nil

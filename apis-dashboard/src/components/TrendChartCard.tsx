@@ -71,8 +71,10 @@ export function TrendChartCard({ siteId }: TrendChartCardProps) {
     return (
       <Card
         style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           height: '100%',
         }}
       >
@@ -89,8 +91,10 @@ export function TrendChartCard({ siteId }: TrendChartCardProps) {
     return (
       <Card
         style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           height: '100%',
         }}
       >
@@ -109,13 +113,20 @@ export function TrendChartCard({ siteId }: TrendChartCardProps) {
     return (
       <Card
         style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           height: '100%',
+        }}
+        styles={{
+          body: {
+            padding: 24,
+          },
         }}
       >
         <div style={{ marginBottom: 8 }}>
-          <Text strong style={{ color: colors.brownBramble, fontSize: 14 }}>
+          <Text strong style={{ color: colors.brownBramble, fontSize: 18 }}>
             {title}
           </Text>
         </div>
@@ -135,13 +146,20 @@ export function TrendChartCard({ siteId }: TrendChartCardProps) {
     return (
       <Card
         style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           height: '100%',
+        }}
+        styles={{
+          body: {
+            padding: 24,
+          },
         }}
       >
         <div style={{ marginBottom: 8 }}>
-          <Text strong style={{ color: colors.brownBramble, fontSize: 14 }}>
+          <Text strong style={{ color: colors.brownBramble, fontSize: 18 }}>
             {title}
           </Text>
         </div>
@@ -157,7 +175,9 @@ export function TrendChartCard({ siteId }: TrendChartCardProps) {
   }
 
   // Calculate max for y-axis (use points directly, no transform needed)
-  const maxCount = Math.max(...points.map(d => d.count));
+  // Ensure minimum of 10 to avoid rendering issues when all counts are 0
+  const maxCount = Math.max(...points.map(d => d.count), 0);
+  const yAxisMax = maxCount > 0 ? maxCount + Math.ceil(maxCount * 0.1) : 10;
 
   const config = {
     data: points,
@@ -176,7 +196,7 @@ export function TrendChartCard({ siteId }: TrendChartCardProps) {
       shape: 'circle',
       style: {
         fill: colors.seaBuckthorn,
-        stroke: colors.salomie,
+        stroke: '#ffffff',
         lineWidth: 1,
       },
     },
@@ -192,7 +212,7 @@ export function TrendChartCard({ siteId }: TrendChartCardProps) {
     },
     yAxis: {
       min: 0,
-      max: maxCount + Math.ceil(maxCount * 0.1), // 10% headroom
+      max: yAxisMax,
       label: {
         style: { fill: colors.brownBramble, fontSize: 10 },
       },
@@ -203,10 +223,14 @@ export function TrendChartCard({ siteId }: TrendChartCardProps) {
       },
     },
     tooltip: {
-      formatter: (datum: { label: string; count: number }) => ({
-        name: datum.label,
-        value: `${datum.count} detection${datum.count !== 1 ? 's' : ''}`,
-      }),
+      // Format per AC5: "Oct 15: 14 detections"
+      customContent: (_title: string, data: Array<{ data: { label: string; count: number } }>) => {
+        if (!data || data.length === 0) return '';
+        const datum = data[0].data;
+        return `<div style="padding: 8px 12px; background: white; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+          <span style="color: ${colors.brownBramble}; font-weight: 500;">${datum.label}: ${datum.count} detection${datum.count !== 1 ? 's' : ''}</span>
+        </div>`;
+      },
     },
     animation: CHART_ANIMATION,
   };
@@ -214,20 +238,22 @@ export function TrendChartCard({ siteId }: TrendChartCardProps) {
   return (
     <Card
       style={{
-        background: colors.salomie,
-        borderColor: colors.seaBuckthorn,
+        background: '#ffffff',
+        borderColor: '#ece8d6',
+        borderRadius: 16,
+        boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
         height: '100%',
       }}
       styles={{
         body: {
-          padding: '16px',
+          padding: 24,
         },
       }}
     >
       <div style={{ marginBottom: 8 }}>
         <Space>
           <AreaChartOutlined style={{ color: colors.seaBuckthorn }} />
-          <Text strong style={{ color: colors.brownBramble, fontSize: 14 }}>
+          <Text strong style={{ color: colors.brownBramble, fontSize: 18 }}>
             {title}
           </Text>
         </Space>

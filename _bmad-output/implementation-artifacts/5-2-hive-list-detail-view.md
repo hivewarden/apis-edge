@@ -122,12 +122,31 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 6. **New Inspection Button**: HiveDetail page has "New Inspection" button that shows info message until Story 5.3
 7. **Inspection Summary Card**: Placeholder card with Empty state and "New Inspection" button
 
+### Change Log
+
+- [2026-01-25] Remediation: Fixed 7 issues from code review
+  - Extracted getStatusBadge to shared HiveStatusBadge component
+  - Extracted getLastInspectionText to shared utils/inspectionHelpers.ts
+  - Created reusable MiniHiveVisualization component
+  - Created shared types in types/hive.ts
+  - Added InspectionThresholdDays constant to hives.go
+  - Added 21 unit tests for shared components/utilities
+
 ### File List
 
 **Backend:**
-- `apis-server/internal/handlers/hives.go` - Added queen age calculation, status field, inspection fields
+- `apis-server/internal/handlers/hives.go` - Added queen age calculation, status field, inspection fields, InspectionThresholdDays constant
 
 **Frontend:**
-- `apis-dashboard/src/pages/Hives.tsx` - Enhanced with status badges, queen age, last inspection
-- `apis-dashboard/src/pages/SiteDetail.tsx` - Enhanced hive cards with status badges and inspection info
+- `apis-dashboard/src/pages/Hives.tsx` - Enhanced with status badges, queen age, last inspection; refactored to use shared components
+- `apis-dashboard/src/pages/SiteDetail.tsx` - Enhanced hive cards with status badges and inspection info; refactored to use shared components
 - `apis-dashboard/src/pages/HiveDetail.tsx` - Added inspection summary card and "New Inspection" button
+- `apis-dashboard/src/components/HiveStatusBadge.tsx` - NEW: Shared status badge component
+- `apis-dashboard/src/components/MiniHiveVisualization.tsx` - NEW: Shared mini hive visualization component
+- `apis-dashboard/src/utils/inspectionHelpers.ts` - NEW: Shared inspection helper utilities
+- `apis-dashboard/src/types/hive.ts` - NEW: Shared hive type definitions
+
+**Tests:**
+- `apis-dashboard/tests/utils/inspectionHelpers.test.ts` - NEW: 6 tests for getLastInspectionText
+- `apis-dashboard/tests/components/HiveStatusBadge.test.tsx` - NEW: 6 tests for HiveStatusBadge
+- `apis-dashboard/tests/components/MiniHiveVisualization.test.tsx` - NEW: 9 tests for MiniHiveVisualization

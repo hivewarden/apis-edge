@@ -205,12 +205,29 @@ We support three microcontroller options. Choose based on your needs:
 | **Push Button** | Momentary, normally open | Arm/disarm control | €0.30 | 6mm tactile |
 | **Wires** | Dupont jumper wires | Connections | €3 | 40-pin M-F, M-M |
 
+**Alternative Shared Components:**
+
+| Component | Alternatives | Notes |
+|-----------|--------------|-------|
+| **SG90 Servo** | MG90S (metal gears), FS90R (continuous rotation) | MG90S more durable; FS90R for pan-only tracking |
+| **KY-008 Laser** | HW-493, generic 650nm module | Any 5mW red laser module works; avoid bare diodes |
+| **Tactile Button** | 12mm button, panel-mount button | Larger buttons easier to press with gloves |
+| **Dupont Wires** | Silicone wires, solid-core hookup wire | Silicone more flexible in cold; solid-core for breadboard |
+
 **Path A & C only (external RGB LED):**
 
 | Component | Specification | Why This One | Approx. Cost | Example Part |
 |-----------|---------------|--------------|--------------|--------------|
 | **Status LED** | 5mm RGB common cathode | Shows system state | €0.50 | Any RGB LED |
 | **Resistors** | 330Ω × 3 (for LED) | Current limiting for each LED channel | €0.10 | 1/4W through-hole |
+
+**Alternative LED Options:**
+
+| Component | Alternative | Notes |
+|-----------|-------------|-------|
+| **5mm RGB LED** | NeoPixel (WS2812B) | Single wire, programmable colors, but needs library |
+| **5mm RGB LED** | Common anode RGB | Requires inverted logic (HIGH = off) |
+| **330Ω Resistors** | 220Ω (brighter), 470Ω (dimmer) | Adjust brightness vs current draw |
 
 ⚠️ **Path B (ESP32-CAM) uses the built-in red LED on GPIO 33** — do not purchase an external RGB LED unless you redesign GPIO usage. The ESP32-CAM has very limited available pins.
 
@@ -228,13 +245,25 @@ We support three microcontroller options. Choose based on your needs:
 
 ### 3.2 Path A: Raspberry Pi 5 Specific
 
-| Component | Specification | Why This One | Approx. Cost |
-|-----------|---------------|--------------|--------------|
-| **Raspberry Pi 5** | 4GB or 8GB RAM | Runs OpenCV, has GPIO | €60-80 |
-| **Pi Camera Module 3** | 12MP, autofocus | Official, well-supported | €25-35 |
-| **Pi 5 Camera Cable** | 22-pin to 15-pin FFC, 30cm | Pi 5 uses smaller connectors — need adapter cable | €5 |
-| **microSD Card** | 32GB+ Class 10 | Stores OS and clips | €8-15 |
-| **Heatsink/Fan** | Active cooling | Pi 5 runs hot | €5-10 |
+| Component | Specification | Part Number | Suppliers | Approx. Cost |
+|-----------|---------------|-------------|-----------|--------------|
+| **Raspberry Pi 5 4GB** | 4GB RAM recommended | SC1111 | [Pimoroni](https://shop.pimoroni.com/products/raspberry-pi-5?variant=42151829741651), [Amazon](https://www.amazon.com/dp/B0CPWH8FL9) | €60-70 |
+| **Raspberry Pi 5 8GB** | 8GB for larger models | SC1112 | [Pimoroni](https://shop.pimoroni.com/products/raspberry-pi-5?variant=42151829774419), [Amazon](https://www.amazon.com/dp/B0CTQ3BQLS) | €80-90 |
+| **Pi Camera Module 3** | 12MP, autofocus, IMX708 | SC0872 | [Pimoroni](https://shop.pimoroni.com/products/raspberry-pi-camera-module-3), [Adafruit](https://www.adafruit.com/product/5657) | €25-30 |
+| **Pi Camera Module 3 NoIR** | 12MP, no IR filter (optional) | SC0873 | [Pimoroni](https://shop.pimoroni.com/products/raspberry-pi-camera-module-3-noir), [Adafruit](https://www.adafruit.com/product/5658) | €25-30 |
+| **Pi 5 Camera Cable** | 22-pin to 15-pin FFC, 300mm | SC1085 | [Pimoroni](https://shop.pimoroni.com/products/camera-cable-for-raspberry-pi-5-300mm), [Adafruit](https://www.adafruit.com/product/5818) | €4-6 |
+| **microSD Card 32GB** | Class 10 / A1 rated | — | [SanDisk Extreme](https://www.amazon.com/dp/B09X7BK27V), [Samsung EVO](https://www.amazon.com/dp/B09B1HMJ9Z) | €8-12 |
+| **Active Cooler for Pi 5** | Official heatsink + fan | SC1148 | [Pimoroni](https://shop.pimoroni.com/products/active-cooler-for-raspberry-pi-5), [Adafruit](https://www.adafruit.com/product/5815) | €5-7 |
+
+**Alternative Parts:**
+
+| Component | Alternative | Notes |
+|-----------|-------------|-------|
+| **Pi Camera Module 3** | ArduCam 12MP IMX708 | Compatible, often in stock when official is sold out |
+| **Pi Camera Module 3** | USB Webcam (Logitech C920) | Easier to source but uses USB bandwidth |
+| **Pi 5 Camera Cable** | Generic FFC 22-15 pin | Check orientation; cheaper but may have fitment issues |
+| **Active Cooler** | Pimoroni Heatsink Case | Passive cooling option if fan noise is a concern |
+| **microSD Card** | Any Class 10/A1 brand | Avoid counterfeit no-name brands on Amazon |
 
 **Path A total:** ~€115-155
 
@@ -457,6 +486,21 @@ Connections:
 
 Test: Servo should NOT move yet (no code running).
 If servo twitches or moves erratically: power supply issue.
+
+What could go wrong and how to fix it:
+┌──────────────────────────────────────────────────────────────────────┐
+│ Symptom                    │ Cause                │ Fix              │
+├──────────────────────────────────────────────────────────────────────┤
+│ Servo twitches randomly    │ Insufficient power   │ Use 5V 3A supply │
+│                            │ Loose connection     │ Reseat wires     │
+│ Servo doesn't move at all  │ Wrong GPIO pin       │ Verify GPIO 18   │
+│                            │ Dead servo           │ Test with 5V/GND │
+│ Servo moves but jerky      │ PWM frequency wrong  │ Check code (50Hz)│
+│ Servo makes grinding noise │ Mechanical block     │ Don't force past │
+│                            │                      │ 0-180° range     │
+│ Servo gets very hot        │ Stalled motor        │ Power off, check │
+│                            │                      │ obstruction      │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 **Step 3: Laser Module Connection**
@@ -482,6 +526,80 @@ A series resistor is optional (for GPIO protection if the module misbehaves).
 
 Test: Laser should be OFF (GPIO 23 defaults to LOW/input on boot).
 If laser is ON at boot: Your module might be "active low" — we'll handle in software.
+
+What could go wrong:
+- Laser always ON: Check if module is active-low (invert logic in software)
+- No laser output: Verify VCC is 5V (some modules need exactly 5V)
+- Dim laser: Check power supply current capacity
+```
+
+**Understanding Transistors and MOSFETs (Educational)**
+
+```
+Why are we NOT using a transistor or MOSFET for the laser?
+
+The KY-008 laser module has a built-in driver circuit that handles all the
+current. The signal pin draws almost no current (microamps) — it just tells
+the internal driver to switch on/off. So direct GPIO connection is safe.
+
+BUT, if you're using a "bare" laser diode without a driver module,
+you MUST use a transistor or MOSFET. Here's why:
+
+GPIO Current Limits:
+- Pi 5 GPIO can source: ~16mA per pin, 50mA total for all pins
+- ESP32 GPIO can source: ~12mA per pin
+- Typical laser diode draws: 20-40mA (exceeds GPIO limits!)
+
+Without external driver:
+  GPIO ────► Laser ────► GND
+                 ↑
+         Drawing 30mA directly = GPIO pin damage!
+
+With transistor/MOSFET driver:
+  GPIO ────► Transistor Gate ────► Laser ────► GND
+                    ↑                   ↑
+            GPIO draws ~0.1mA    Power supply provides 30mA
+
+How a MOSFET works (N-channel, logic-level):
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│           Drain (D) ← Power flows OUT to load               │
+│               │                                             │
+│           ┌───┴───┐                                         │
+│   Gate ───┤ MOSFET ├── Think of it like a water valve       │
+│   (G)     └───┬───┘    GPIO opens/closes the valve          │
+│               │                                             │
+│           Source (S) ← Connect to GND                       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+
+Circuit for bare laser diode (if you ever need it):
+
+                    5V
+                     │
+                     ├─── Laser Diode (+)
+                     │    (with current-limiting resistor)
+                     │
+         GPIO 23 ───[10kΩ]───┬───► MOSFET Gate
+                             │
+                             └───[10kΩ]───► GND (pull-down)
+                                     │
+                    Laser Diode (-) ─┤
+                                     │
+                    MOSFET Source ───┴───► GND
+
+Recommended logic-level MOSFETs:
+- IRLZ44N (55V, 47A — overkill but cheap and easy)
+- IRLB8721 (30V, 62A — popular for LEDs)
+- 2N7000 (60V, 200mA — for small loads only)
+
+When to use MOSFET vs Transistor:
+- MOSFET: Higher efficiency, no base current, better for PWM
+- BJT Transistor (like 2N2222): Simpler, works for low-power loads
+- For APIS laser: Neither needed — KY-008 has built-in driver
+
+Summary: The KY-008 module simplifies everything. If you ever upgrade to a
+more powerful laser (10mW+), you'll need a proper driver circuit like above.
 ```
 
 **Step 4: RGB LED Connection**
@@ -522,6 +640,24 @@ need ~3V, leaving little headroom from 3.3V GPIO. This is normal.
 If you want brighter blue, use 220Ω resistors for all colors instead.
 
 Test: LED should be OFF at boot.
+
+What could go wrong and how to fix it:
+┌──────────────────────────────────────────────────────────────────────┐
+│ Symptom                    │ Cause                │ Fix              │
+├──────────────────────────────────────────────────────────────────────┤
+│ LED doesn't light at all   │ Cathode not grounded │ Check longest    │
+│                            │                      │ leg → GND        │
+│ Only some colors work      │ Wrong LED type       │ Verify common    │
+│                            │ (common anode vs     │ cathode; if anode│
+│                            │ common cathode)      │ invert wiring    │
+│ LED is very dim            │ Resistor too high    │ Try 220Ω instead │
+│                            │ or LED reversed      │ of 330Ω          │
+│ Blue is much dimmer        │ Normal! Blue needs   │ Use 220Ω for all │
+│ than red/green             │ ~3V, only 0.3V left  │ or accept it     │
+│ LED burns out quickly      │ Missing resistor     │ ALWAYS use 330Ω+ │
+│ Colors look wrong          │ Pins mixed up        │ Verify R/G/B to  │
+│                            │                      │ correct GPIO     │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 **Step 5: Button Connection**
@@ -563,6 +699,24 @@ Mechanical buttons produce multiple rapid on/off transitions when pressed
 (electrical contact bounces for 1-10ms). This is normal hardware behavior.
 The software includes a debounce delay to treat these as a single press.
 If you see double-triggering, the debounce delay may need adjustment in code.
+
+What could go wrong and how to fix it:
+┌──────────────────────────────────────────────────────────────────────┐
+│ Symptom                    │ Cause                │ Fix              │
+├──────────────────────────────────────────────────────────────────────┤
+│ Button always reads LOW    │ Button stuck/shorted │ Check wiring,    │
+│                            │ or wrong pins used   │ try diagonal pins│
+│ Button always reads HIGH   │ Pull-up not enabled  │ Enable in code:  │
+│                            │ in software          │ GPIO.PUD_UP      │
+│ Button triggers twice      │ Bounce not debounced │ Increase delay   │
+│ per press                  │ in software          │ to 50-100ms      │
+│ Button triggers randomly   │ Floating pin (no     │ Enable internal  │
+│ without pressing           │ pull-up/pull-down)   │ pull-up resistor │
+│ Need to press very hard    │ Oxidized contacts    │ Press rapidly    │
+│                            │ or loose breadboard  │ 10x or reseat    │
+│ Continuity test fails      │ Wrong pair of pins   │ Use 1&3 or 2&4   │
+│                            │ (diagonal not same)  │ pairs, not 1&2   │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 **Step 6: Camera Connection**
@@ -602,7 +756,7 @@ Verification before powering on:
 Test: Will verify with software after OS setup.
 ```
 
-### 4.6 Pi 5 Verification Checklist
+### 4.6 Pi 5 Pre-Power Verification Checklist
 
 Before powering on, verify each connection:
 
@@ -623,6 +777,226 @@ Before powering on, verify each connection:
 | Button to GPIO 20 and GND | ☐ |
 | Camera ribbon cable secure | ☐ |
 | No loose wires or shorts | ☐ |
+
+### 4.7 Pi 5 Component Test Procedures
+
+After assembly, test each component individually before running the full system.
+
+**Prerequisites:**
+- Raspberry Pi OS installed and booted
+- SSH access or monitor/keyboard connected
+- Python 3 with gpiozero installed: `sudo apt install python3-gpiozero`
+
+**Test 1: Pi Power-On Test**
+
+```bash
+# Boot the Pi and verify it starts correctly
+# Green LED = SD card activity (blinking is good)
+# Red LED = Power (solid is good)
+
+# Check temperature (should be <70°C with active cooler)
+vcgencmd measure_temp
+```
+
+| Result | Meaning | Action |
+|--------|---------|--------|
+| temp=45.0'C | Normal | Continue |
+| temp=70.0'C+ | Too hot | Check cooler is attached |
+| No output | Pi not booting | Check SD card, power supply |
+
+**Test 2: Servo Movement Test**
+
+```python
+# Save as servo_test.py and run with: python3 servo_test.py
+from gpiozero import Servo
+from time import sleep
+
+servo = Servo(18)  # GPIO 18
+
+print("Testing servo movement...")
+print("Moving to center (0)")
+servo.mid()
+sleep(1)
+
+print("Moving to minimum (-1)")
+servo.min()
+sleep(1)
+
+print("Moving to maximum (1)")
+servo.max()
+sleep(1)
+
+print("Back to center")
+servo.mid()
+sleep(1)
+
+print("Servo test complete!")
+```
+
+| Result | Meaning | Action |
+|--------|---------|--------|
+| Servo moves smoothly | Pass | Continue |
+| Servo doesn't move | Check wiring to GPIO 18 | Verify orange wire |
+| Servo twitches | Insufficient power | Use 5V 3A supply |
+| Servo moves but jerky | PWM timing issue | Check no other PWM in use |
+
+**Test 3: Laser Activation Test**
+
+```python
+# Save as laser_test.py and run with: python3 laser_test.py
+# ⚠️ SAFETY: Wear laser safety glasses and never look at beam!
+from gpiozero import LED
+from time import sleep
+
+laser = LED(23)  # GPIO 23
+
+print("⚠️ LASER TEST - Look away from laser!")
+sleep(2)
+
+print("Laser ON for 2 seconds...")
+laser.on()
+sleep(2)
+
+print("Laser OFF")
+laser.off()
+
+print("Blinking test (5 times)...")
+for i in range(5):
+    laser.on()
+    sleep(0.2)
+    laser.off()
+    sleep(0.2)
+
+print("Laser test complete!")
+```
+
+| Result | Meaning | Action |
+|--------|---------|--------|
+| Laser lights up on command | Pass | Continue |
+| Laser doesn't light | Check VCC (5V) and signal | Verify wiring |
+| Laser always on | Module is active-low | Invert logic in code |
+| Laser very dim | Insufficient power | Check 5V rail voltage |
+
+**Test 4: RGB LED Color Test**
+
+```python
+# Save as led_test.py and run with: python3 led_test.py
+from gpiozero import RGBLED
+from time import sleep
+
+led = RGBLED(red=24, green=25, blue=12)  # GPIO pins
+
+print("Testing RGB LED...")
+
+print("RED")
+led.color = (1, 0, 0)
+sleep(1)
+
+print("GREEN")
+led.color = (0, 1, 0)
+sleep(1)
+
+print("BLUE")
+led.color = (0, 0, 1)
+sleep(1)
+
+print("WHITE (all on)")
+led.color = (1, 1, 1)
+sleep(1)
+
+print("YELLOW (red + green)")
+led.color = (1, 1, 0)
+sleep(1)
+
+print("OFF")
+led.off()
+
+print("LED test complete!")
+```
+
+| Result | Meaning | Action |
+|--------|---------|--------|
+| All colors work | Pass | Continue |
+| One color missing | Check that color's GPIO | Verify resistor connection |
+| Colors look wrong | Pins swapped | Rewire to correct GPIOs |
+| Blue very dim | Normal (needs 3V) | Accept or use 220Ω |
+
+**Test 5: Button Input Test**
+
+```python
+# Save as button_test.py and run with: python3 button_test.py
+from gpiozero import Button
+from time import sleep
+
+button = Button(20, pull_up=True)  # GPIO 20 with internal pull-up
+
+print("Button test - press the button within 10 seconds...")
+print("Current state:", "PRESSED" if button.is_pressed else "NOT PRESSED")
+
+timeout = 10
+while timeout > 0:
+    if button.is_pressed:
+        print("✓ Button press detected!")
+        break
+    sleep(0.1)
+    timeout -= 0.1
+else:
+    print("✗ No button press detected in 10 seconds")
+
+print("Button test complete!")
+```
+
+| Result | Meaning | Action |
+|--------|---------|--------|
+| Press detected | Pass | Continue |
+| Always shows PRESSED | Button shorted or wrong pins | Check wiring |
+| Never detects press | Wrong GPIO or no pull-up | Verify GPIO 20, pull_up=True |
+
+**Test 6: Camera Test**
+
+```bash
+# Test camera detection
+libcamera-hello --list-cameras
+
+# If camera detected, take a test photo
+libcamera-still -o test.jpg
+
+# View the photo (if GUI available)
+# Or copy to another machine to verify
+```
+
+| Result | Meaning | Action |
+|--------|---------|--------|
+| Camera detected, photo saved | Pass | Continue |
+| "No cameras available" | Cable not seated | Reseat ribbon cable |
+| "Failed to start camera" | Wrong cable type | Use Pi 5 specific cable |
+| Image is black | Lens cap on / no light | Remove cap, add light |
+
+**Test 7: Full System Integration Test**
+
+After all individual tests pass, run the full APIS software to verify everything works together:
+
+```bash
+# Start APIS edge software (from apis-edge directory)
+./apis-edge --test-mode
+
+# Test mode will:
+# 1. Flash LED green 3 times (LED working)
+# 2. Move servo left-center-right (servo working)
+# 3. Flash laser 3 times (laser working)
+# 4. Wait for button press (button working)
+# 5. Capture and display camera feed (camera working)
+# 6. Report all test results
+```
+
+| Component | Test Result | Notes |
+|-----------|-------------|-------|
+| LED | ☐ Pass / ☐ Fail | |
+| Servo | ☐ Pass / ☐ Fail | |
+| Laser | ☐ Pass / ☐ Fail | |
+| Button | ☐ Pass / ☐ Fail | |
+| Camera | ☐ Pass / ☐ Fail | |
+| **Overall** | ☐ All Pass | Ready for deployment |
 
 ---
 
@@ -1480,6 +1854,64 @@ picam2.set_controls({"AfMode": 0, "LensPosition": 1.8})  # 0 = Manual mode
 - Adjust based on field of view
 - Hornets should appear as ~50+ pixel objects for reliable detection
 
+#### What a "Good" Camera View Looks Like
+
+Your camera frame should capture the area where hornets hover before attacking:
+
+```
+Ideal camera frame composition:
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│    Sky / Background (minimal)                               │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+│░░░░░░░░░░░░░░░ DETECTION ZONE (60-70% of frame) ░░░░░░░░░░░░│
+│░░░░░░░░░░░░░░░ This is where hornets hover  ░░░░░░░░░░░░░░░░│
+│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│    ╔═══════════════════════════════════════════╗            │
+│    ║           Hive entrance                   ║ ◄── Bottom │
+│    ║           (landing board visible)         ║     1/4    │
+│    ╚═══════════════════════════════════════════╝            │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Good view checklist:**
+- [ ] Hive entrance visible in bottom quarter of frame
+- [ ] Hovering zone (30-60cm in front of entrance) fills middle of frame
+- [ ] Frame not pointing at sky (wastes detection area)
+- [ ] No obstructions (branches, other hives) blocking view
+- [ ] Hornets at this distance appear as ~50+ pixels wide
+
+**Bad views to avoid:**
+
+```
+Too far (hornet too small):        Too close (misses hover zone):
+┌─────────────────────────┐        ┌─────────────────────────┐
+│                         │        │  ╔═════════════════╗    │
+│                         │        │  ║                 ║    │
+│         · ◄── 10 pixels │        │  ║  Hive entrance  ║    │
+│         (too small!)    │        │  ║  (only entrance ║    │
+│  ╔══╗                   │        │  ║   visible)      ║    │
+│  ║  ║ ◄── Tiny hive     │        │  ║                 ║    │
+│  ╚══╝                   │        │  ╚═════════════════╝    │
+└─────────────────────────┘        └─────────────────────────┘
+
+Aimed at sky:                       Obstructed view:
+┌─────────────────────────┐        ┌─────────────────────────┐
+│  ☁️  ☁️     ☁️          │        │         ╱╲              │
+│                         │        │        ╱  ╲ ◄── Branch  │
+│         ☁️              │        │       ╱    ╲            │
+│                         │        │  ╔════════════════╗     │
+│                         │        │  ║                ║     │
+│  ╔═════════════════╗    │        │  ║   Hive blocked ║     │
+│  ║ Hive (too low)  ║    │        │  ╚════════════════╝     │
+└─────────────────────────┘        └─────────────────────────┘
+```
+
 ---
 
 ## 11. Enclosure Design
@@ -1493,6 +1925,40 @@ The enclosure must:
 4. **Dissipate heat** (ventilation)
 5. **Mount securely** to pole or hive structure
 6. **Allow access** for maintenance
+
+#### Understanding IP Ratings (Ingress Protection)
+
+IP ratings tell you how well an enclosure protects against dust and water. The rating format is **IP[X][Y]** where:
+
+- **First digit (X)** = Solid particle protection (0-6)
+- **Second digit (Y)** = Liquid/water protection (0-9)
+
+**Common ratings explained:**
+
+| Rating | Dust Protection | Water Protection | Good for APIS? |
+|--------|-----------------|------------------|----------------|
+| IP54 | Dust-protected (some entry OK) | Splash-proof from any direction | Minimum acceptable |
+| IP65 | Dust-tight (no entry) | Water jets from any direction | Recommended |
+| IP66 | Dust-tight | Powerful water jets | Overkill but fine |
+| IP67 | Dust-tight | Temporary immersion (1m, 30 min) | Unnecessary |
+| IPX4 | Not rated for dust | Splash-proof | Only water rating given |
+
+**What IPX4 means:** The "X" means dust protection wasn't tested. The "4" means protected against water splashes from any direction. Many cheap enclosures only list water rating.
+
+**Recommended for beehive deployment:** Aim for **IP65** minimum. This ensures:
+- Complete dust protection (important near hives with pollen, propolis debris)
+- Protection against rain, even driven rain from storms
+- Survives being sprayed with a hose if needed for cleaning
+
+**How to evaluate enclosure ratings:**
+1. Check the product listing for IP rating
+2. If no rating listed, assume IP40 or less (indoor use only)
+3. 3D printed enclosures without gaskets are typically IP40-IP54
+4. Adding silicone gaskets to 3D prints can achieve IP65
+
+**Where to verify ratings:**
+- IEC 60529 is the international standard defining IP ratings
+- Manufacturers should test and certify their ratings
 
 ### 11.2 Design Approach
 
@@ -1540,6 +2006,44 @@ Side View:
 - PLA (degrades in sunlight and heat)
 - Cardboard or wood (not weatherproof)
 
+#### Commercial Enclosure Options
+
+If you don't have a 3D printer or prefer a ready-made solution:
+
+**Junction Box Style (Recommended for beginners):**
+
+| Product | Dimensions (LxWxH) | IP Rating | Approx. Price | Notes |
+|---------|-------------------|-----------|---------------|-------|
+| Gewiss GW44206 | 150x110x70mm | IP56 | €8-12 | Good for ESP32 + servo |
+| Spelsberg TK PS | 180x130x77mm | IP65 | €12-18 | Larger, fits Pi + camera |
+| Hammond 1554W | 160x160x90mm | IP66 | €15-25 | Polycarbonate, very robust |
+| LeMotech ABS Box | 200x120x75mm | IP65 | €10-15 | Amazon/AliExpress, value option |
+
+**Where to buy:**
+- **Amazon:** Search "IP65 junction box" or "weatherproof electronics enclosure"
+- **AliExpress:** Search "IP65 project box" (cheaper, 2-4 week shipping)
+- **RS Components / Mouser / Digi-Key:** Professional enclosures, higher quality
+- **Local electrical supply:** Industrial junction boxes work perfectly
+
+**What to look for:**
+1. **Dimensions:** At least 150x100x60mm internal for ESP32-CAM + servo
+2. **IP rating:** IP65 or better (see Section 11.1 for rating explanation)
+3. **Material:** ABS or polycarbonate (avoid cheap thin plastic)
+4. **Mounting tabs:** Built-in flanges or ears for easy pole/wall mounting
+5. **Pre-molded cable entry points:** Many boxes have knockouts for cable glands
+
+**Modifications needed:**
+1. **Camera window:** Cut or drill hole for camera lens, seal with acrylic/glass
+2. **Cable gland holes:** Drill and install PG7/PG9 cable glands
+3. **Servo mount:** Either external (recommended) or cut slot for servo horn
+
+**DIY Alternative - Repurposed Containers:**
+
+For the budget-conscious:
+- Waterproof food containers (Lock & Lock style) - IP rating varies
+- Outdoor light fixture housings - Often IP65+
+- CCTV camera housings - Perfect size, already has window
+
 ### 11.4 3D Print Files
 
 STL files will be provided in `hardware/enclosure/`:
@@ -1548,6 +2052,348 @@ STL files will be provided in `hardware/enclosure/`:
 - `servo_mount.stl` — Servo bracket
 - `laser_holder.stl` — Laser module mount for servo horn
 - `mounting_bracket.stl` — Pole/surface mounting
+
+**Note:** STL files are under development. Check the `hardware/enclosure/` directory for current availability.
+
+### 11.5 Cable Management for Outdoor Installation
+
+Getting power and data cables to your outdoor APIS unit safely is critical. Poor cable management leads to water ingress, shorts, and fire hazards.
+
+#### Weather-Resistant Cable Entry
+
+**The problem:** Any hole in your enclosure is a potential water entry point. Even "waterproof" connectors can fail if not installed correctly.
+
+**Cable Glands (Recommended)**
+
+Cable glands (also called "cord grips" or "cable connectors") seal around cables entering an enclosure:
+
+```
+Cross-section of cable gland:
+        ┌─────────────────┐
+        │  Locknut (hex)  │ ◄── Tightens against enclosure wall
+        ├─────────────────┤
+        │  Rubber seal    │ ◄── Compresses around cable
+╍╍╍╍╍╍╍╍│  ╭─────────╮    │╍╍╍╍╍ Cable
+        │  │  Cable  │    │
+        │  ╰─────────╯    │
+        │  Body (threads) │ ◄── Screws into enclosure hole
+        └─────────────────┘
+```
+
+**Recommended cable glands:**
+- **PG7** (3-6.5mm cable) - For small sensor wires, ~€0.30 each
+- **PG9** (4-8mm cable) - For USB cables, ~€0.40 each
+- **PG11** (5-10mm cable) - For thicker power cables, ~€0.50 each
+
+**Suppliers:**
+- Amazon: Search "PG7 cable gland waterproof IP68" (packs of 20-50)
+- AliExpress: "PG7 PG9 cable gland set" (much cheaper, longer shipping)
+- Local electrical supply: "NPT cable connectors" (US) or "metric cable glands" (EU)
+
+**Installation steps:**
+1. Drill hole matching gland thread size (PG7 needs 12.5mm hole)
+2. Thread cable through gland body BEFORE inserting into enclosure
+3. Screw gland into enclosure hole, tighten locknut inside
+4. Tighten compression nut until rubber seals around cable
+5. Tug cable gently to verify it won't pull out
+
+#### Strain Relief
+
+**What is strain relief?** When a cable is pulled or tugged, the force should NOT transfer to the electrical connections inside. Strain relief anchors the cable's outer jacket so internal wires stay connected.
+
+**Why it matters:** A cable that pulls out of its solder joint or connector creates an open circuit (device stops working) or worse, a short circuit (fire/damage).
+
+**Methods:**
+1. **Cable glands** provide strain relief automatically when tightened
+2. **Cable ties** - Anchor cable to an internal mount point after it enters enclosure
+3. **Hot glue** - Secure cable jacket to enclosure wall (last resort)
+
+```
+Good strain relief setup:
+              Enclosure wall
+                    │
+     ╭──────────────┼──────────────╮
+     │              │              │
+─────┼──○──────────●│              │
+     │  │          ││              │
+     │  └── Cable  ││◄── Cable    │
+     │      gland  ││    tie to   │
+     │             ││    internal │
+     │             ││    mount    │
+     ╰─────────────┼┴─────────────╯
+                   │
+```
+
+#### Cable Routing Best Practices
+
+**Outside the enclosure:**
+
+1. **Drip loops** - Route cables so water runs away from entry point:
+   ```
+   Bad:                  Good:
+   ─────╮                      ╭─────
+        │                      │
+        ╰→ Entry point    ╭────╯
+                          │
+                          ╰→ Entry point
+                          (water drips off loop)
+   ```
+
+2. **UV protection** - Use outdoor-rated (UV-resistant) cable or protect with:
+   - Conduit (PVC or flexible metal)
+   - UV-resistant cable wrap/sleeve
+   - Route in shade where possible
+
+3. **Rodent protection** - In rural areas, rodents chew cables. Use:
+   - Metal conduit (not PVC alone)
+   - Armored cable (steel jacket)
+   - Rodent-resistant cable (exists but expensive)
+
+4. **Burial** - If running cable underground:
+   - Use direct-burial rated cable (marked "DB" or "direct burial")
+   - Minimum 30cm depth (12 inches)
+   - Use conduit for easier future replacement
+   - Mark cable location
+
+#### Bringing Power Outdoors Safely
+
+**⚠️ ELECTRICAL SAFETY WARNING:** Outdoor electrical work requires following local codes. When in doubt, consult a licensed electrician. Mistakes can cause fire, shock, or death.
+
+**GFCI/RCD Protection (REQUIRED)**
+
+All outdoor outlets MUST be protected by:
+- **USA/Canada:** GFCI (Ground Fault Circuit Interrupter)
+- **Europe:** RCD (Residual Current Device), min 30mA
+- **UK:** RCD in consumer unit OR RCD adapter
+
+**What it does:** Detects when current leaks to ground (like through a wet connection or a person) and cuts power in milliseconds. This prevents electrocution.
+
+**How to verify:**
+1. Your outdoor outlet should have "Test" and "Reset" buttons
+2. Press "Test" - outlet should cut power
+3. Press "Reset" - power returns
+4. Test monthly
+
+**Power Options (in order of safety):**
+
+| Option | Safety | Complexity | Cost |
+|--------|--------|------------|------|
+| Existing outdoor outlet | Best | None | Free |
+| Weatherproof outlet box extension | Good | Medium | €20-50 |
+| Long indoor extension (temporary) | Risky | Low | €15-30 |
+| Solar + battery | Best | High | €100-200 |
+
+**Weatherproof Outlet Boxes:**
+
+If adding a new outdoor outlet or protecting an existing one:
+
+- Use IP65 or better rated enclosure
+- "In-use" covers allow outlet to stay covered while cable plugged in
+- Examples:
+  - US: TayMac MR420CG (in-use cover, 2-gang)
+  - EU: Kopp Nautic weatherproof socket
+
+**Cable from outlet to APIS:**
+
+1. Use outdoor-rated extension cable (marked "W" or "Outdoor use")
+2. Keep connections off the ground (water pooling)
+3. All outdoor connections should be inside weatherproof junction boxes
+4. Never use indoor power strips outdoors
+
+**Low Voltage Alternative (Safer):**
+
+Instead of running mains power (120V/230V) to your APIS unit:
+1. Mount a weatherproof 5V/12V power supply indoors or in weatherproof box
+2. Run low-voltage DC cable to APIS unit
+3. Low voltage (under 50V DC) is much safer if cable gets damaged
+
+Example setup:
+```
+Indoor/Covered area              Outdoor (APIS unit)
+┌──────────────────┐            ┌──────────────────┐
+│ Mains outlet     │            │ APIS enclosure   │
+│      ↓           │  DC cable  │      ↓           │
+│ 5V/3A PSU ───────┼────────────┼─── APIS unit     │
+│ (in dry location)│            │                  │
+└──────────────────┘            └──────────────────┘
+```
+
+#### Connector Recommendations
+
+**For power connections:**
+- **XT60** connectors (common in RC hobby) - Weatherproof when mated, easy to solder
+- **Anderson Powerpole** - Professional, modular, available with weatherproof housings
+- **Barrel jacks** (5.5x2.1mm) - Common but NOT weatherproof; cover with heat shrink
+
+**For data/signal:**
+- **M12 connectors** (industrial standard) - IP67, robust, but expensive
+- **Waterproof USB** - Available from marine/outdoor suppliers
+- **Avoid:** Standard USB, JST, Dupont connectors outdoors without weatherproofing
+
+### 11.6 Sun and Shade Considerations
+
+Outdoor electronics must handle both heat buildup from sun and potential camera glare issues.
+
+#### Camera Glare from Direct Sunlight
+
+**The problem:** If the sun shines directly into the camera lens:
+- Image is washed out/overexposed
+- Detection fails
+- Lens/sensor can be damaged over time
+
+**Solutions:**
+
+1. **Position facing away from sun's path:**
+   - Northern hemisphere: Face camera **north** (sun is always to the south)
+   - Southern hemisphere: Face camera **south** (sun is always to the north)
+   - This is often impossible if your hive entrance faces the "wrong" way
+
+2. **Add a lens hood/visor:**
+   ```
+   Side view with lens hood:
+   ┌──────────────────────┐
+   │    Enclosure         │
+   │  ┌─────┐             │
+   │  │ Cam │━━━━╸        │ ◄── Hood blocks sun from above
+   │  │ Lens│             │
+   │  └─────┘             │
+   └──────────────────────┘
+   ```
+   - 3D print or buy a small lens hood
+   - Angle should block sun but not obstruct camera's view of detection zone
+   - Matte black interior to prevent reflections
+
+3. **Recessed camera mount:**
+   - Mount camera 1-2cm inside enclosure window
+   - Enclosure lip provides natural shade
+
+#### Heat Management in Sunny Conditions
+
+**The problem:** A sealed dark enclosure in direct sun can reach 60-80°C internally. Electronics typically max out at 50-70°C.
+
+**Signs of heat problems:**
+- Random reboots (thermal protection triggering)
+- Camera image has artifacts/glitches
+- Unit stops working midday but works morning/evening
+- Shortened component lifespan
+
+**Solutions:**
+
+1. **Enclosure color:**
+   - **White or light colors** reflect heat (can be 20°C cooler inside)
+   - Black absorbs maximum heat - avoid if possible
+   - If 3D printing: Use white or light gray filament
+
+2. **Ventilation:**
+   - Add shaded vents (louvered to keep rain out)
+   - Position vents at bottom and top for convection flow
+   - Cover vents with fine mesh to keep insects out
+   ```
+   Ventilation layout:
+   ┌────────────────────┐
+   │  ░░░░ Top vent ░░░ │ ◄── Hot air exits
+   │                    │
+   │    Electronics     │
+   │                    │
+   │  ░░ Bottom vent ░░ │ ◄── Cool air enters
+   └────────────────────┘
+   ```
+
+3. **Shade mounting:**
+   - Mount on north side of structures (northern hemisphere)
+   - Under eaves or overhangs
+   - Consider adding a shade roof over the unit
+
+4. **Active cooling (last resort):**
+   - Small 5V fan (40mm)
+   - Only needed in very hot climates
+   - Increases power consumption
+
+### 11.7 Mounting Options
+
+#### Pole Mount (Most Common)
+
+Standard mounting on a pole near the hive:
+
+```
+        ┌─────────────────┐
+        │  APIS Enclosure │
+        │  ┌─────┐        │
+        │  │ Cam │◄─────────── Points at hive entrance
+        │  └─────┘        │
+        └────────┬────────┘
+                 │
+        ┌────────┴────────┐
+        │ Mounting bracket│ ◄── U-bolts or hose clamps
+        └────────┬────────┘
+                 │
+                 │
+         ╱       │       ╲
+        ╱        │        ╲
+       ╱         │         ╲  ◄── Pole in ground
+      ╱──────────┴──────────╲
+```
+
+**Pole options:**
+- Fence post (wooden, already have many in apiaries)
+- Metal conduit (EMT, 3/4" or 1")
+- PVC pipe (less durable in sun)
+- Camera/antenna pole (with ground stake)
+
+**Mounting hardware:**
+- U-bolts with nuts (most secure)
+- Stainless steel hose clamps (easier to adjust)
+- Pole mounting brackets (from CCTV/antenna suppliers)
+
+**Height:** Eye level or slightly below - you'll need to access it for maintenance.
+
+#### Suspended/Hanging Mount
+
+For roof or structure-mounted units where a pole isn't practical:
+
+```
+    Roof/Beam/Branch
+    ════════════════════════
+          │
+          │ Mounting hook or
+          │ carabiner
+          │
+    ┌─────┴─────────────────┐
+    │                       │
+    │   APIS Enclosure      │
+    │   ┌─────┐             │
+    │   │ Cam │◄───────────────── Points down at hive
+    │   └─────┘             │
+    └───────────────────────┘
+```
+
+**Suspension options:**
+
+1. **Eye bolt + carabiner:**
+   - Install eye bolt into enclosure top
+   - Hang from roof beam with carabiner or S-hook
+   - Allows easy removal for maintenance
+
+2. **Straps/rope:**
+   - Loop through enclosure mounting points
+   - Tie to beam or branch
+   - Use UV-resistant rope or straps
+
+3. **Bracket attached to overhead structure:**
+   - L-bracket screwed to roof/beam
+   - Enclosure hangs from bracket
+
+**Considerations for suspended mounting:**
+- Enclosure must have mounting point on TOP
+- Camera points downward instead of forward
+- May need to adjust detection zone in software
+- Ensure suspension can handle wind load
+- Check swing doesn't affect laser aiming
+
+**Recommended hardware:**
+- M6 or M8 stainless steel eye bolt
+- Stainless steel carabiner (rated for at least 5kg, actual load ~0.5kg)
+- UV-resistant straps or paracord as backup
 
 ---
 
@@ -1753,6 +2599,8 @@ led.off()
 
 ## 14. Troubleshooting
 
+**Before troubleshooting:** Run component tests from Section 13 to isolate which subsystem has issues. This helps determine whether you have a hardware connection problem, a power issue, or a software configuration problem.
+
 ### 14.1 Power Issues
 
 | Symptom | Cause | Solution |
@@ -1769,7 +2617,7 @@ led.off()
 | No movement | Wrong pin | Verify GPIO number matches code |
 | Jitters constantly | No PWM signal | Check PWM code running |
 | Moves wrong direction | Wiring reversed | Check brown=GND, red=VCC, orange=signal |
-| Limited range | Servo limits | Calibrate min/max pulse width in code |
+| Limited range | Servo limits | See Section 8.4 for calibration procedure. Adjust SERVO_MIN/MAX_PULSE in firmware config. |
 
 ### 14.3 Laser Issues
 
@@ -1796,6 +2644,77 @@ led.off()
 | No WiFi | Wrong credentials | Check SSID and password |
 | Intermittent | Weak signal | Add external antenna, move closer |
 | Can't reach server | Firewall | Check port 8080 open |
+
+### 14.6 Software-Related Symptoms
+
+Sometimes hardware appears faulty but the problem is actually firmware configuration. These symptoms can be confusing because they look like hardware issues:
+
+| Symptom | Likely Cause | How to Check |
+|---------|--------------|--------------|
+| Servo doesn't respond | Wrong GPIO pin in code | Compare firmware GPIO_SERVO constant with physical wiring |
+| Laser always on/off | Inverted logic in code | Check if your laser module is active-high or active-low |
+| Camera shows nothing | Wrong camera driver | For Pi: ensure `libcamera-apps` installed; for ESP32: check camera init code |
+| Device resets when servo moves | GPIO conflict or boot pin issue | ESP32: Ensure servo not on GPIO2 (boot pin). See GPIO table in Section 5.2 |
+| Nothing works after flash | Firmware didn't upload | Check serial output during boot for error messages |
+
+**How to verify firmware is running:**
+1. **Look for LED blink pattern** — Default firmware blinks LED on startup (see Section 13.1)
+2. **Check serial output** — Connect FTDI adapter and monitor at 115200 baud
+3. **Expected boot message:** `APIS Edge v1.0 starting...`
+
+**Where to check GPIO pin assignments:**
+- **Pi:** Look in `apis-edge/pi/config.h` for PIN_SERVO, PIN_LASER, etc.
+- **ESP32:** Look in `apis-edge/esp32/config.h` for same constants
+- **Verify** your physical wiring matches these numbers EXACTLY
+
+**Common software mistakes:**
+- GPIO numbers ≠ physical pin numbers (see pinout diagrams in Sections 4.5, 5.2, 6.2)
+- Forgetting to set GPIO as OUTPUT before writing
+- PWM frequency wrong for servo (should be 50Hz, not default)
+- Camera resolution set too high for available memory
+
+### 14.7 General Debugging Workflow
+
+When you encounter a problem NOT listed in the tables above, follow this systematic approach:
+
+**Step 1: Power Verification**
+- [ ] Is the power LED on?
+- [ ] Is the power supply rated for sufficient current? (See Section 3 for requirements)
+- [ ] Try a different USB cable (some are charge-only, not data)
+- [ ] Try a different USB port or power adapter
+
+**Step 2: Isolate the Problem**
+- [ ] Does the problem affect ONE component or EVERYTHING?
+- [ ] Run individual component tests from Section 13
+- [ ] If one component fails, focus troubleshooting there
+- [ ] If everything fails, it's likely power or firmware
+
+**Step 3: Check Physical Connections**
+- [ ] Are all wires seated firmly in headers?
+- [ ] Do Dupont connectors have good contact? (wiggle test)
+- [ ] Are solder joints shiny and smooth (not cold or cracked)?
+- [ ] Is the correct voltage reaching the component? (measure with multimeter)
+
+**Step 4: Check Software Configuration**
+- [ ] Is the correct firmware flashed?
+- [ ] Do GPIO pin numbers in code match your wiring?
+- [ ] Is WiFi SSID/password correct?
+- [ ] Check serial output for error messages
+
+**Step 5: Signal Tracing**
+If a specific component doesn't respond:
+1. Check power to the component (VCC and GND)
+2. Check signal from microcontroller with multimeter or oscilloscope
+3. For PWM signals: LED on signal line should dim (not full brightness)
+4. For digital signals: should read 0V or 3.3V cleanly
+
+**Step 6: When to Seek Help**
+If you've verified all the above and the problem persists:
+- Check the project GitHub Issues for similar problems
+- Post a new issue with: symptoms, what you tried, serial output, photos of wiring
+- Community Discord/forum (if available)
+
+**Pro tip:** Take photos of your wiring BEFORE asking for help. 90% of issues are visible in a good photo.
 
 ---
 

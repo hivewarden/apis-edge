@@ -1,92 +1,82 @@
-import { useState, useEffect, useCallback } from 'react';
+// TODO (S5-M3): This file is 756 lines and should be split. Extract domain-specific
+// handlers into custom hooks (e.g., useHiveManagement) and break modal state
+// management into smaller composable units.
+import { useState, useCallback, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Typography,
   Button,
-  Card,
-  Descriptions,
   Space,
   Spin,
   message,
   Modal,
   Empty,
-  Timeline,
-  Tag,
   Form,
   DatePicker,
   Select,
   Input,
 } from 'antd';
 import {
-  EditOutlined,
-  DeleteOutlined,
-  ArrowLeftOutlined,
-  CrownOutlined,
   SwapOutlined,
-  PlusOutlined,
-  MinusOutlined,
-  FileSearchOutlined,
-  HeartOutlined,
-  QrcodeOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
-import { apiClient } from '../providers/apiClient';
 import { colors } from '../theme/apisTheme';
-import { InspectionHistory, TreatmentHistoryCard, TreatmentFormModal, TreatmentFollowupModal, FrameDevelopmentChart, FeedingHistoryCard, FeedingFormModal, HarvestHistoryCard, HarvestFormModal, FirstHarvestModal, EquipmentFormModal, EquipmentStatusCard, HarvestAnalyticsCard, HiveBeeBrainCard, showFirstHiveCelebration, HiveLossWizard, HiveLossSummary, LostHiveBadge, QRGeneratorModal } from '../components';
+import {
+  TreatmentFormModal,
+  TreatmentFollowupModal,
+  FeedingFormModal,
+  HarvestFormModal,
+  FirstHarvestModal,
+  EquipmentFormModal,
+  showFirstHiveCelebration,
+  HiveLossWizard,
+  HiveDetailMobile,
+  HiveDetailDesktop,
+} from '../components';
+import { LazyQRGeneratorModal } from '../components/lazy';
 import type { CreateTreatmentInput, UpdateTreatmentInput, Treatment } from '../hooks/useTreatments';
 import type { CreateFeedingInput, UpdateFeedingInput, Feeding } from '../hooks/useFeedings';
 import type { CreateHarvestInput, UpdateHarvestInput, Harvest } from '../hooks/useHarvests';
-import { useTreatments, useFeedings, useHarvestsByHive, useEquipment, useHarvestAnalytics, useMilestoneFlags, useHiveLoss } from '../hooks';
+import {
+  useTreatments,
+  useFeedings,
+  useHarvestsByHive,
+  useEquipment,
+  useHarvestAnalytics,
+  useMilestoneFlags,
+  useHiveLoss,
+  useHiveDetail,
+} from '../hooks';
 import type { CreateEquipmentLogInput, UpdateEquipmentLogInput, EquipmentLog } from '../hooks/useEquipment';
 import { useSettings } from '../context';
+import { formatQueenSource, calculateQueenAge } from '../utils';
+import { useEffect } from 'react';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
-interface QueenHistory {
-  id: string;
-  introduced_at: string;
-  source: string | null;
-  replaced_at: string | null;
-  replacement_reason: string | null;
-}
+/**
+ * Custom hook for responsive breakpoint detection.
+ * Returns true when viewport width is less than 768px (mobile).
+ *
+ * Part of Epic 14, Story 14.7: Mobile Refactor Hive Detail to Single Scroll Layout
+ */
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768;
+  });
 
-interface BoxChange {
-  id: string;
-  change_type: 'added' | 'removed';
-  box_type: 'brood' | 'super';
-  changed_at: string;
-  notes: string | null;
-}
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
 
-interface Hive {
-  id: string;
-  site_id: string;
-  name: string;
-  queen_introduced_at: string | null;
-  queen_source: string | null;
-  brood_boxes: number;
-  honey_supers: number;
-  notes: string | null;
-  queen_history: QueenHistory[];
-  box_changes: BoxChange[];
-  hive_status?: 'active' | 'lost' | 'archived';
-  lost_at?: string | null;
-  created_at: string;
-  updated_at: string;
-}
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
-interface HiveResponse {
-  data: Hive;
-}
-
-interface SiteHive {
-  id: string;
-  name: string;
-}
-
-interface SiteHivesResponse {
-  data: SiteHive[];
+  return isMobile;
 }
 
 interface ReplaceQueenForm {
@@ -103,21 +93,6 @@ const QUEEN_SOURCES = [
   { value: 'other', label: 'Other' },
 ];
 
-const formatQueenSource = (source: string | null): string => {
-  if (!source) return 'Unknown';
-  return source.charAt(0).toUpperCase() + source.slice(1);
-};
-
-const calculateQueenAge = (introducedAt: string): string => {
-  const days = dayjs().diff(dayjs(introducedAt), 'day');
-  if (days < 30) return `${days} days`;
-  if (days < 365) return `${Math.floor(days / 30)} months`;
-  const years = Math.floor(days / 365);
-  const remainingMonths = Math.floor((days % 365) / 30);
-  if (remainingMonths === 0) return `${years} year${years > 1 ? 's' : ''}`;
-  return `${years}y ${remainingMonths}m`;
-};
-
 /**
  * Hive Detail Page
  *
@@ -127,24 +102,40 @@ const calculateQueenAge = (introducedAt: string): string => {
  * - Queen history timeline
  * - Box change history
  *
+ * Responsive layout:
+ * - < 768px: HiveDetailMobile (single scroll layout)
+ * - >= 768px: HiveDetailDesktop (card-based layout)
+ *
  * Part of Epic 5, Story 5.1: Create and Configure Hives
+ * Refactored in Epic 14, Story 14.7: Mobile Refactor Hive Detail to Single Scroll Layout
+ * Refactored for Layered Hooks Architecture
  */
 export function HiveDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { advancedMode } = useSettings();
-  const [hive, setHive] = useState<Hive | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
+  const isMobile = useIsMobile();
+
+  // Use hook for hive data fetching
+  const {
+    hive,
+    site,
+    siteHives,
+    loading,
+    deleteHive,
+    deleting,
+    replaceQueen,
+    replacingQueen,
+    refetch: refetchHive,
+  } = useHiveDetail(id);
+
   const [replaceModalOpen, setReplaceModalOpen] = useState(false);
-  const [replacingQueen, setReplacingQueen] = useState(false);
   const [replaceForm] = Form.useForm<ReplaceQueenForm>();
 
   // Treatment state
   const [treatmentModalOpen, setTreatmentModalOpen] = useState(false);
   const [followupModalOpen, setFollowupModalOpen] = useState(false);
   const [selectedTreatment, setSelectedTreatment] = useState<Treatment | null>(null);
-  const [siteHives, setSiteHives] = useState<SiteHive[]>([]);
 
   // Feeding state
   const [feedingModalOpen, setFeedingModalOpen] = useState(false);
@@ -170,7 +161,6 @@ export function HiveDetail() {
 
   // QR Code state - Epic 7, Story 7.6
   const [qrModalOpen, setQrModalOpen] = useState(false);
-  const [siteName, setSiteName] = useState<string>('');
 
   // Treatments hook
   const {
@@ -206,7 +196,7 @@ export function HiveDetail() {
     error: harvestsError,
     createHarvest,
     updateHarvest,
-    deleteHarvest,
+    deleteHarvest: deleteHarvestMutation,
     creating: creatingHarvest,
     updating: updatingHarvest,
     deleting: deletingHarvest,
@@ -244,53 +234,11 @@ export function HiveDetail() {
     creating: creatingHiveLoss,
   } = useHiveLoss(id || null);
 
-  const fetchHive = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get<HiveResponse>(`/hives/${id}`);
-      setHive(response.data.data);
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        message.error('Hive not found');
-      } else {
-        message.error('Failed to load hive');
-      }
-      navigate('/hives');
-    } finally {
-      setLoading(false);
-    }
-  }, [id, navigate]);
+  // ============================================
+  // Handlers - shared between mobile and desktop
+  // ============================================
 
-  useEffect(() => {
-    if (id) {
-      fetchHive();
-    }
-  }, [id, fetchHive]);
-
-  // Fetch all hives for the site (for multi-hive treatment selection)
-  useEffect(() => {
-    if (hive?.site_id) {
-      apiClient.get<SiteHivesResponse>(`/sites/${hive.site_id}/hives`)
-        .then((response) => {
-          setSiteHives(response.data.data || []);
-        })
-        .catch(() => {
-          // Non-critical - multi-hive selection just won't be available
-          setSiteHives([]);
-        });
-
-      // Fetch site name for QR code - Epic 7, Story 7.6
-      apiClient.get<{ data: { name: string } }>(`/sites/${hive.site_id}`)
-        .then((response) => {
-          setSiteName(response.data.data?.name || '');
-        })
-        .catch(() => {
-          setSiteName('');
-        });
-    }
-  }, [hive?.site_id]);
-
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     Modal.confirm({
       title: 'Delete Hive',
       content: `Are you sure you want to delete "${hive?.name}"? This action cannot be undone.`,
@@ -299,27 +247,23 @@ export function HiveDetail() {
       cancelText: 'Cancel',
       onOk: async () => {
         try {
-          setDeleting(true);
-          await apiClient.delete(`/hives/${id}`);
+          await deleteHive();
           message.success('Hive deleted successfully');
-          navigate(`/sites/${hive?.site_id}`);
+          navigate(hive?.site_id ? `/sites/${hive.site_id}` : '/hives');
         } catch (error) {
           if (axios.isAxiosError(error) && error.response?.status === 409) {
             message.error(error.response.data?.error || 'Cannot delete hive with inspections');
           } else {
             message.error('Failed to delete hive');
           }
-        } finally {
-          setDeleting(false);
         }
       },
     });
-  };
+  }, [hive?.name, hive?.site_id, deleteHive, navigate]);
 
   const handleReplaceQueen = async (values: ReplaceQueenForm) => {
     try {
-      setReplacingQueen(true);
-      await apiClient.post(`/hives/${id}/replace-queen`, {
+      await replaceQueen({
         new_introduced_at: values.new_introduced_at.format('YYYY-MM-DD'),
         new_source: values.new_source || null,
         replacement_reason: values.replacement_reason || null,
@@ -328,11 +272,8 @@ export function HiveDetail() {
       message.success('Queen replaced successfully');
       setReplaceModalOpen(false);
       replaceForm.resetFields();
-      fetchHive();
     } catch {
       message.error('Failed to replace queen');
-    } finally {
-      setReplacingQueen(false);
     }
   };
 
@@ -345,6 +286,16 @@ export function HiveDetail() {
       navigate(`/sites/${hive.site_id}`);
     } else {
       navigate('/hives');
+    }
+  };
+
+  const handleNewInspection = () => {
+    navigate(`/hives/${id}/inspections/new`);
+  };
+
+  const handleTaskClick = () => {
+    if (hive) {
+      navigate(`/tasks?hive_id=${hive.id}`);
     }
   };
 
@@ -414,9 +365,14 @@ export function HiveDetail() {
     // Handle first-hive celebrations (AC#4 - smaller toast notifications)
     if (result.first_hive_ids && result.first_hive_ids.length > 0) {
       result.first_hive_ids.forEach((hiveId) => {
-        const hive = siteHives.find((h) => h.id === hiveId);
-        if (hive) {
-          showFirstHiveCelebration(hive.name);
+        const foundHive = siteHives.find((h) => h.id === hiveId);
+        if (foundHive) {
+          showFirstHiveCelebration(foundHive.name);
+        } else {
+          // Hive not found in local list - show celebration with generic name
+          // This can happen if siteHives hasn't refreshed yet
+          console.warn(`First harvest hive ${hiveId} not found in local hive list`);
+          showFirstHiveCelebration('your hive');
         }
       });
     }
@@ -435,7 +391,7 @@ export function HiveDetail() {
   };
 
   const handleDeleteHarvest = async (harvestId: string) => {
-    await deleteHarvest(harvestId);
+    await deleteHarvestMutation(harvestId);
     message.success('Harvest deleted');
   };
 
@@ -499,14 +455,25 @@ export function HiveDetail() {
     setPrefilledEquipmentAction(undefined);
   };
 
+  const handleLogEquipment = () => {
+    setSelectedEquipment(null);
+    setPrefilledEquipmentType(undefined);
+    setPrefilledEquipmentAction(undefined);
+    setEquipmentModalOpen(true);
+  };
+
   // Hive loss handler
   const handleHiveLossSubmit = async (input: Parameters<typeof createHiveLoss>[1]) => {
     if (!id) return;
     await createHiveLoss(id, input);
     message.success('Loss recorded');
     // Refetch the hive to update status
-    fetchHive();
+    refetchHive();
   };
+
+  // ============================================
+  // Loading and empty states
+  // ============================================
 
   if (loading) {
     return (
@@ -524,372 +491,80 @@ export function HiveDetail() {
     );
   }
 
+  // ============================================
+  // Render mobile or desktop layout
+  // ============================================
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
-            Back to Site
-          </Button>
-          <Title level={2} style={{ margin: 0 }}>{hive.name}</Title>
-          {hive.hive_status === 'lost' && hive.lost_at && (
-            <LostHiveBadge lostAt={hive.lost_at} />
-          )}
-        </Space>
-        <Space wrap>
-          {/* Only show action buttons for active hives */}
-          {hive.hive_status !== 'lost' && (
-            <>
-              <Button
-                type="primary"
-                icon={<FileSearchOutlined />}
-                onClick={() => navigate(`/hives/${id}/inspections/new`)}
-              >
-                New Inspection
-              </Button>
-              <Button icon={<EditOutlined />} onClick={handleEdit}>
-                Edit Configuration
-              </Button>
-              <Button
-                icon={<QrcodeOutlined />}
-                onClick={() => setQrModalOpen(true)}
-                style={{ minHeight: 64 }}
-              >
-                QR Code
-              </Button>
-              <Button
-                icon={<HeartOutlined />}
-                onClick={() => setLossWizardOpen(true)}
-                style={{ borderColor: colors.textMuted, color: colors.textMuted }}
-              >
-                Mark as Lost
-              </Button>
-            </>
-          )}
-          <Button
-            danger
-            icon={<DeleteOutlined />}
-            onClick={handleDelete}
-            loading={deleting}
-          >
-            Delete
-          </Button>
-        </Space>
-      </div>
-
-      {/* Hive Info Card */}
-      <Card title="Hive Information">
-        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-          {/* Info section */}
-          <div style={{ flex: '1 1 400px' }}>
-            <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="Name">{hive.name}</Descriptions.Item>
-              <Descriptions.Item label="Created">
-                {dayjs(hive.created_at).format('MMMM D, YYYY')}
-              </Descriptions.Item>
-              <Descriptions.Item label="Last Updated">
-                {dayjs(hive.updated_at).format('MMMM D, YYYY [at] h:mm A')}
-              </Descriptions.Item>
-              {hive.notes && (
-                <Descriptions.Item label="Notes">{hive.notes}</Descriptions.Item>
-              )}
-            </Descriptions>
-          </div>
-
-          {/* Visual hive diagram */}
-          <div style={{
-            flex: '0 0 200px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            padding: 16,
-            backgroundColor: 'rgba(247, 164, 45, 0.08)',
-            borderRadius: 8,
-          }}>
-            <Text type="secondary" style={{ marginBottom: 12, fontSize: 12 }}>
-              Box Configuration
-            </Text>
-            <div style={{ display: 'flex', flexDirection: 'column-reverse', alignItems: 'center' }}>
-              {/* Brood boxes */}
-              {Array.from({ length: hive.brood_boxes }).map((_, i) => (
-                <div
-                  key={`brood-${i}`}
-                  style={{
-                    width: 120,
-                    height: 28,
-                    backgroundColor: colors.brownBramble,
-                    borderRadius: 4,
-                    marginTop: i > 0 ? 2 : 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Text style={{ color: colors.coconutCream, fontSize: 11 }}>
-                    Brood {i + 1}
-                  </Text>
-                </div>
-              ))}
-              {/* Honey supers */}
-              {Array.from({ length: hive.honey_supers }).map((_, i) => (
-                <div
-                  key={`super-${i}`}
-                  style={{
-                    width: 120,
-                    height: 22,
-                    backgroundColor: colors.seaBuckthorn,
-                    borderRadius: 4,
-                    marginTop: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontSize: 11 }}>
-                    Super {i + 1}
-                  </Text>
-                </div>
-              ))}
-              {/* Roof */}
-              <div
-                style={{
-                  width: 130,
-                  height: 14,
-                  backgroundColor: colors.brownBramble,
-                  borderRadius: '4px 4px 0 0',
-                  marginTop: 2,
-                }}
-              />
-            </div>
-            <div style={{ marginTop: 12, textAlign: 'center' }}>
-              <Text style={{ fontSize: 12 }}>
-                {hive.brood_boxes} brood, {hive.honey_supers} super{hive.honey_supers !== 1 ? 's' : ''}
-              </Text>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Queen Information Card */}
-      <Card
-        title={
-          <Space>
-            <CrownOutlined style={{ color: colors.seaBuckthorn }} />
-            Queen Information
-          </Space>
-        }
-        style={{ marginTop: 16 }}
-        extra={
-          <Button
-            icon={<SwapOutlined />}
-            onClick={() => setReplaceModalOpen(true)}
-          >
-            Replace Queen
-          </Button>
-        }
-      >
-        {hive.queen_introduced_at ? (
-          <Descriptions column={{ xs: 1, sm: 2 }} bordered>
-            <Descriptions.Item label="Introduced">
-              {dayjs(hive.queen_introduced_at).format('MMMM D, YYYY')}
-            </Descriptions.Item>
-            <Descriptions.Item label="Age">
-              <Tag color="gold">{calculateQueenAge(hive.queen_introduced_at)}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Source">
-              {formatQueenSource(hive.queen_source)}
-            </Descriptions.Item>
-          </Descriptions>
-        ) : (
-          <Empty description="No queen information recorded">
-            <Button onClick={() => setReplaceModalOpen(true)}>
-              Add Queen Information
-            </Button>
-          </Empty>
-        )}
-      </Card>
-
-      {/* BeeBrain Analysis - Epic 8, Story 8.3 */}
-      <div style={{ marginTop: 16 }}>
-        <HiveBeeBrainCard hiveId={id || ''} />
-      </div>
-
-      {/* Queen History */}
-      {hive.queen_history && hive.queen_history.length > 0 && (
-        <Card title="Queen History" style={{ marginTop: 16 }}>
-          <Timeline
-            items={hive.queen_history.map((qh) => ({
-              color: qh.replaced_at ? 'gray' : 'gold',
-              dot: <CrownOutlined style={{ fontSize: 16 }} />,
-              children: (
-                <div>
-                  <Text strong>
-                    {formatQueenSource(qh.source)} Queen
-                  </Text>
-                  {!qh.replaced_at && (
-                    <Tag color="success" style={{ marginLeft: 8 }}>Current</Tag>
-                  )}
-                  <br />
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    Introduced: {dayjs(qh.introduced_at).format('MMM D, YYYY')}
-                  </Text>
-                  {qh.replaced_at && (
-                    <>
-                      <br />
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        Replaced: {dayjs(qh.replaced_at).format('MMM D, YYYY')}
-                        {qh.replacement_reason && ` - ${qh.replacement_reason}`}
-                      </Text>
-                    </>
-                  )}
-                </div>
-              ),
-            }))}
-          />
-        </Card>
-      )}
-
-      {/* Inspection History Card */}
-      <Card
-        title={
-          <Space>
-            <FileSearchOutlined style={{ color: colors.seaBuckthorn }} />
-            Inspection History
-          </Space>
-        }
-        style={{ marginTop: 16 }}
-        extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => navigate(`/hives/${id}/inspections/new`)}
-          >
-            New Inspection
-          </Button>
-        }
-      >
-        <InspectionHistory hiveId={id || ''} hiveName={hive.name} />
-      </Card>
-
-      {/* Frame Development Chart - Epic 5, Story 5.6 (Advanced Mode only) */}
-      {advancedMode && (
-        <div style={{ marginTop: 16 }}>
-          <FrameDevelopmentChart hiveId={id || ''} />
-        </div>
-      )}
-
-      {/* Treatment History Card - Epic 6 */}
-      <div style={{ marginTop: 16 }}>
-        <TreatmentHistoryCard
-          treatments={treatments}
-          loading={treatmentsLoading}
-          error={!!treatmentsError}
+      {isMobile ? (
+        <HiveDetailMobile
+          hive={hive}
+          onBack={handleBack}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onNewInspection={handleNewInspection}
+          onReplaceQueen={() => setReplaceModalOpen(true)}
+          onMarkLost={() => setLossWizardOpen(true)}
+          onShowQR={() => setQrModalOpen(true)}
+        />
+      ) : (
+        <HiveDetailDesktop
+          hive={hive}
+          deleting={deleting}
+          onBack={handleBack}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onNewInspection={handleNewInspection}
+          onTaskClick={handleTaskClick}
+          onReplaceQueen={() => setReplaceModalOpen(true)}
           onLogTreatment={() => setTreatmentModalOpen(true)}
-          onAddFollowup={handleAddFollowup}
-          onDelete={handleDeleteTreatment}
-          deleting={deletingTreatment}
-        />
-      </div>
-
-      {/* Feeding History Card - Epic 6, Story 6.2 */}
-      <div style={{ marginTop: 16 }}>
-        <FeedingHistoryCard
-          feedings={feedings}
-          seasonTotals={seasonTotals}
-          loading={feedingsLoading}
-          error={!!feedingsError}
           onLogFeeding={() => setFeedingModalOpen(true)}
-          onEdit={handleEditFeeding}
-          onDelete={handleDeleteFeeding}
-          deleting={deletingFeeding}
-        />
-      </div>
-
-      {/* Harvest History Card - Epic 6, Story 6.3 */}
-      <div style={{ marginTop: 16 }}>
-        <HarvestHistoryCard
-          harvests={harvests}
-          loading={harvestsLoading}
-          error={!!harvestsError}
           onLogHarvest={() => setHarvestModalOpen(true)}
-          onEdit={handleEditHarvest}
-          onDelete={handleDeleteHarvest}
-          deleting={deletingHarvest}
+          onLogEquipment={handleLogEquipment}
+          onRemoveEquipment={handleRemoveEquipment}
+          onMarkLost={() => setLossWizardOpen(true)}
+          onShowQR={() => setQrModalOpen(true)}
+          treatments={treatments}
+          treatmentsLoading={treatmentsLoading}
+          treatmentsError={!!treatmentsError}
+          onAddFollowup={handleAddFollowup}
+          onDeleteTreatment={handleDeleteTreatment}
+          deletingTreatment={deletingTreatment}
+          feedings={feedings}
+          feedingsLoading={feedingsLoading}
+          feedingsError={!!feedingsError}
+          seasonTotals={seasonTotals}
+          onEditFeeding={handleEditFeeding}
+          onDeleteFeeding={handleDeleteFeeding}
+          deletingFeeding={deletingFeeding}
+          harvests={harvests}
+          harvestsLoading={harvestsLoading}
+          harvestsError={!!harvestsError}
           seasonTotalKg={seasonTotalKg}
           seasonHarvestCount={seasonHarvestCount}
-        />
-      </div>
-
-      {/* Harvest Analytics - Epic 6, Story 6.3, AC #4 */}
-      {harvests.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <HarvestAnalyticsCard
-            analytics={harvestAnalytics}
-            loading={analyticsLoading}
-            error={!!analyticsError}
-          />
-        </div>
-      )}
-
-      {/* Equipment Status Card - Epic 6, Story 6.4 */}
-      <div style={{ marginTop: 16 }}>
-        <EquipmentStatusCard
+          onEditHarvest={handleEditHarvest}
+          onDeleteHarvest={handleDeleteHarvest}
+          deletingHarvest={deletingHarvest}
+          harvestAnalytics={harvestAnalytics}
+          analyticsLoading={analyticsLoading}
+          analyticsError={!!analyticsError}
+          equipmentLogs={equipmentLogs}
           currentlyInstalled={currentlyInstalled}
           equipmentHistory={equipmentHistory}
-          equipmentLogs={equipmentLogs}
-          loading={equipmentLoading}
-          error={!!equipmentError}
-          onLogEquipment={() => {
-            setSelectedEquipment(null);
-            setPrefilledEquipmentType(undefined);
-            setPrefilledEquipmentAction(undefined);
-            setEquipmentModalOpen(true);
-          }}
-          onRemoveEquipment={handleRemoveEquipment}
-          onEdit={handleEditEquipment}
-          onDelete={handleDeleteEquipment}
-          deleting={deletingEquipment}
+          equipmentLoading={equipmentLoading}
+          equipmentError={!!equipmentError}
+          onEditEquipment={handleEditEquipment}
+          onDeleteEquipment={handleDeleteEquipment}
+          deletingEquipment={deletingEquipment}
+          hiveLoss={hiveLoss}
+          advancedMode={advancedMode}
         />
-      </div>
-
-      {/* Hive Loss Summary - Epic 9, Story 9.3 */}
-      {hiveLoss && (
-        <div style={{ marginTop: 16 }}>
-          <HiveLossSummary loss={hiveLoss} />
-        </div>
       )}
 
-      {/* Box Change History */}
-      {hive.box_changes && hive.box_changes.length > 0 && (
-        <Card title="Box Change History" style={{ marginTop: 16 }}>
-          <Timeline
-            items={hive.box_changes.map((bc) => ({
-              color: bc.change_type === 'added' ? 'green' : 'red',
-              dot: bc.change_type === 'added' ? <PlusOutlined /> : <MinusOutlined />,
-              children: (
-                <div>
-                  <Text>
-                    {bc.box_type === 'brood' ? 'Brood box' : 'Honey super'}{' '}
-                    <Tag color={bc.change_type === 'added' ? 'success' : 'error'}>
-                      {bc.change_type}
-                    </Tag>
-                  </Text>
-                  <br />
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {dayjs(bc.changed_at).format('MMM D, YYYY')}
-                  </Text>
-                  {bc.notes && (
-                    <>
-                      <br />
-                      <Text type="secondary" style={{ fontSize: 12 }}>{bc.notes}</Text>
-                    </>
-                  )}
-                </div>
-              ),
-            }))}
-          />
-        </Card>
-      )}
+      {/* ============================================ */}
+      {/* Modals - shared between mobile and desktop */}
+      {/* ============================================ */}
 
       {/* Replace Queen Modal */}
       <Modal
@@ -1067,14 +742,16 @@ export function HiveDetail() {
         hiveName={hive.name}
       />
 
-      {/* QR Generator Modal - Epic 7, Story 7.6 */}
-      <QRGeneratorModal
-        hive={{ id: hive.id, name: hive.name }}
-        siteId={hive.site_id}
-        siteName={siteName}
-        open={qrModalOpen}
-        onClose={() => setQrModalOpen(false)}
-      />
+      {/* QR Generator Modal - Epic 7, Story 7.6 (lazy loaded) */}
+      <Suspense fallback={null}>
+        <LazyQRGeneratorModal
+          hive={{ id: hive.id, name: hive.name }}
+          siteId={hive.site_id}
+          siteName={site?.name || ''}
+          open={qrModalOpen}
+          onClose={() => setQrModalOpen(false)}
+        />
+      </Suspense>
     </div>
   );
 }

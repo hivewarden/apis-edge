@@ -7,6 +7,19 @@
  * NOTE: This context uses the useProactiveInsights hook internally to avoid
  * code duplication. The context adds site ID management on top of the hook.
  *
+ * USAGE STATUS: INTENTIONALLY SCAFFOLDED
+ * This context is currently scaffolded but not consumed. The ProactiveInsightBanner
+ * component uses useProactiveInsights hook directly with a siteId prop. The context
+ * is kept because it will be needed for:
+ * - Notification badge count in the navbar (Epic 9)
+ * - Multi-component insight synchronization
+ * - Global site selector integration
+ *
+ * DO NOT REMOVE - This is intentional architecture scaffolding, not dead code.
+ *
+ * To use this context instead of the hook directly, consume useProactiveInsightsContext()
+ * in your component and call setSiteId() when the site changes.
+ *
  * Part of Epic 8, Story 8.4: Proactive Insight Notifications
  */
 import {

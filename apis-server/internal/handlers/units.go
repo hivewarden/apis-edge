@@ -25,8 +25,12 @@ type UnitResponse struct {
 	FirmwareVersion *string    `json:"firmware_version,omitempty"`
 	Status          string     `json:"status"`
 	LastSeen        *time.Time `json:"last_seen,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	// Telemetry fields (updated via heartbeat)
+	UptimeSeconds *int64   `json:"uptime_seconds,omitempty"`
+	CPUTemp       *float64 `json:"cpu_temp,omitempty"`
+	FreeHeap      *int64   `json:"free_heap,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // UnitCreateResponse represents the response when creating a unit (includes raw API key).
@@ -90,33 +94,31 @@ func unitToResponse(unit *storage.Unit, siteName *string) UnitResponse {
 		FirmwareVersion: unit.FirmwareVersion,
 		Status:          unit.Status,
 		LastSeen:        unit.LastSeen,
+		UptimeSeconds:   unit.UptimeSeconds,
+		CPUTemp:         unit.CPUTemp,
+		FreeHeap:        unit.FreeHeap,
 		CreatedAt:       unit.CreatedAt,
 		UpdatedAt:       unit.UpdatedAt,
 	}
 }
 
 // ListUnits handles GET /api/units - returns all units for the authenticated tenant.
+// Uses a single JOIN query to include site names, avoiding N+1 query issues.
 func ListUnits(w http.ResponseWriter, r *http.Request) {
 	conn := storage.RequireConn(r.Context())
 
-	units, err := storage.ListUnits(r.Context(), conn)
+	// Use ListUnitsWithSiteNames to fetch units and site names in a single query
+	units, err := storage.ListUnitsWithSiteNames(r.Context(), conn)
 	if err != nil {
 		log.Error().Err(err).Msg("handler: failed to list units")
 		respondError(w, "Failed to list units", http.StatusInternalServerError)
 		return
 	}
 
-	// Build response with site names
+	// Build response from joined data
 	unitResponses := make([]UnitResponse, 0, len(units))
 	for _, unit := range units {
-		var siteName *string
-		if unit.SiteID != nil {
-			site, err := storage.GetSiteByID(r.Context(), conn, *unit.SiteID)
-			if err == nil {
-				siteName = &site.Name
-			}
-		}
-		unitResponses = append(unitResponses, unitToResponse(&unit, siteName))
+		unitResponses = append(unitResponses, unitToResponse(&unit.Unit, unit.SiteName))
 	}
 
 	respondJSON(w, UnitsListResponse{
@@ -175,6 +177,24 @@ func CreateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate serial number format: must be alphanumeric with optional hyphens, 3-50 chars
+	// Expected format: "APIS-XXX" or similar patterns
+	if !isValidSerialFormat(req.Serial) {
+		respondError(w, "Serial number must be 3-50 alphanumeric characters (hyphens allowed)", http.StatusBadRequest)
+		return
+	}
+
+	// Check unit limit before proceeding
+	if err := storage.CheckUnitLimit(r.Context(), conn, tenantID); err != nil {
+		if errors.Is(err, storage.ErrLimitExceeded) {
+			respondError(w, "Unit limit reached. Contact your administrator to increase your quota.", http.StatusForbidden)
+			return
+		}
+		log.Error().Err(err).Str("tenant_id", tenantID).Msg("handler: failed to check unit limit")
+		respondError(w, "Failed to create unit", http.StatusInternalServerError)
+		return
+	}
+
 	// Validate site_id if provided
 	if req.SiteID != nil && *req.SiteID != "" {
 		_, err := storage.GetSiteByID(r.Context(), conn, *req.SiteID)
@@ -212,6 +232,9 @@ func CreateUnit(w http.ResponseWriter, r *http.Request) {
 		Str("serial", unit.Serial).
 		Msg("Unit registered")
 
+	// Audit log: record unit creation (API key is masked by audit service)
+	AuditCreate(r.Context(), "units", unit.ID, unit)
+
 	respondJSON(w, UnitCreateDataResponse{
 		Data: UnitCreateResponse{
 			ID:        unit.ID,
@@ -234,6 +257,18 @@ func UpdateUnit(w http.ResponseWriter, r *http.Request) {
 
 	if unitID == "" {
 		respondError(w, "Unit ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get old values for audit log before update
+	oldUnit, err := storage.GetUnitByID(r.Context(), conn, unitID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Unit not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("unit_id", unitID).Msg("handler: failed to get unit for audit")
+		respondError(w, "Failed to update unit", http.StatusInternalServerError)
 		return
 	}
 
@@ -287,6 +322,9 @@ func UpdateUnit(w http.ResponseWriter, r *http.Request) {
 		Str("serial", unit.Serial).
 		Msg("Unit updated")
 
+	// Audit log: record unit update with old and new values
+	AuditUpdate(r.Context(), "units", unit.ID, oldUnit, unit)
+
 	respondJSON(w, UnitDataResponse{Data: unitToResponse(unit, siteName)}, http.StatusOK)
 }
 
@@ -332,7 +370,19 @@ func DeleteUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := storage.DeleteUnit(r.Context(), conn, unitID)
+	// Get old values for audit log before delete
+	oldUnit, err := storage.GetUnitByID(r.Context(), conn, unitID)
+	if errors.Is(err, storage.ErrNotFound) {
+		respondError(w, "Unit not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Error().Err(err).Str("unit_id", unitID).Msg("handler: failed to get unit for audit")
+		respondError(w, "Failed to delete unit", http.StatusInternalServerError)
+		return
+	}
+
+	err = storage.DeleteUnit(r.Context(), conn, unitID)
 	if errors.Is(err, storage.ErrNotFound) {
 		respondError(w, "Unit not found", http.StatusNotFound)
 		return
@@ -346,6 +396,9 @@ func DeleteUnit(w http.ResponseWriter, r *http.Request) {
 	log.Info().
 		Str("unit_id", unitID).
 		Msg("Unit deleted")
+
+	// Audit log: record unit deletion with old values
+	AuditDelete(r.Context(), "units", unitID, oldUnit)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -442,28 +495,78 @@ func Heartbeat(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, HeartbeatDataResponse{Data: resp}, http.StatusOK)
 }
 
+// TrustProxyHeaders controls whether X-Forwarded-For and X-Real-IP headers are trusted.
+// This should only be true when the server is behind a trusted reverse proxy (e.g., BunkerWeb, nginx).
+// When false, only RemoteAddr is used which cannot be spoofed.
+// Default is false for security - must be explicitly enabled in production behind a proxy.
+var TrustProxyHeaders = false
+
 // extractClientIP extracts the client IP address from the request.
-// It checks X-Forwarded-For and X-Real-IP headers (for proxies) before falling back to RemoteAddr.
+// When TrustProxyHeaders is true, it checks X-Forwarded-For and X-Real-IP headers
+// (for requests through proxies) before falling back to RemoteAddr.
+// When TrustProxyHeaders is false (default), only RemoteAddr is used for security.
+//
+// Security note: X-Forwarded-For and X-Real-IP headers can be spoofed by clients
+// when not behind a trusted proxy. Only enable TrustProxyHeaders when the server
+// is behind a reverse proxy that strips/overwrites these headers from client requests.
 func extractClientIP(r *http.Request) string {
-	// Check X-Forwarded-For first (behind proxy/load balancer)
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take first IP (original client IP)
-		if idx := strings.Index(xff, ","); idx > 0 {
-			return strings.TrimSpace(xff[:idx])
+	if TrustProxyHeaders {
+		// Check X-Forwarded-For first (behind proxy/load balancer)
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			// Take first IP (original client IP)
+			if idx := strings.Index(xff, ","); idx > 0 {
+				return strings.TrimSpace(xff[:idx])
+			}
+			return strings.TrimSpace(xff)
 		}
-		return strings.TrimSpace(xff)
+
+		// Check X-Real-IP (nginx proxy)
+		if xri := r.Header.Get("X-Real-IP"); xri != "" {
+			return strings.TrimSpace(xri)
+		}
 	}
 
-	// Check X-Real-IP (nginx proxy)
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-
-	// Fall back to RemoteAddr (may include port)
+	// Fall back to RemoteAddr (may include port) - cannot be spoofed
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		// RemoteAddr doesn't have port, use as-is
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// isValidSerialFormat validates that a serial number follows acceptable format.
+// Requirements:
+// - Length: 3-50 characters
+// - Characters: alphanumeric (A-Z, a-z, 0-9) and hyphens
+// - No leading or trailing hyphens
+// - No consecutive hyphens
+// Expected patterns: "APIS-001", "APIS-HOME-01", "unit-123", etc.
+func isValidSerialFormat(serial string) bool {
+	if len(serial) < 3 || len(serial) > 50 {
+		return false
+	}
+
+	// Check for leading/trailing hyphens
+	if serial[0] == '-' || serial[len(serial)-1] == '-' {
+		return false
+	}
+
+	prevHyphen := false
+	for _, c := range serial {
+		isAlphaNum := (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+		isHyphen := c == '-'
+
+		if !isAlphaNum && !isHyphen {
+			return false
+		}
+
+		// Check for consecutive hyphens
+		if isHyphen && prevHyphen {
+			return false
+		}
+		prevHyphen = isHyphen
+	}
+
+	return true
 }

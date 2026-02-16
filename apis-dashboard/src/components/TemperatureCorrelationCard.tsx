@@ -16,6 +16,9 @@ import { colors } from '../theme/apisTheme';
 
 const { Text } = Typography;
 
+// Chart height constant for consistent sizing across dashboard cards
+const CHART_HEIGHT = 220;
+
 interface TemperatureCorrelationCardProps {
   siteId: string | null;
 }
@@ -80,8 +83,10 @@ export function TemperatureCorrelationCard({ siteId }: TemperatureCorrelationCar
     return (
       <Card
         style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           height: '100%',
         }}
       >
@@ -98,8 +103,10 @@ export function TemperatureCorrelationCard({ siteId }: TemperatureCorrelationCar
     return (
       <Card
         style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           height: '100%',
         }}
       >
@@ -118,13 +125,20 @@ export function TemperatureCorrelationCard({ siteId }: TemperatureCorrelationCar
     return (
       <Card
         style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           height: '100%',
+        }}
+        styles={{
+          body: {
+            padding: 24,
+          },
         }}
       >
         <div style={{ marginBottom: 8 }}>
-          <Text strong style={{ color: colors.brownBramble, fontSize: 14 }}>
+          <Text strong style={{ color: colors.brownBramble, fontSize: 18 }}>
             {title}
           </Text>
         </div>
@@ -144,13 +158,20 @@ export function TemperatureCorrelationCard({ siteId }: TemperatureCorrelationCar
     return (
       <Card
         style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
+          background: '#ffffff',
+          borderColor: '#ece8d6',
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           height: '100%',
+        }}
+        styles={{
+          body: {
+            padding: 24,
+          },
         }}
       >
         <div style={{ marginBottom: 8 }}>
-          <Text strong style={{ color: colors.brownBramble, fontSize: 14 }}>
+          <Text strong style={{ color: colors.brownBramble, fontSize: 18 }}>
             {title}
           </Text>
         </div>
@@ -223,10 +244,13 @@ export function TemperatureCorrelationCard({ siteId }: TemperatureCorrelationCar
       fillOpacity: 0.7,
     },
     tooltip: {
-      formatter: (datum: { temperature: number; detections: number; label: string }) => ({
-        name: datum.label,
-        value: `${datum.temperature}°C, ${datum.detections} detection${datum.detections !== 1 ? 's' : ''}`,
-      }),
+      // AC3: Tooltip format "Oct 15: 22C, 14 detections"
+      customContent: (_title: string, items: Array<{ data: { temperature: number; detections: number; label: string } }>) => {
+        if (!items || items.length === 0) return '';
+        const datum = items[0].data;
+        const detectionText = datum.detections === 1 ? 'detection' : 'detections';
+        return `<div style="padding: 8px 12px; font-size: 12px;">${datum.label}: ${datum.temperature}°C, ${datum.detections} ${detectionText}</div>`;
+      },
     },
     // Optional regression line
     regressionLine: chartData.length >= 3 ? {
@@ -244,26 +268,28 @@ export function TemperatureCorrelationCard({ siteId }: TemperatureCorrelationCar
   return (
     <Card
       style={{
-        background: colors.salomie,
-        borderColor: colors.seaBuckthorn,
+        background: '#ffffff',
+        borderColor: '#ece8d6',
+        borderRadius: 16,
+        boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
         height: '100%',
       }}
       styles={{
         body: {
-          padding: '16px',
+          padding: 24,
         },
       }}
     >
       <div style={{ marginBottom: 8 }}>
         <Space>
           <LineChartOutlined style={{ color: colors.seaBuckthorn }} />
-          <Text strong style={{ color: colors.brownBramble, fontSize: 14 }}>
+          <Text strong style={{ color: colors.brownBramble, fontSize: 18 }}>
             {title}
           </Text>
         </Space>
       </div>
       <div
-        style={{ height: 220 }}
+        style={{ height: CHART_HEIGHT }}
         role="img"
         aria-label={`Temperature correlation chart showing ${points.length} data points`}
       >

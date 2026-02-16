@@ -1,8 +1,31 @@
-import { useState } from 'react';
 import { Card, Typography, Image } from 'antd';
-import { PlayCircleOutlined, ClockCircleOutlined, AlertOutlined } from '@ant-design/icons';
+import { AlertOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { colors } from '../theme/apisTheme';
+import { getSafeImageUrl } from '../utils';
+
+// CSS for hover/focus states - avoids re-renders on hover
+const clipCardStyles = `
+.clip-card:hover,
+.clip-card:focus-visible {
+  border-color: ${colors.seaBuckthorn} !important;
+  box-shadow: 0 8px 32px rgba(247, 164, 45, 0.35), 0 0 0 3px ${colors.seaBuckthorn}60 !important;
+  transform: translateY(-4px) scale(1.02);
+}
+.clip-card:focus-visible {
+  outline: 3px solid ${colors.seaBuckthorn};
+  outline-offset: 2px;
+}
+.clip-card:hover .clip-card-thumbnail,
+.clip-card:focus-visible .clip-card-thumbnail {
+  filter: brightness(1.05);
+}
+.clip-card:hover .clip-card-play-icon,
+.clip-card:focus-visible .clip-card-play-icon {
+  transform: translate(-50%, -50%) scale(1.15);
+  opacity: 1;
+}
+`;
 
 const { Text } = Typography;
 
@@ -32,12 +55,11 @@ function formatDuration(seconds?: number): string {
  *
  * Displays a single clip thumbnail with metadata in a honey-themed card.
  * Features honeycomb-inspired design with warm amber glow effects.
+ * Uses CSS-only hover/focus states for better performance with large clip lists.
  *
  * Part of Epic 4, Story 4.2 (Clip Archive List View)
  */
 export function ClipCard({ clip, onClick }: ClipCardProps) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
   const formattedDate = dayjs(clip.recorded_at).format('MMM D');
   const formattedTime = dayjs(clip.recorded_at).format('HH:mm');
   const duration = formatDuration(clip.duration_seconds);
@@ -46,42 +68,34 @@ export function ClipCard({ clip, onClick }: ClipCardProps) {
     ? `Detection clip from ${formattedDate}, ${clip.unit_name}, duration ${duration}`
     : `Detection clip from ${formattedDate}, duration ${duration}`;
 
-  const isActive = isHovered || isFocused;
-
   return (
-    <Card
-      hoverable
-      onClick={onClick}
-      tabIndex={0}
-      role="button"
-      aria-label={ariaLabel}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onFocus={() => setIsFocused(true)}
-      onBlur={() => setIsFocused(false)}
-      style={{
-        borderRadius: 16,
-        border: `2px solid ${isActive ? colors.seaBuckthorn : colors.salomie}`,
-        overflow: 'hidden',
-        background: `linear-gradient(145deg, ${colors.salomie} 0%, ${colors.coconutCream} 100%)`,
-        boxShadow: isActive
-          ? `0 8px 32px rgba(247, 164, 45, 0.35), 0 0 0 3px ${colors.seaBuckthorn}60`
-          : `0 2px 8px rgba(102, 38, 4, 0.08)`,
-        transform: isActive ? 'translateY(-4px) scale(1.02)' : 'none',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        outline: isFocused ? `3px solid ${colors.seaBuckthorn}` : 'none',
-        outlineOffset: 2,
-      }}
-      styles={{
-        body: { padding: 0 },
-      }}
-    >
+    <>
+      <style>{clipCardStyles}</style>
+      <Card
+        hoverable
+        onClick={onClick}
+        tabIndex={0}
+        role="button"
+        aria-label={ariaLabel}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+        className="clip-card"
+        style={{
+          borderRadius: 16,
+          border: '1px solid rgba(102, 38, 4, 0.05)',
+          overflow: 'hidden',
+          background: '#ffffff',
+          boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+        styles={{
+          body: { padding: 0 },
+        }}
+      >
       {/* Thumbnail Container */}
       <div style={{ position: 'relative', overflow: 'hidden' }}>
         {/* Honeycomb pattern overlay */}
@@ -98,58 +112,62 @@ export function ClipCard({ clip, onClick }: ClipCardProps) {
         />
 
         <Image
-          src={clip.thumbnail_url}
+          src={getSafeImageUrl(clip.thumbnail_url)}
           alt={`Detection clip from ${formattedDate}`}
           preview={false}
+          className="clip-card-thumbnail"
           style={{
             width: '100%',
-            height: 140,
+            aspectRatio: '16/9',
             objectFit: 'cover',
-            filter: isHovered ? 'brightness(1.05)' : 'none',
             transition: 'filter 0.3s ease',
           }}
           fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='240' fill='%23fcd483'%3E%3Crect width='320' height='240'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23662604' font-family='system-ui' font-size='14'%3ENo thumbnail%3C/text%3E%3C/svg%3E"
         />
 
-        {/* Play icon overlay with pulse effect */}
+        {/* Play button overlay - solid amber circle */}
         <div
+          className="clip-card-play-icon"
           style={{
             position: 'absolute',
             top: '50%',
             left: '50%',
-            transform: `translate(-50%, -50%) scale(${isHovered ? 1.15 : 1})`,
-            color: 'white',
-            fontSize: 44,
-            opacity: isHovered ? 1 : 0.85,
-            textShadow: `0 2px 12px rgba(0,0,0,0.5), 0 0 40px ${colors.seaBuckthorn}80`,
+            transform: 'translate(-50%, -50%)',
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            backgroundColor: '#f7a42d',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(247, 164, 45, 0.4)',
+            opacity: 0.9,
             transition: 'all 0.3s ease',
-            filter: 'drop-shadow(0 0 8px rgba(247, 164, 45, 0.6))',
           }}
         >
-          <PlayCircleOutlined />
+          <span
+            className="material-symbols-outlined"
+            style={{ color: 'white', fontSize: 24 }}
+          >
+            play_arrow
+          </span>
         </div>
 
-        {/* Duration badge - amber glass effect */}
+        {/* Duration badge - simple rounded-md background */}
         <div
           style={{
             position: 'absolute',
             bottom: 8,
             right: 8,
-            background: `linear-gradient(135deg, ${colors.brownBramble}e6 0%, ${colors.brownBramble}cc 100%)`,
-            backdropFilter: 'blur(4px)',
-            color: colors.salomie,
-            padding: '3px 10px',
-            borderRadius: 20,
+            background: 'rgba(0, 0, 0, 0.6)',
+            color: 'white',
+            padding: '3px 8px',
+            borderRadius: 6,
             fontSize: 11,
             fontWeight: 600,
             letterSpacing: '0.5px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
           }}
         >
-          <ClockCircleOutlined style={{ fontSize: 10 }} />
           {duration}
         </div>
 
@@ -195,7 +213,7 @@ export function ClipCard({ clip, onClick }: ClipCardProps) {
       <div
         style={{
           padding: '12px 14px',
-          background: `linear-gradient(180deg, ${colors.coconutCream} 0%, ${colors.salomie}40 100%)`,
+          background: '#ffffff',
         }}
       >
         {/* Date and time row */}
@@ -244,6 +262,7 @@ export function ClipCard({ clip, onClick }: ClipCardProps) {
         )}
       </div>
     </Card>
+    </>
   );
 }
 

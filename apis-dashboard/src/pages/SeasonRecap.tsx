@@ -7,7 +7,7 @@
  *
  * Part of Epic 9, Story 9.4: Season Recap Summary
  */
-import React, { useState, useRef } from 'react';
+import React, { useState, Suspense } from 'react';
 import {
   Typography,
   Select,
@@ -19,6 +19,7 @@ import {
   Col,
   Alert,
   Tooltip,
+  Skeleton,
 } from 'antd';
 import {
   ShareAltOutlined,
@@ -33,7 +34,7 @@ import {
 import { SeasonRecapCard } from '../components/SeasonRecapCard';
 import { HiveSeasonSummary } from '../components/HiveSeasonSummary';
 import { RecapShareModal } from '../components/RecapShareModal';
-import { YearComparisonChart } from '../components/YearComparisonChart';
+import { LazyYearComparisonChart as YearComparisonChart } from '../components/lazy';
 import { colors } from '../theme/apisTheme';
 
 const { Title, Paragraph, Text } = Typography;
@@ -242,14 +243,16 @@ export function SeasonRecap() {
             </Col>
           </Row>
 
-          {/* Year Comparison */}
+          {/* Year Comparison (lazy loaded) */}
           {recap.comparison_data && (
-            <YearComparisonChart
-              currentYear={recap.season_year}
-              currentHarvestKg={recap.total_harvest_kg}
-              currentHornets={recap.hornets_deterred}
-              comparison={recap.comparison_data}
-            />
+            <Suspense fallback={<Skeleton.Node active style={{ width: '100%', height: 200 }}><div /></Skeleton.Node>}>
+              <YearComparisonChart
+                currentYear={recap.season_year}
+                currentHarvestKg={recap.total_harvest_kg}
+                currentHornets={recap.hornets_deterred}
+                comparison={recap.comparison_data}
+              />
+            </Suspense>
           )}
 
           {/* Per-Hive Breakdown */}

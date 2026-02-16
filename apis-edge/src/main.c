@@ -140,6 +140,17 @@ static void on_clip_deleted_callback(const char *clip_path) {
  * @param config Application configuration
  * @return Exit code (0 on success)
  */
+// S8-I-03: This function uses manual reverse-order resource deallocation on each
+// error path, creating 8+ copies of increasingly long cleanup sequences. Adding
+// a new resource requires updating all error paths.
+// TODO: Refactor to use a goto-based cleanup pattern (Linux kernel style):
+//   if (init_A()) goto fail_a;
+//   if (init_B()) goto fail_b;
+//   ...
+//   return 0;
+//   fail_b: cleanup_A();
+//   fail_a: return 1;
+// This centralizes cleanup and makes adding new resources a single-line change.
 static int run_capture_loop(const config_t *config) {
     // Initialize camera
     camera_status_t status = camera_init(&config->camera);
@@ -539,6 +550,11 @@ int main(int argc, char *argv[]) {
     LOG_INFO("APIS Edge starting...");
 
     // Setup signal handlers
+    // S8-L-06: signal() has implementation-defined behavior (System V vs BSD
+    // semantics). On our target platforms (glibc on Pi, irrelevant on ESP32),
+    // BSD semantics are used which keep the handler installed after invocation.
+    // TODO: Replace with sigaction() for fully portable behavior if other
+    // platforms are targeted in the future.
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 

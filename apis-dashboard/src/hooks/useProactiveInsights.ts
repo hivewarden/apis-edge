@@ -7,7 +7,8 @@
  *
  * Part of Epic 8, Story 8.4: Proactive Insight Notifications
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { message } from 'antd';
 import { apiClient } from '../providers/apiClient';
 import type { Insight } from './useBeeBrain';
 
@@ -115,23 +116,30 @@ export function useProactiveInsights(siteId: string | null): UseProactiveInsight
 
   /**
    * Sort insights by severity priority (action-needed first).
+   * SECURITY (S5-M7): Wrap in useMemo to avoid re-sorting on every render.
    */
-  const sortedInsights = [...insights].sort((a, b) =>
-    (SEVERITY_PRIORITY[a.severity] ?? 99) - (SEVERITY_PRIORITY[b.severity] ?? 99)
+  const sortedInsights = useMemo(
+    () => [...insights].sort((a, b) =>
+      (SEVERITY_PRIORITY[a.severity] ?? 99) - (SEVERITY_PRIORITY[b.severity] ?? 99)
+    ),
+    [insights]
   );
 
   /**
    * Split into visible and hidden based on showAll state.
    */
-  const visibleInsights = showAll
-    ? sortedInsights
-    : sortedInsights.slice(0, MAX_VISIBLE_INSIGHTS);
+  const visibleInsights = useMemo(
+    () => showAll ? sortedInsights : sortedInsights.slice(0, MAX_VISIBLE_INSIGHTS),
+    [showAll, sortedInsights]
+  );
   const hiddenCount = showAll
     ? 0
     : Math.max(0, sortedInsights.length - MAX_VISIBLE_INSIGHTS);
 
   /**
    * Fetch insights from API.
+   * Note: apiClient.baseURL already includes /api prefix (from config.ts),
+   * so paths here are relative to /api (e.g., /beebrain/dashboard -> /api/beebrain/dashboard)
    */
   const fetchInsights = useCallback(async (signal?: AbortSignal) => {
     if (!siteId) {
@@ -162,6 +170,7 @@ export function useProactiveInsights(siteId: string | null): UseProactiveInsight
 
   /**
    * Initial fetch and refetch on siteId change.
+   * Note: siteId is included explicitly for clarity even though fetchInsights depends on it.
    */
   useEffect(() => {
     // Reset state when site changes
@@ -186,36 +195,46 @@ export function useProactiveInsights(siteId: string | null): UseProactiveInsight
         abortControllerRef.current = null;
       }
     };
-  }, [fetchInsights]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- siteId included for clarity; fetchInsights depends on it
+  }, [fetchInsights, siteId]);
 
   /**
-   * Dismiss an insight permanently (optimistic update).
+   * Dismiss an insight permanently (optimistic update with error feedback).
    */
   const dismissInsight = useCallback(async (id: string) => {
+    // Store previous state for potential rollback
+    const previousInsights = insights;
+
     // Optimistic update - remove from local state immediately
     setInsights(prev => prev.filter(i => i.id !== id));
 
     try {
       await apiClient.post(`/beebrain/insights/${id}/dismiss`);
     } catch (err) {
-      // Log error but don't rollback - user experience is prioritized
-      // The insight is already visually removed; rollback would be confusing
+      // Rollback on error - restore previous state
+      setInsights(previousInsights);
+      // Show user feedback
+      message.error('Failed to dismiss insight. Please try again.');
       console.error('[useProactiveInsights] Error dismissing insight:', err);
       setError(err instanceof Error ? err : new Error('Failed to dismiss insight'));
     }
-  }, []);
+  }, [insights]);
 
   /**
-   * Snooze an insight for specified number of days (optimistic update).
+   * Snooze an insight for specified number of days (optimistic update with error feedback).
    */
   const snoozeInsight = useCallback(async (id: string, days: number) => {
     // Validate days parameter
     if (![1, 7, 30].includes(days)) {
       const errorMsg = `Invalid snooze days: ${days}. Must be 1, 7, or 30.`;
       console.warn('[useProactiveInsights]', errorMsg);
+      message.error(errorMsg);
       setError(new Error(errorMsg));
       return;
     }
+
+    // Store previous state for potential rollback
+    const previousInsights = insights;
 
     // Optimistic update - remove from local state immediately
     setInsights(prev => prev.filter(i => i.id !== id));
@@ -223,10 +242,14 @@ export function useProactiveInsights(siteId: string | null): UseProactiveInsight
     try {
       await apiClient.post(`/beebrain/insights/${id}/snooze?days=${days}`);
     } catch (err) {
+      // Rollback on error - restore previous state
+      setInsights(previousInsights);
+      // Show user feedback
+      message.error('Failed to snooze insight. Please try again.');
       console.error('[useProactiveInsights] Error snoozing insight:', err);
       setError(err instanceof Error ? err : new Error('Failed to snooze insight'));
     }
-  }, []);
+  }, [insights]);
 
   /**
    * Toggle between showing top 3 and all insights.

@@ -190,6 +190,18 @@ None
 - Progress bar shown when insufficient observations (<20)
 - Leaflet icon fix implemented for Vite bundler compatibility
 
+### Change Log
+
+- [2026-01-25] Remediation: Fixed 8 issues from code review
+  - Added custom bee icon SVG for AC1 compliance
+  - Created comprehensive frontend tests (NestEstimatorCard.test.tsx)
+  - Created backend handler tests (nest_estimate_test.go)
+  - Created storage function tests (detections_test.go)
+  - Fixed console.error to only log in development
+  - Added documentation for configuration constants
+  - Added accessibility attributes to map popup
+  - Optimized CSS animation injection
+
 ### File List
 
 - apis-server/internal/handlers/nest_estimate.go (created)
@@ -198,3 +210,6 @@ None
 - apis-dashboard/src/components/NestEstimatorCard.tsx (created)
 - apis-dashboard/src/components/index.ts (modified - added export)
 - apis-dashboard/src/pages/Dashboard.tsx (modified - integrated NestEstimatorCard)
+- apis-dashboard/tests/components/NestEstimatorCard.test.tsx (created - remediation)
+- apis-server/tests/handlers/nest_estimate_test.go (created - remediation)
+- apis-server/tests/storage/detections_test.go (created - remediation)

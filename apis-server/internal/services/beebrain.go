@@ -53,6 +53,34 @@ type BeeBrainService struct {
 	rulesLoader *beebrain.RulesLoader
 }
 
+// ruleToTemplateType maps BeeBrain rule IDs to task template types.
+// Rules not in this map will use custom titles instead of templates.
+var ruleToTemplateType = map[string]string{
+	"queen_aging":    "requeen",
+	"treatment_due":  "treatment",
+}
+
+// ruleToCustomTitle maps BeeBrain rule IDs to custom task titles.
+// Used when no matching template exists.
+var ruleToCustomTitle = map[string]string{
+	"inspection_overdue":     "Perform hive inspection",
+	"hornet_activity_spike":  "Check hornet nest proximity",
+}
+
+// severityToPriority maps insight severity levels to task priorities.
+func severityToPriority(severity string) string {
+	switch severity {
+	case "action-needed":
+		return "urgent"
+	case "warning":
+		return "high"
+	case "info":
+		return "medium"
+	default:
+		return "medium"
+	}
+}
+
 // NewBeeBrainService creates a new BeeBrain service instance.
 func NewBeeBrainService(rulesPath string) (*BeeBrainService, error) {
 	loader, err := beebrain.NewRulesLoader(rulesPath)
@@ -63,6 +91,38 @@ func NewBeeBrainService(rulesPath string) (*BeeBrainService, error) {
 	return &BeeBrainService{
 		rulesLoader: loader,
 	}, nil
+}
+
+// AnalyzeTenantWithPool runs analysis for all hives belonging to a tenant.
+// Uses the pool to check effective BeeBrain config before analysis.
+// Returns insights and stores them in the database.
+func (s *BeeBrainService) AnalyzeTenantWithPool(ctx context.Context, pool *pgxpool.Pool, conn *pgxpool.Conn, tenantID string) (*AnalysisResult, error) {
+	// Check effective config for this tenant
+	effectiveConfig, err := storage.GetEffectiveBeeBrainConfig(ctx, pool, tenantID)
+	if err != nil {
+		log.Warn().Err(err).Str("tenant_id", tenantID).Msg("beebrain: failed to get effective config, falling back to rules")
+	} else if effectiveConfig.Backend == "external" {
+		// Log that external AI would be called (MVP: still use rules)
+		log.Info().
+			Str("tenant_id", tenantID).
+			Str("mode", effectiveConfig.Mode).
+			Str("backend", effectiveConfig.Backend).
+			Str("provider", stringOrEmpty(effectiveConfig.Provider)).
+			Msg("beebrain: external AI configured but using rules for MVP")
+		// Future: Add actual OpenAI/Anthropic/Ollama integration here
+	} else if effectiveConfig.Backend == "local" {
+		// Log that local model would be called (MVP: still use rules)
+		log.Info().
+			Str("tenant_id", tenantID).
+			Str("mode", effectiveConfig.Mode).
+			Str("backend", effectiveConfig.Backend).
+			Str("endpoint", stringOrEmpty(effectiveConfig.Endpoint)).
+			Msg("beebrain: local model configured but using rules for MVP")
+		// Future: Add actual Ollama/LocalAI integration here
+	}
+
+	// MVP: Always use rule-based analysis
+	return s.AnalyzeTenant(ctx, conn, tenantID)
 }
 
 // AnalyzeTenant runs analysis for all hives belonging to a tenant.
@@ -78,15 +138,30 @@ func (s *BeeBrainService) AnalyzeTenant(ctx context.Context, conn *pgxpool.Conn,
 	}
 
 	var allInsights []Insight
+	var failedCount int
 
 	// Analyze each hive
 	for _, hive := range hives {
 		hiveInsights, err := s.analyzeHiveWithRules(ctx, conn, tenantID, &hive, rules, now)
 		if err != nil {
 			log.Warn().Err(err).Str("hive_id", hive.ID).Msg("beebrain: failed to analyze hive")
+			failedCount++
 			continue
 		}
 		allInsights = append(allInsights, hiveInsights...)
+	}
+
+	// If all hives failed to analyze, return an error instead of misleading "all good"
+	if failedCount > 0 && failedCount == len(hives) {
+		return nil, fmt.Errorf("beebrain: all %d hives failed analysis", failedCount)
+	}
+
+	// Dismiss previous active insights before storing new ones (prevents duplicates on refresh)
+	dismissed, err := storage.DismissAllActiveInsights(ctx, conn, tenantID)
+	if err != nil {
+		log.Warn().Err(err).Str("tenant_id", tenantID).Msg("beebrain: failed to dismiss old insights")
+	} else if dismissed > 0 {
+		log.Debug().Int64("dismissed", dismissed).Str("tenant_id", tenantID).Msg("beebrain: dismissed previous insights")
 	}
 
 	// Store insights in database
@@ -130,7 +205,35 @@ func (s *BeeBrainService) AnalyzeTenant(ctx context.Context, conn *pgxpool.Conn,
 	return result, nil
 }
 
+// AnalyzeHiveWithPool runs analysis for a single hive.
+// Uses the pool to check effective BeeBrain config before analysis.
+func (s *BeeBrainService) AnalyzeHiveWithPool(ctx context.Context, pool *pgxpool.Pool, conn *pgxpool.Conn, tenantID, hiveID string) (*HiveAnalysisResult, error) {
+	// Check effective config for this tenant
+	effectiveConfig, err := storage.GetEffectiveBeeBrainConfig(ctx, pool, tenantID)
+	if err != nil {
+		log.Warn().Err(err).Str("tenant_id", tenantID).Msg("beebrain: failed to get effective config, falling back to rules")
+	} else if effectiveConfig.Backend == "external" {
+		log.Info().
+			Str("tenant_id", tenantID).
+			Str("hive_id", hiveID).
+			Str("mode", effectiveConfig.Mode).
+			Str("backend", effectiveConfig.Backend).
+			Msg("beebrain: external AI configured but using rules for MVP")
+	} else if effectiveConfig.Backend == "local" {
+		log.Info().
+			Str("tenant_id", tenantID).
+			Str("hive_id", hiveID).
+			Str("mode", effectiveConfig.Mode).
+			Str("backend", effectiveConfig.Backend).
+			Msg("beebrain: local model configured but using rules for MVP")
+	}
+
+	// MVP: Always use rule-based analysis
+	return s.AnalyzeHive(ctx, conn, tenantID, hiveID)
+}
+
 // AnalyzeHive runs analysis for a single hive.
+// Also generates task suggestions from insights (Epic 14, Story 14.15).
 func (s *BeeBrainService) AnalyzeHive(ctx context.Context, conn *pgxpool.Conn, tenantID, hiveID string) (*HiveAnalysisResult, error) {
 	rules := s.rulesLoader.GetRules()
 	now := time.Now()
@@ -139,6 +242,14 @@ func (s *BeeBrainService) AnalyzeHive(ctx context.Context, conn *pgxpool.Conn, t
 	hive, err := storage.GetHiveByID(ctx, conn, hiveID)
 	if err != nil {
 		return nil, fmt.Errorf("beebrain: failed to get hive: %w", err)
+	}
+
+	// Delete old pending suggestions before generating new ones (AC3)
+	deletedCount, err := storage.DeletePendingSuggestionsForHive(ctx, conn, hiveID)
+	if err != nil {
+		log.Warn().Err(err).Str("hive_id", hiveID).Msg("beebrain: failed to delete old pending suggestions")
+	} else if deletedCount > 0 {
+		log.Info().Str("hive_id", hiveID).Int64("deleted", deletedCount).Msg("beebrain: replaced old pending suggestions")
 	}
 
 	// Run analysis
@@ -163,6 +274,11 @@ func (s *BeeBrainService) AnalyzeHive(ctx context.Context, conn *pgxpool.Conn, t
 		}
 		insights[i].ID = stored.ID
 		insights[i].CreatedAt = stored.CreatedAt
+
+		// Generate task suggestion from this insight (AC1, AC2)
+		if err := s.generateSuggestionFromInsight(ctx, conn, tenantID, &insights[i]); err != nil {
+			log.Warn().Err(err).Str("rule_id", insights[i].RuleID).Msg("beebrain: failed to generate task suggestion")
+		}
 	}
 
 	// Generate recommendations
@@ -189,6 +305,68 @@ func (s *BeeBrainService) AnalyzeHive(ctx context.Context, conn *pgxpool.Conn, t
 		Msg("BeeBrain hive analysis complete")
 
 	return result, nil
+}
+
+// generateSuggestionFromInsight creates a task suggestion from a BeeBrain insight.
+// Maps rule IDs to task templates or custom titles based on the mapping tables.
+func (s *BeeBrainService) generateSuggestionFromInsight(ctx context.Context, conn *pgxpool.Conn, tenantID string, insight *Insight) error {
+	// Skip if no hive ID (shouldn't happen for hive-level insights)
+	if insight.HiveID == nil {
+		return nil
+	}
+
+	var templateID *string
+	var suggestedTitle string
+
+	// Check if this rule maps to a template type
+	if templateType, hasTemplate := ruleToTemplateType[insight.RuleID]; hasTemplate {
+		// Try to find the system template by type
+		template, err := storage.GetSystemTemplateByType(ctx, conn, templateType)
+		if err == nil && template != nil {
+			templateID = &template.ID
+			suggestedTitle = template.Name
+		} else {
+			// Template not found, fall back to custom title
+			if customTitle, ok := ruleToCustomTitle[insight.RuleID]; ok {
+				suggestedTitle = customTitle
+			} else {
+				suggestedTitle = insight.SuggestedAction
+			}
+		}
+	} else if customTitle, ok := ruleToCustomTitle[insight.RuleID]; ok {
+		// Use custom title for this rule
+		suggestedTitle = customTitle
+	} else {
+		// Fall back to suggested action from insight
+		suggestedTitle = insight.SuggestedAction
+	}
+
+	// Don't create suggestion if we have no title
+	if suggestedTitle == "" {
+		return nil
+	}
+
+	input := &storage.CreateTaskSuggestionInput{
+		HiveID:              *insight.HiveID,
+		SuggestedTemplateID: templateID,
+		SuggestedTitle:      suggestedTitle,
+		Reason:              insight.Message,
+		Priority:            severityToPriority(insight.Severity),
+	}
+
+	_, err := storage.CreateTaskSuggestion(ctx, conn, tenantID, input)
+	if err != nil {
+		return fmt.Errorf("failed to create task suggestion: %w", err)
+	}
+
+	log.Info().
+		Str("hive_id", *insight.HiveID).
+		Str("rule_id", insight.RuleID).
+		Str("suggested_title", suggestedTitle).
+		Str("priority", input.Priority).
+		Msg("beebrain: task suggestion generated from insight")
+
+	return nil
 }
 
 // GetDashboardAnalysis returns the current analysis state for a tenant's dashboard.
@@ -312,11 +490,10 @@ func (s *BeeBrainService) evaluateQueenAging(ctx context.Context, conn *pgxpool.
 	// which we can add in a future iteration
 
 	// For now, trigger if queen is over the age threshold
-	// In production, this should also check productivity drop
+	// MVP: Age-based check only. Productivity comparison planned for future enhancement.
 	queenAgeDisplay := formatQueenAge(queenAge)
 	message := strings.ReplaceAll(rule.MessageTemplate, "{{hive_name}}", hive.Name)
 	message = strings.ReplaceAll(message, "{{queen_age}}", queenAgeDisplay)
-	message = strings.ReplaceAll(message, "{{drop_percent}}", "N/A") // Productivity check not implemented yet
 
 	hiveID := hive.ID
 	insight := &Insight{
@@ -487,8 +664,8 @@ func (s *BeeBrainService) evaluateHornetCorrelation(ctx context.Context, conn *p
 		thresholdMultiplier = 2.0
 	}
 
-	// Get detection stats for the hive's site
-	stats, err := storage.GetDetectionSpikeData(ctx, conn, hive.SiteID, windowHours)
+	// Get detection stats for this specific hive (via unit_hives join)
+	stats, err := storage.GetDetectionSpikeData(ctx, conn, hive.ID, windowHours)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get detection spike data: %w", err)
 	}
@@ -882,4 +1059,12 @@ func formatQueenAge(d time.Duration) string {
 	}
 
 	return fmt.Sprintf("%d years %d months", years, months)
+}
+
+// stringOrEmpty safely dereferences a string pointer, returning empty string if nil.
+func stringOrEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

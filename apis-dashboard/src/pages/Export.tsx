@@ -13,7 +13,7 @@
  *
  * Part of Epic 9, Story 9.1 (Configurable Data Export)
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Typography,
   Card,
@@ -44,22 +44,11 @@ import {
   EyeOutlined,
 } from '@ant-design/icons';
 import { useExport, EXPORT_FIELD_OPTIONS, IncludeConfig, ExportPreset } from '../hooks/useExport';
-import { apiClient } from '../providers/apiClient';
+import { useHivesList } from '../hooks';
 import { colors } from '../theme/apisTheme';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
-
-// Hive interface for select dropdown
-interface Hive {
-  id: string;
-  name: string;
-  site_id: string;
-}
-
-interface HivesResponse {
-  data: Hive[];
-}
 
 type FormatType = 'summary' | 'markdown' | 'json';
 
@@ -67,9 +56,8 @@ type FormatType = 'summary' | 'markdown' | 'json';
  * Export Page Component
  */
 export function Export() {
-  // Hive selection
-  const [hives, setHives] = useState<Hive[]>([]);
-  const [hivesLoading, setHivesLoading] = useState(true);
+  // Use hook for hives
+  const { hives, loading: hivesLoading, error: hivesError } = useHivesList();
   const [selectedHiveIds, setSelectedHiveIds] = useState<string[]>(['all']);
 
   // Field selection by category
@@ -100,21 +88,6 @@ export function Export() {
     savingPreset,
     deletingPreset,
   } = useExport();
-
-  // Fetch hives on mount
-  useEffect(() => {
-    const fetchHives = async () => {
-      try {
-        const response = await apiClient.get<HivesResponse>('/hives');
-        setHives(response.data.data || []);
-      } catch (error) {
-        console.error('Failed to fetch hives:', error);
-      } finally {
-        setHivesLoading(false);
-      }
-    };
-    fetchHives();
-  }, []);
 
   // Build include config from selections
   const buildIncludeConfig = useCallback((): IncludeConfig => {
@@ -230,6 +203,14 @@ export function Export() {
         <Col xs={24} lg={14}>
           {/* Hive Selection */}
           <Card title="Select Hives" style={{ marginBottom: 16 }}>
+            {hivesError ? (
+              <Alert
+                type="error"
+                message={hivesError.message || 'Failed to load hives. Please refresh the page to try again.'}
+                showIcon
+                style={{ marginBottom: 8 }}
+              />
+            ) : null}
             <Select
               mode="multiple"
               style={{ width: '100%' }}
@@ -237,6 +218,7 @@ export function Export() {
               value={selectedHiveIds}
               onChange={setSelectedHiveIds}
               loading={hivesLoading}
+              disabled={!!hivesError}
               options={[
                 { value: 'all', label: 'All Hives' },
                 ...hives.map((h) => ({ value: h.id, label: h.name })),
@@ -254,7 +236,7 @@ export function Export() {
                 <Text strong style={{ color: colors.seaBuckthorn }}>BASICS</Text>
                 <Checkbox.Group
                   style={{ display: 'flex', flexWrap: 'wrap', marginTop: 8 }}
-                  options={EXPORT_FIELD_OPTIONS.basics}
+                  options={[...EXPORT_FIELD_OPTIONS.basics]}
                   value={selectedBasics}
                   onChange={(values) => setSelectedBasics(values as string[])}
                 />
@@ -267,7 +249,7 @@ export function Export() {
                 <Text strong style={{ color: colors.seaBuckthorn }}>DETAILS</Text>
                 <Checkbox.Group
                   style={{ display: 'flex', flexWrap: 'wrap', marginTop: 8 }}
-                  options={EXPORT_FIELD_OPTIONS.details}
+                  options={[...EXPORT_FIELD_OPTIONS.details]}
                   value={selectedDetails}
                   onChange={(values) => setSelectedDetails(values as string[])}
                 />
@@ -280,7 +262,7 @@ export function Export() {
                 <Text strong style={{ color: colors.seaBuckthorn }}>ANALYSIS</Text>
                 <Checkbox.Group
                   style={{ display: 'flex', flexWrap: 'wrap', marginTop: 8 }}
-                  options={EXPORT_FIELD_OPTIONS.analysis}
+                  options={[...EXPORT_FIELD_OPTIONS.analysis]}
                   value={selectedAnalysis}
                   onChange={(values) => setSelectedAnalysis(values as string[])}
                 />
@@ -293,7 +275,7 @@ export function Export() {
                 <Text strong style={{ color: colors.seaBuckthorn }}>FINANCIAL</Text>
                 <Checkbox.Group
                   style={{ display: 'flex', flexWrap: 'wrap', marginTop: 8 }}
-                  options={EXPORT_FIELD_OPTIONS.financial}
+                  options={[...EXPORT_FIELD_OPTIONS.financial]}
                   value={selectedFinancial}
                   onChange={(values) => setSelectedFinancial(values as string[])}
                 />

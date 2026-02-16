@@ -92,7 +92,7 @@ so that I can track each hive individually.
 - [x] 8.3 Ensure back navigation works correctly
 
 ### Task 9: Testing (All ACs)
-- [ ] 9.1 Write handler tests for hive CRUD endpoints
+- [x] 9.1 Write handler tests for hive CRUD endpoints
 - [ ] 9.2 Write frontend component tests for forms
 - [ ] 9.3 Manual E2E test of complete flow
 
@@ -239,6 +239,8 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 - Initial implementation completed, all files created
 - Code review identified 10 issues (3 HIGH, 4 MEDIUM, 3 LOW)
 - Remediation completed for all HIGH and MEDIUM issues
+- [2026-01-25] Bulk review identified 6 issues (1 HIGH, 3 MEDIUM, 2 LOW)
+- [2026-01-25] Remediation: Fixed all 6 issues from code review
 
 ### Completion Notes List
 
@@ -266,3 +268,16 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 - `apis-dashboard/src/pages/SiteDetail.tsx` - Updated with hives section (modified)
 - `apis-dashboard/src/pages/index.ts` - Exports (modified)
 - `apis-dashboard/src/App.tsx` - Routes (modified)
+
+**Tests:**
+- `apis-server/tests/handlers/hives_test.go` - Handler validation logic tests
+
+### Change Log
+
+- [2026-01-25] Remediation: Fixed 6 issues from code review
+  - I1 (HIGH): Updated validateQueenSource() to accept both "other:" and "other: " formats
+  - I2 (MEDIUM): Added batch inspection fetch to eliminate N+1 queries
+  - I3 (MEDIUM): Added error message parsing in HiveCreate.tsx and HiveEdit.tsx
+  - I4 (MEDIUM): Created hives_test.go with comprehensive validation tests
+  - I5 (LOW): Added onChange to clear queen_source_other in HiveEdit.tsx
+  - I6 (LOW): Added comments explaining column-reverse flex in HiveCreate.tsx

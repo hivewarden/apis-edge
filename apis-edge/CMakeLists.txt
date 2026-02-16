@@ -66,10 +66,25 @@ if(APIS_PLATFORM STREQUAL "pi")
     pkg_check_modules(FFMPEG REQUIRED libavcodec libavformat libavutil libswscale)
 elseif(APIS_PLATFORM STREQUAL "esp32")
     list(APPEND COMMON_SOURCES hal/esp32/camera_esp32.c)
+    # ESP32: esp_tls is available via ESP-IDF components - no extra find_package needed
 elseif(APIS_PLATFORM STREQUAL "test")
     # Test mode: stub out hardware dependencies
     # Use sqlite3 from system if available
     find_package(SQLite3)
+endif()
+
+# TLS support (optional on Pi/test, built-in on ESP32)
+# On Pi/test: try to find mbedTLS. If found, define APIS_HAS_MBEDTLS.
+# If not found, the stub implementation in tls_client.c is used (tls_available() returns false).
+# On ESP32: esp_tls from ESP-IDF is used directly (no CMake find needed).
+if(APIS_PLATFORM STREQUAL "pi" OR APIS_PLATFORM STREQUAL "test")
+    find_package(MbedTLS QUIET)
+    if(MbedTLS_FOUND)
+        message(STATUS "mbedTLS found - TLS support enabled")
+        add_compile_definitions(APIS_HAS_MBEDTLS)
+    else()
+        message(STATUS "mbedTLS not found - TLS stub will be used (tls_available() returns false)")
+    endif()
 endif()
 
 # Main executable (not built in test mode - requires hardware dependencies)
@@ -258,6 +273,23 @@ if(NOT APIS_PLATFORM STREQUAL "test")
     )
 endif() # NOT test platform
 
+# S8-I-04: Test files implement their own TEST_ASSERT macros with no shared
+# test infrastructure or automatic discovery. Each test_*.c has its own main().
+# TODO: Consider adopting a lightweight C test framework (Unity, MinUnit) for
+# consistent reporting, fixtures, and automatic test discovery.
+
+# S8-I-05: Enable Address Sanitizer and Undefined Behavior Sanitizer for test
+# builds to detect buffer overflows, use-after-free, and undefined behavior.
+# Set APIS_ENABLE_SANITIZERS=ON to enable (disabled by default to avoid
+# interfering with CI/CD pipelines that may not have sanitizer runtime).
+option(APIS_ENABLE_SANITIZERS "Enable ASan/UBSan for test targets" OFF)
+if(APIS_ENABLE_SANITIZERS AND APIS_PLATFORM STREQUAL "test")
+    set(SANITIZER_FLAGS "-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${SANITIZER_FLAGS}")
+    message(STATUS "Address Sanitizer and UBSan enabled for test builds")
+endif()
+
 # Config manager test executable (can build without hardware dependencies)
 add_executable(test_config_manager
     tests/test_config_manager.c
@@ -291,8 +323,15 @@ target_include_directories(test_config_manager PRIVATE
 add_executable(test_http_server
     tests/test_http_server.c
     src/http/http_server.c
+    src/http/http_rate_limit.c
+    src/http/http_utils.c
     src/led/led_controller.c
     src/config/config_manager.c
+    src/safety/safety_layer.c
+    src/button/button_handler.c
+    src/laser/laser_controller.c
+    src/servo/servo_controller.c
+    src/storage/storage_manager.c
     src/config.c
     src/log.c
     lib/cJSON/cJSON.c
@@ -309,7 +348,8 @@ if(APIS_PLATFORM STREQUAL "pi")
     )
 elseif(APIS_PLATFORM STREQUAL "test")
     # Test platform: minimal dependencies
-    target_link_libraries(test_http_server pthread)
+    target_link_libraries(test_http_server pthread ${SQLITE3_LIBRARIES})
+    target_include_directories(test_http_server PRIVATE ${SQLITE3_INCLUDE_DIRS})
 endif()
 
 target_include_directories(test_http_server PRIVATE
@@ -350,6 +390,9 @@ add_executable(test_server_comm
     tests/test_server_comm.c
     src/server/server_comm.c
     src/upload/clip_uploader.c
+    src/http/http_utils.c
+    src/tls/tls_client.c
+    src/storage/storage_manager.c
     src/led/led_controller.c
     src/config/config_manager.c
     src/config.c
@@ -371,6 +414,11 @@ elseif(APIS_PLATFORM STREQUAL "test")
     target_link_libraries(test_server_comm pthread)
 endif()
 
+# Link mbedTLS if available (Pi/test platforms)
+if(MbedTLS_FOUND)
+    target_link_libraries(test_server_comm MbedTLS::mbedtls MbedTLS::mbedcrypto MbedTLS::mbedx509)
+endif()
+
 target_include_directories(test_server_comm PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/hal
@@ -381,6 +429,9 @@ target_include_directories(test_server_comm PRIVATE
 add_executable(test_clip_uploader
     tests/test_clip_uploader.c
     src/upload/clip_uploader.c
+    src/http/http_utils.c
+    src/tls/tls_client.c
+    src/storage/storage_manager.c
     src/config/config_manager.c
     src/config.c
     src/log.c
@@ -401,6 +452,11 @@ elseif(APIS_PLATFORM STREQUAL "test")
     target_link_libraries(test_clip_uploader pthread)
 endif()
 
+# Link mbedTLS if available (Pi/test platforms)
+if(MbedTLS_FOUND)
+    target_link_libraries(test_clip_uploader MbedTLS::mbedtls MbedTLS::mbedcrypto MbedTLS::mbedx509)
+endif()
+
 target_include_directories(test_clip_uploader PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/hal
@@ -411,6 +467,8 @@ target_include_directories(test_clip_uploader PRIVATE
 add_executable(test_servo_controller
     tests/test_servo_controller.c
     src/servo/servo_controller.c
+    src/laser/laser_controller.c
+    src/led/led_controller.c
     src/config.c
     src/log.c
 )
@@ -439,6 +497,8 @@ add_executable(test_coordinate_mapper
     tests/test_coordinate_mapper.c
     src/laser/coordinate_mapper.c
     src/servo/servo_controller.c
+    src/laser/laser_controller.c
+    src/led/led_controller.c
     src/config.c
     src/log.c
     lib/cJSON/cJSON.c
@@ -498,6 +558,9 @@ add_executable(test_targeting
     src/laser/coordinate_mapper.c
     src/laser/laser_controller.c
     src/servo/servo_controller.c
+    src/led/led_controller.c
+    src/safety/safety_layer.c
+    src/button/button_handler.c
     src/config.c
     src/log.c
     lib/cJSON/cJSON.c
@@ -559,6 +622,7 @@ add_executable(test_safety_layer
     src/button/button_handler.c
     src/laser/laser_controller.c
     src/led/led_controller.c
+    src/servo/servo_controller.c
     src/config.c
     src/log.c
 )

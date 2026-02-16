@@ -8,20 +8,13 @@
 #include "button_handler.h"
 #include "laser_controller.h"
 #include "led_controller.h"
-// Note: Use LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR macros from log.h
 #include "log.h"
-
-// Alias log macros to lowercase for convenience
-#define log_debug(...) LOG_DEBUG(__VA_ARGS__)
-#define log_info(...)  LOG_INFO(__VA_ARGS__)
-#define log_warn(...)  LOG_WARN(__VA_ARGS__)
-#define log_error(...) LOG_ERROR(__VA_ARGS__)
 
 #include <string.h>
 #include <stdlib.h>
 
 #if defined(APIS_PLATFORM_PI)
-#include <pthread.h>
+/* pthread.h pulled in by platform_mutex.h */
 #include <time.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -34,7 +27,7 @@
 #include "driver/ledc.h"
 #else
 // Test platform - no hardware
-#include <pthread.h>
+/* pthread.h pulled in by platform_mutex.h */
 #include <time.h>
 #endif
 
@@ -42,29 +35,13 @@
 // Mutex wrapper for thread safety
 // ============================================================================
 
-#if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
-static pthread_mutex_t button_mutex = PTHREAD_MUTEX_INITIALIZER;
-#define BUTTON_LOCK()   pthread_mutex_lock(&button_mutex)
-#define BUTTON_UNLOCK() pthread_mutex_unlock(&button_mutex)
-#elif defined(APIS_PLATFORM_ESP32)
-static portMUX_TYPE button_mux = portMUX_INITIALIZER_UNLOCKED;
-#define BUTTON_LOCK()   portENTER_CRITICAL(&button_mux)
-#define BUTTON_UNLOCK() portEXIT_CRITICAL(&button_mux)
-#endif
+#include "platform_mutex.h"
+APIS_MUTEX_DECLARE(button);
+#define BUTTON_LOCK()   APIS_MUTEX_LOCK(button)
+#define BUTTON_UNLOCK() APIS_MUTEX_UNLOCK(button)
 
-// ============================================================================
 // Time utilities
-// ============================================================================
-
-static uint64_t get_time_ms(void) {
-#if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
-#elif defined(APIS_PLATFORM_ESP32)
-    return (uint64_t)(esp_timer_get_time() / 1000);
-#endif
-}
+#include "time_util.h"
 
 // ============================================================================
 // Internal state
@@ -112,8 +89,10 @@ static button_context_t ctx = {0};
 
 static bool gpio_read_button(void) {
 #if defined(APIS_PLATFORM_PI)
-    // Real Pi implementation would use pigpio or gpiod
-    // For now, return false (not pressed)
+    // TODO: Implement real GPIO reading using pigpio or gpiod library
+    // Current stub always returns false (button not pressed)
+    // Pi hardware button support will be added in a future story
+    #warning "Pi GPIO button input not implemented - using stub"
     return false;
 #elif defined(APIS_PLATFORM_ESP32)
     // Read GPIO with pull-up (LOW = pressed)
@@ -126,8 +105,10 @@ static bool gpio_read_button(void) {
 
 static void gpio_init_button(void) {
 #if defined(APIS_PLATFORM_PI)
-    // Real Pi implementation would configure GPIO
-    log_info("Button GPIO initialized (pin %d)", GPIO_BUTTON_PIN);
+    // TODO: Implement real GPIO init using pigpio or gpiod library
+    // Pi hardware GPIO support will be added in a future story
+    #warning "Pi GPIO button init not implemented - using stub"
+    LOG_INFO("Button GPIO initialized (pin %d) - STUB", GPIO_BUTTON_PIN);
 #elif defined(APIS_PLATFORM_ESP32)
     gpio_config_t io_conf = {
         .intr_type = GPIO_INTR_DISABLE,
@@ -137,9 +118,9 @@ static void gpio_init_button(void) {
         .pull_up_en = GPIO_PULLUP_ENABLE,
     };
     gpio_config(&io_conf);
-    log_info("Button GPIO initialized (pin %d)", GPIO_BUTTON_PIN);
+    LOG_INFO("Button GPIO initialized (pin %d)", GPIO_BUTTON_PIN);
 #else
-    log_info("Button GPIO initialized (test mode)");
+    LOG_INFO("Button GPIO initialized (test mode)");
 #endif
 }
 
@@ -147,8 +128,10 @@ static void gpio_init_buzzer(void) {
     if (!ctx.buzzer_enabled) return;
 
 #if defined(APIS_PLATFORM_PI)
-    // Real Pi implementation would configure PWM for buzzer
-    log_info("Buzzer GPIO initialized (pin %d)", GPIO_BUZZER_PIN);
+    // TODO: Implement real PWM buzzer using pigpio or gpiod library
+    // Pi hardware buzzer support will be added in a future story
+    #warning "Pi GPIO buzzer init not implemented - using stub"
+    LOG_INFO("Buzzer GPIO initialized (pin %d) - STUB", GPIO_BUZZER_PIN);
 #elif defined(APIS_PLATFORM_ESP32)
     // Configure LEDC for PWM buzzer
     ledc_timer_config_t timer_conf = {
@@ -170,19 +153,31 @@ static void gpio_init_buzzer(void) {
         .hpoint = 0,
     };
     ledc_channel_config(&channel_conf);
-    log_info("Buzzer GPIO initialized (pin %d)", GPIO_BUZZER_PIN);
+    LOG_INFO("Buzzer GPIO initialized (pin %d)", GPIO_BUZZER_PIN);
 #else
-    log_info("Buzzer initialized (test mode)");
+    LOG_INFO("Buzzer initialized (test mode)");
 #endif
 }
 
+/**
+ * Play a buzzer tone for the specified duration.
+ *
+ * NOTE: On ESP32, this function BLOCKS the calling task for the duration.
+ * For emergency (500ms) or disarm (200ms) tones, this may cause missed
+ * button events if called from a time-critical context. Consider calling
+ * from a non-critical task or implementing non-blocking timer-based buzzer
+ * in the future if this becomes problematic.
+ */
 static void buzzer_tone(uint32_t frequency_hz, uint32_t duration_ms) {
     if (!ctx.buzzer_enabled) return;
 
 #if defined(APIS_PLATFORM_PI)
     // Real Pi implementation would generate PWM tone
-    log_debug("Buzzer: %u Hz for %u ms", frequency_hz, duration_ms);
+    LOG_DEBUG("Buzzer: %u Hz for %u ms", frequency_hz, duration_ms);
 #elif defined(APIS_PLATFORM_ESP32)
+    // NOTE: vTaskDelay blocks the calling task. For long durations (emergency
+    // tone = 500ms), button events may be missed. This is acceptable for MVP
+    // since emergency stop already engaged when buzzer plays.
     ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_1, frequency_hz);
     ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 128); // 50% duty
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
@@ -190,7 +185,7 @@ static void buzzer_tone(uint32_t frequency_hz, uint32_t duration_ms) {
     ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
 #else
-    log_debug("Buzzer: %u Hz for %u ms (simulated)", frequency_hz, duration_ms);
+    LOG_DEBUG("Buzzer: %u Hz for %u ms (simulated)", frequency_hz, duration_ms);
 #endif
 }
 
@@ -198,15 +193,20 @@ static void buzzer_tone(uint32_t frequency_hz, uint32_t duration_ms) {
 // Internal helpers
 // ============================================================================
 
-static void notify_event(button_event_t event) {
-    if (ctx.event_callback) {
-        ctx.event_callback(event, ctx.event_user_data);
+// C7-H3 fix: These notify helpers are now only called from contexts that have
+// already released the button_mutex. The callers copy callback pointers under
+// lock, release the lock, then call these with the copied pointers.
+
+static void invoke_event_callback(button_event_callback_t cb, void *user_data, button_event_t event) {
+    if (cb) {
+        cb(event, user_data);
     }
 }
 
-static void notify_mode_change(system_mode_t old_mode, system_mode_t new_mode) {
-    if (ctx.mode_callback) {
-        ctx.mode_callback(old_mode, new_mode, ctx.mode_user_data);
+static void invoke_mode_callback(mode_change_callback_t cb, void *user_data,
+                                  system_mode_t old_mode, system_mode_t new_mode) {
+    if (cb) {
+        cb(old_mode, new_mode, user_data);
     }
 }
 
@@ -253,7 +253,29 @@ static void update_laser_for_mode(system_mode_t mode) {
     }
 }
 
-static void set_mode_internal(system_mode_t new_mode, bool play_buzzer) {
+/**
+ * Deferred actions collected during set_mode_internal.
+ * These are invoked AFTER releasing the button_mutex.
+ */
+typedef struct {
+    bool mode_changed;
+    system_mode_t old_mode;
+    system_mode_t new_mode;
+    mode_change_callback_t mode_cb;
+    void *mode_cb_data;
+    bool play_buzzer;
+    bool buzzer_enabled;
+    uint32_t buzzer_freq;
+    uint32_t buzzer_duration_ms;
+} deferred_mode_actions_t;
+
+/**
+ * Set mode internal - must be called with button_mutex held.
+ * Collects deferred actions (callbacks, buzzer) into 'deferred' struct.
+ * Caller must release the lock and then call flush_deferred_mode_actions().
+ */
+static void set_mode_internal(system_mode_t new_mode, bool play_buzzer,
+                               deferred_mode_actions_t *deferred) {
     if (ctx.system_mode == new_mode) return;
 
     system_mode_t old_mode = ctx.system_mode;
@@ -274,41 +296,86 @@ static void set_mode_internal(system_mode_t new_mode, bool play_buzzer) {
             break;
     }
 
-    // Update LED and laser
+    // Update LED and laser (these have their own mutexes, safe to call under our lock
+    // as long as no reverse lock ordering exists)
     update_led_for_mode(new_mode);
     update_laser_for_mode(new_mode);
 
-    // Audio feedback
-    if (play_buzzer && ctx.buzzer_enabled) {
-        switch (new_mode) {
-            case SYSTEM_MODE_ARMED:
-                buzzer_tone(BUZZER_ARM_FREQ, BUZZER_ARM_DURATION_MS);
-                break;
-            case SYSTEM_MODE_DISARMED:
-                buzzer_tone(BUZZER_DISARM_FREQ, BUZZER_DISARM_DURATION_MS);
-                break;
-            case SYSTEM_MODE_EMERGENCY_STOP:
-                buzzer_tone(BUZZER_EMERGENCY_FREQ, BUZZER_EMERGENCY_DURATION_MS);
-                break;
+    // C7-H3 + C7-H6 fix: Collect deferred actions (buzzer + callbacks)
+    // to be invoked after releasing the button_mutex
+    if (deferred) {
+        deferred->mode_changed = true;
+        deferred->old_mode = old_mode;
+        deferred->new_mode = new_mode;
+        deferred->mode_cb = ctx.mode_callback;
+        deferred->mode_cb_data = ctx.mode_user_data;
+        deferred->play_buzzer = play_buzzer;
+        deferred->buzzer_enabled = ctx.buzzer_enabled;
+
+        if (play_buzzer && ctx.buzzer_enabled) {
+            switch (new_mode) {
+                case SYSTEM_MODE_ARMED:
+                    deferred->buzzer_freq = BUZZER_ARM_FREQ;
+                    deferred->buzzer_duration_ms = BUZZER_ARM_DURATION_MS;
+                    break;
+                case SYSTEM_MODE_DISARMED:
+                    deferred->buzzer_freq = BUZZER_DISARM_FREQ;
+                    deferred->buzzer_duration_ms = BUZZER_DISARM_DURATION_MS;
+                    break;
+                case SYSTEM_MODE_EMERGENCY_STOP:
+                    deferred->buzzer_freq = BUZZER_EMERGENCY_FREQ;
+                    deferred->buzzer_duration_ms = BUZZER_EMERGENCY_DURATION_MS;
+                    break;
+            }
         }
     }
 
-    log_info("Mode changed: %s -> %s", system_mode_name(old_mode), system_mode_name(new_mode));
-    notify_mode_change(old_mode, new_mode);
+    LOG_INFO("Mode changed: %s -> %s", system_mode_name(old_mode), system_mode_name(new_mode));
 }
 
-static void handle_short_press(void) {
+/**
+ * Flush deferred mode actions AFTER releasing the button_mutex.
+ * Handles buzzer tone and mode change callback outside the lock.
+ */
+static void flush_deferred_mode_actions(const deferred_mode_actions_t *deferred) {
+    if (!deferred || !deferred->mode_changed) return;
+
+    // C7-H6 fix: Play buzzer outside the lock to avoid blocking under mutex
+    if (deferred->play_buzzer && deferred->buzzer_enabled && deferred->buzzer_freq > 0) {
+        buzzer_tone(deferred->buzzer_freq, deferred->buzzer_duration_ms);
+    }
+
+    // C7-H3 fix: Invoke mode callback outside the lock
+    invoke_mode_callback(deferred->mode_cb, deferred->mode_cb_data,
+                         deferred->old_mode, deferred->new_mode);
+}
+
+/**
+ * Deferred event actions collected inside the lock.
+ */
+typedef struct {
+    button_event_t event;
+    button_event_callback_t event_cb;
+    void *event_cb_data;
+    deferred_mode_actions_t mode_actions;
+} deferred_button_actions_t;
+
+static void handle_short_press(deferred_button_actions_t *actions) {
     ctx.stats.short_press_count++;
     uint64_t now = get_time_ms();
+
+    memset(&actions->mode_actions, 0, sizeof(actions->mode_actions));
 
     // Check for undo (rapid toggle within undo window)
     if (now - ctx.last_mode_change_time < BUTTON_UNDO_WINDOW_MS &&
         ctx.system_mode != SYSTEM_MODE_EMERGENCY_STOP) {
         // Undo - revert to previous mode
         ctx.stats.undo_count++;
-        set_mode_internal(ctx.previous_mode, true);
-        notify_event(BUTTON_EVENT_UNDO);
-        log_info("Rapid toggle - undoing previous action");
+        set_mode_internal(ctx.previous_mode, true, &actions->mode_actions);
+        actions->event = BUTTON_EVENT_UNDO;
+        actions->event_cb = ctx.event_callback;
+        actions->event_cb_data = ctx.event_user_data;
+        LOG_INFO("Rapid toggle - undoing previous action");
         return;
     }
 
@@ -316,31 +383,48 @@ static void handle_short_press(void) {
     switch (ctx.system_mode) {
         case SYSTEM_MODE_DISARMED:
             // Toggle to armed
-            set_mode_internal(SYSTEM_MODE_ARMED, true);
+            set_mode_internal(SYSTEM_MODE_ARMED, true, &actions->mode_actions);
             break;
 
         case SYSTEM_MODE_ARMED:
             // Toggle to disarmed
-            set_mode_internal(SYSTEM_MODE_DISARMED, true);
+            set_mode_internal(SYSTEM_MODE_DISARMED, true, &actions->mode_actions);
             break;
 
         case SYSTEM_MODE_EMERGENCY_STOP:
             // Clear emergency and go to disarmed
-            set_mode_internal(SYSTEM_MODE_DISARMED, true);
-            log_info("Emergency stop cleared by button press");
+            set_mode_internal(SYSTEM_MODE_DISARMED, true, &actions->mode_actions);
+            LOG_INFO("Emergency stop cleared by button press");
             break;
     }
 
-    notify_event(BUTTON_EVENT_SHORT_PRESS);
+    actions->event = BUTTON_EVENT_SHORT_PRESS;
+    actions->event_cb = ctx.event_callback;
+    actions->event_cb_data = ctx.event_user_data;
 }
 
-static void handle_long_press(void) {
+static void handle_long_press(deferred_button_actions_t *actions) {
     ctx.stats.long_press_count++;
 
+    memset(&actions->mode_actions, 0, sizeof(actions->mode_actions));
+
     // Emergency stop regardless of current mode
-    set_mode_internal(SYSTEM_MODE_EMERGENCY_STOP, true);
-    notify_event(BUTTON_EVENT_LONG_PRESS);
-    log_warn("Emergency stop activated by long press");
+    set_mode_internal(SYSTEM_MODE_EMERGENCY_STOP, true, &actions->mode_actions);
+    actions->event = BUTTON_EVENT_LONG_PRESS;
+    actions->event_cb = ctx.event_callback;
+    actions->event_cb_data = ctx.event_user_data;
+    LOG_WARN("Emergency stop activated by long press");
+}
+
+/**
+ * Flush all deferred button actions (mode change + event callback) outside the lock.
+ */
+static void flush_deferred_button_actions(const deferred_button_actions_t *actions) {
+    if (!actions) return;
+    flush_deferred_mode_actions(&actions->mode_actions);
+    if (actions->event != BUTTON_EVENT_NONE) {
+        invoke_event_callback(actions->event_cb, actions->event_cb_data, actions->event);
+    }
 }
 
 // ============================================================================
@@ -348,6 +432,8 @@ static void handle_long_press(void) {
 // ============================================================================
 
 button_status_t button_handler_init(bool enable_buzzer) {
+    // Initialize mutex (no-op on Pi/Test where statically initialized)
+    APIS_MUTEX_INIT(button);
     BUTTON_LOCK();
 
     if (ctx.initialized) {
@@ -355,7 +441,9 @@ button_status_t button_handler_init(bool enable_buzzer) {
         return BUTTON_ERROR_ALREADY_INIT;
     }
 
-    // Initialize state
+    // Initialize state - save buzzer setting before clearing
+    // (memset clears entire context while lock is held, which is safe
+    // because we verified not initialized)
     memset(&ctx, 0, sizeof(ctx));
     ctx.buzzer_enabled = enable_buzzer;
     ctx.system_mode = SYSTEM_MODE_DISARMED;
@@ -369,12 +457,17 @@ button_status_t button_handler_init(bool enable_buzzer) {
 
     BUTTON_UNLOCK();
 
-    log_info("Button handler initialized (buzzer: %s)", enable_buzzer ? "enabled" : "disabled");
+    LOG_INFO("Button handler initialized (buzzer: %s)", enable_buzzer ? "enabled" : "disabled");
     return BUTTON_OK;
 }
 
 void button_handler_update(void) {
     if (!ctx.initialized) return;
+
+    // C7-H3 fix: Collect deferred actions under lock, flush after unlock
+    deferred_button_actions_t deferred_actions;
+    memset(&deferred_actions, 0, sizeof(deferred_actions));
+    bool has_deferred = false;
 
     BUTTON_LOCK();
 
@@ -391,18 +484,19 @@ void button_handler_update(void) {
                 // Button just pressed
                 ctx.button_state = BUTTON_STATE_PRESSED;
                 ctx.press_start_time = now;
-                log_debug("Button pressed");
+                LOG_DEBUG("Button pressed");
             } else {
                 // Button just released
                 uint64_t press_duration = now - ctx.press_start_time;
 
                 if (ctx.button_state == BUTTON_STATE_HELD) {
                     // Was already handled as long press
-                    log_debug("Button released after long press");
+                    LOG_DEBUG("Button released after long press");
                 } else if (press_duration < BUTTON_SHORT_PRESS_MAX_MS) {
                     // Short press
-                    log_debug("Short press detected (%lu ms)", (unsigned long)press_duration);
-                    handle_short_press();
+                    LOG_DEBUG("Short press detected (%lu ms)", (unsigned long)press_duration);
+                    handle_short_press(&deferred_actions);
+                    has_deferred = true;
                 }
                 // Else: medium press (between 1s and 3s) - ignored
 
@@ -420,12 +514,18 @@ void button_handler_update(void) {
         uint64_t press_duration = now - ctx.press_start_time;
         if (press_duration >= BUTTON_LONG_PRESS_MS) {
             ctx.button_state = BUTTON_STATE_HELD;
-            log_debug("Long press detected (%lu ms)", (unsigned long)press_duration);
-            handle_long_press();
+            LOG_DEBUG("Long press detected (%lu ms)", (unsigned long)press_duration);
+            handle_long_press(&deferred_actions);
+            has_deferred = true;
         }
     }
 
     BUTTON_UNLOCK();
+
+    // C7-H3 + C7-H6 fix: Flush deferred actions (callbacks, buzzer) outside the lock
+    if (has_deferred) {
+        flush_deferred_button_actions(&deferred_actions);
+    }
 }
 
 button_state_t button_handler_get_button_state(void) {
@@ -453,9 +553,15 @@ bool button_handler_is_emergency_stop(void) {
 button_status_t button_handler_set_mode(system_mode_t mode) {
     if (!ctx.initialized) return BUTTON_ERROR_NOT_INITIALIZED;
 
+    deferred_mode_actions_t deferred;
+    memset(&deferred, 0, sizeof(deferred));
+
     BUTTON_LOCK();
-    set_mode_internal(mode, true);
+    set_mode_internal(mode, true, &deferred);
     BUTTON_UNLOCK();
+
+    // C7-H3 + C7-H6 fix: Flush deferred actions outside the lock
+    flush_deferred_mode_actions(&deferred);
 
     return BUTTON_OK;
 }
@@ -475,14 +581,21 @@ button_status_t button_handler_emergency_stop(void) {
 button_status_t button_handler_clear_emergency(void) {
     if (!ctx.initialized) return BUTTON_ERROR_NOT_INITIALIZED;
 
+    deferred_mode_actions_t deferred;
+    memset(&deferred, 0, sizeof(deferred));
+
     BUTTON_LOCK();
 
     if (ctx.system_mode == SYSTEM_MODE_EMERGENCY_STOP) {
-        set_mode_internal(SYSTEM_MODE_DISARMED, true);
-        log_info("Emergency stop cleared");
+        set_mode_internal(SYSTEM_MODE_DISARMED, true, &deferred);
+        LOG_INFO("Emergency stop cleared");
     }
 
     BUTTON_UNLOCK();
+
+    // C7-H3 + C7-H6 fix: Flush deferred actions outside the lock
+    flush_deferred_mode_actions(&deferred);
+
     return BUTTON_OK;
 }
 
@@ -495,7 +608,7 @@ void button_handler_set_buzzer_enabled(bool enable) {
     BUTTON_LOCK();
     ctx.buzzer_enabled = enable;
     BUTTON_UNLOCK();
-    log_info("Buzzer %s", enable ? "enabled" : "disabled");
+    LOG_INFO("Buzzer %s", enable ? "enabled" : "disabled");
 }
 
 bool button_handler_is_buzzer_enabled(void) {
@@ -587,8 +700,22 @@ void button_handler_cleanup(void) {
         update_laser_for_mode(SYSTEM_MODE_DISARMED);
     }
 
+    // Release GPIO resources
+#if defined(APIS_PLATFORM_PI)
+    // Pi: Would release pigpio/gpiod resources here
+    LOG_DEBUG("Button GPIO cleanup (Pi - stub)");
+#elif defined(APIS_PLATFORM_ESP32)
+    // ESP32: Reset GPIO pins to default state
+    gpio_reset_pin(GPIO_BUTTON_PIN);
+    if (ctx.buzzer_enabled) {
+        ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0);
+        gpio_reset_pin(GPIO_BUZZER_PIN);
+    }
+    LOG_DEBUG("Button and buzzer GPIO cleanup complete");
+#endif
+
     ctx.initialized = false;
-    log_info("Button handler cleanup complete");
+    LOG_INFO("Button handler cleanup complete");
 
     BUTTON_UNLOCK();
 }

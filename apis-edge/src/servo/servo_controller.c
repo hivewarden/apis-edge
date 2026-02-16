@@ -3,11 +3,28 @@
  *
  * Controls pan/tilt servos for laser aiming.
  * Supports Pi (GPIO PWM), ESP32 (LEDC), and test platforms.
+ *
+ * HARDWARE LIMITATIONS:
+ * Position verification ("no overshooting" per AC6) cannot be fully implemented
+ * with standard hobby servos that lack feedback. Standard servos are open-loop:
+ * we command a position via PWM and trust the servo's internal controller.
+ *
+ * For true position feedback, hardware options include:
+ * 1. Servo with potentiometer feedback (read via ADC)
+ * 2. External encoder on the output shaft
+ * 3. Servo with digital feedback protocol (e.g., Dynamixel)
+ *
+ * This implementation provides SOFTWARE watchdog detection:
+ * - Movement timeout detection (if movement takes too long)
+ * - Consecutive failure counting before triggering hardware fault
+ * - On fault: laser disabled, LED set to error, callback invoked
  */
 
 #include "servo_controller.h"
 #include "log.h"
 #include "platform.h"
+#include "laser_controller.h"
+#include "led_controller.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,11 +33,10 @@
 #include <time.h>
 
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
-#include <pthread.h>
+/* pthread.h pulled in by platform_mutex.h */
 #else
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/semphr.h"
 #include "driver/ledc.h"
 #endif
 
@@ -47,6 +63,8 @@
 
 #define INTERPOLATION_TICK_MS   5       // Interpolation update interval
 #define WATCHDOG_TIMEOUT_MS     1000    // Hardware check interval
+#define POSITION_TIMEOUT_MS     200     // Max time to reach commanded position
+#define POSITION_TOLERANCE_DEG  2.0f    // Acceptable position error in degrees
 
 // ============================================================================
 // Global State
@@ -69,6 +87,12 @@ static volatile int g_interp_total_steps = 0;
 static volatile float g_interp_start_pan = 0.0f;
 static volatile float g_interp_start_tilt = 0.0f;
 
+// Failure detection state
+static volatile uint64_t g_last_move_cmd_time_ms = 0;
+static volatile bool g_awaiting_position_confirm = false;
+static volatile uint32_t g_consecutive_failures = 0;
+#define MAX_CONSECUTIVE_FAILURES 3  // Trigger hardware fault after this many failures
+
 // Statistics
 static volatile uint32_t g_move_count = 0;
 static volatile uint32_t g_clamp_count = 0;
@@ -81,24 +105,68 @@ static void *g_failure_user_data = NULL;
 // Thread synchronization
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 static pthread_t g_interpolation_thread;
-static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
-#define SERVO_LOCK()   pthread_mutex_lock(&g_mutex)
-#define SERVO_UNLOCK() pthread_mutex_unlock(&g_mutex)
 #else
-static SemaphoreHandle_t g_servo_mutex = NULL;
 static TaskHandle_t g_interpolation_task = NULL;
-#define SERVO_LOCK()   do { if (g_servo_mutex) xSemaphoreTake(g_servo_mutex, portMAX_DELAY); } while(0)
-#define SERVO_UNLOCK() do { if (g_servo_mutex) xSemaphoreGive(g_servo_mutex); } while(0)
 #endif
 
-// ============================================================================
-// Utility Functions
-// ============================================================================
+#include "platform_mutex.h"
+APIS_MUTEX_DECLARE(servo);
+#define SERVO_LOCK()   APIS_MUTEX_LOCK(servo)
+#define SERVO_UNLOCK() APIS_MUTEX_UNLOCK(servo)
 
-static uint64_t get_time_ms(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+// Utility Functions
+#include "time_util.h"
+
+/**
+ * Handle hardware failure detection.
+ * This function is called when a servo failure is detected.
+ * It disables the laser immediately, sets LED to error state,
+ * and invokes the registered failure callback.
+ *
+ * @param axis The axis that failed (or SERVO_AXIS_PAN if unknown)
+ * @param reason Human-readable description of the failure
+ */
+static void handle_hardware_failure(servo_axis_t axis, const char *reason) {
+    // Only process if we haven't already flagged hardware failure
+    if (!g_hardware_ok) {
+        return;
+    }
+
+    LOG_ERROR("Servo hardware failure detected: %s (axis: %s)",
+              reason, servo_axis_name(axis));
+
+    // Set hardware fault flag
+    g_hardware_ok = false;
+
+    // C7-H2 fix: Copy callback pointer under lock, invoke outside
+    servo_failure_callback_t cb = g_failure_callback;
+    void *cb_data = g_failure_user_data;
+
+    // C7-H1 fix: Release servo lock before calling laser/LED controller functions
+    // to prevent lock ordering violation (servo_mutex -> g_mutex)
+    SERVO_UNLOCK();
+
+    // SAFETY: Immediately disable laser when servo fails
+    // This is critical per AC10: "laser is immediately disabled"
+    if (laser_controller_is_initialized()) {
+        laser_controller_off();
+        laser_controller_disarm();
+        LOG_WARN("Laser disabled due to servo failure");
+    }
+
+    // Set LED to error state per AC12: "LED indicates fault"
+    if (led_controller_is_initialized()) {
+        led_controller_set_state(LED_STATE_ERROR);
+        LOG_INFO("LED set to ERROR state due to servo failure");
+    }
+
+    // C7-H2 fix: Invoke failure callback outside the lock
+    if (cb != NULL) {
+        cb(axis, cb_data);
+    }
+
+    // Re-acquire the servo lock (caller expects it held)
+    SERVO_LOCK();
 }
 
 const char *servo_status_name(servo_status_t status) {
@@ -207,24 +275,125 @@ float servo_controller_pwm_to_angle(servo_axis_t axis, uint32_t pulse_us) {
 
 #if defined(APIS_PLATFORM_PI)
 
+// Pi PWM via sysfs interface
+// Note: Requires /sys/class/pwm/pwmchipX to be available
+// On Pi 5, hardware PWM is on pwmchip2, channels 0 (GPIO18) and 1 (GPIO19)
+
+#define PWM_CHIP_PATH "/sys/class/pwm/pwmchip2"
+#define PWM_PAN_CHANNEL  0
+#define PWM_TILT_CHANNEL 1
+
+static bool g_pwm_mock_mode = false;  // Fall back to mock if sysfs unavailable
+
+static int write_to_file(const char *path, const char *value) {
+    FILE *f = fopen(path, "w");
+    if (f == NULL) {
+        return -1;
+    }
+    int result = fprintf(f, "%s", value);
+    fclose(f);
+    return (result > 0) ? 0 : -1;
+}
+
+static int write_uint_to_file(const char *path, uint32_t value) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%u", value);
+    return write_to_file(path, buf);
+}
+
+static int pwm_export_channel(int channel) {
+    char path[128];
+    char export_path[128];
+    char channel_str[8];
+
+    // Check if already exported
+    snprintf(path, sizeof(path), "%s/pwm%d", PWM_CHIP_PATH, channel);
+    FILE *test = fopen(path, "r");
+    if (test != NULL) {
+        fclose(test);
+        return 0;  // Already exported
+    }
+
+    // Export the channel
+    snprintf(export_path, sizeof(export_path), "%s/export", PWM_CHIP_PATH);
+    snprintf(channel_str, sizeof(channel_str), "%d", channel);
+    return write_to_file(export_path, channel_str);
+}
+
+static int pwm_configure_channel(int channel, uint32_t period_ns) {
+    char path[128];
+
+    // Set period (20ms = 20000000 ns for 50Hz servo)
+    snprintf(path, sizeof(path), "%s/pwm%d/period", PWM_CHIP_PATH, channel);
+    if (write_uint_to_file(path, period_ns) != 0) {
+        return -1;
+    }
+
+    // Enable the channel
+    snprintf(path, sizeof(path), "%s/pwm%d/enable", PWM_CHIP_PATH, channel);
+    if (write_to_file(path, "1") != 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static void pwm_init(void) {
-    // TODO: Initialize PWM using pigpio or /sys/class/pwm
-    // For now, placeholder
-    LOG_DEBUG("PWM initialized (Pi) - GPIO %d (pan), GPIO %d (tilt)",
-              GPIO_SERVO_PAN, GPIO_SERVO_TILT);
+    uint32_t period_ns = SERVO_PWM_PERIOD_US * 1000;  // Convert us to ns
+
+    // Try to initialize hardware PWM
+    if (pwm_export_channel(PWM_PAN_CHANNEL) != 0 ||
+        pwm_export_channel(PWM_TILT_CHANNEL) != 0) {
+        LOG_WARN("PWM sysfs export failed - running in mock mode. "
+                 "Ensure dtoverlay=pwm-2chan is in /boot/config.txt");
+        g_pwm_mock_mode = true;
+    } else if (pwm_configure_channel(PWM_PAN_CHANNEL, period_ns) != 0 ||
+               pwm_configure_channel(PWM_TILT_CHANNEL, period_ns) != 0) {
+        LOG_WARN("PWM configuration failed - running in mock mode");
+        g_pwm_mock_mode = true;
+    } else {
+        g_pwm_mock_mode = false;
+        LOG_INFO("PWM initialized (Pi sysfs) - channels %d (pan), %d (tilt)",
+                 PWM_PAN_CHANNEL, PWM_TILT_CHANNEL);
+    }
+
+    if (g_pwm_mock_mode) {
+        LOG_DEBUG("PWM mock mode active - GPIO %d (pan), GPIO %d (tilt)",
+                  GPIO_SERVO_PAN, GPIO_SERVO_TILT);
+    }
 }
 
 static void pwm_set_pulse(servo_axis_t axis, uint32_t pulse_us) {
-    int gpio = (axis == SERVO_AXIS_PAN) ? GPIO_SERVO_PAN : GPIO_SERVO_TILT;
-    // TODO: Set actual PWM pulse width
-    LOG_DEBUG("PWM set: GPIO %d = %u us", gpio, pulse_us);
-    (void)gpio;
-    (void)pulse_us;
+    if (g_pwm_mock_mode) {
+        // Mock mode: just log
+        LOG_DEBUG("PWM (mock): %s = %u us", servo_axis_name(axis), pulse_us);
+        return;
+    }
+
+    int channel = (axis == SERVO_AXIS_PAN) ? PWM_PAN_CHANNEL : PWM_TILT_CHANNEL;
+    char path[128];
+    uint32_t duty_ns = pulse_us * 1000;  // Convert us to ns
+
+    snprintf(path, sizeof(path), "%s/pwm%d/duty_cycle", PWM_CHIP_PATH, channel);
+    if (write_uint_to_file(path, duty_ns) != 0) {
+        LOG_WARN("Failed to set PWM duty cycle for channel %d", channel);
+    }
 }
 
 static void pwm_cleanup(void) {
-    // TODO: Cleanup PWM
-    LOG_DEBUG("PWM cleanup (Pi)");
+    if (!g_pwm_mock_mode) {
+        char path[128];
+
+        // Disable channels
+        snprintf(path, sizeof(path), "%s/pwm%d/enable", PWM_CHIP_PATH, PWM_PAN_CHANNEL);
+        write_to_file(path, "0");
+        snprintf(path, sizeof(path), "%s/pwm%d/enable", PWM_CHIP_PATH, PWM_TILT_CHANNEL);
+        write_to_file(path, "0");
+
+        LOG_INFO("PWM cleanup (Pi sysfs)");
+    } else {
+        LOG_DEBUG("PWM cleanup (mock mode)");
+    }
 }
 
 #elif defined(APIS_PLATFORM_ESP32)
@@ -327,6 +496,12 @@ static void apply_position(float pan_deg, float tilt_deg) {
 
 static void update_interpolation(void) {
     if (!g_is_moving || g_interp_step >= g_interp_total_steps) {
+        if (g_is_moving && g_interp_step >= g_interp_total_steps) {
+            // Movement complete - mark for position confirmation
+            g_awaiting_position_confirm = true;
+            g_last_move_cmd_time_ms = get_time_ms();
+            g_consecutive_failures = 0;  // Reset on successful completion
+        }
         g_is_moving = false;
         return;
     }
@@ -342,8 +517,38 @@ static void update_interpolation(void) {
 
     if (g_interp_step >= g_interp_total_steps) {
         g_is_moving = false;
+        g_awaiting_position_confirm = false;  // Position reached
         LOG_DEBUG("Movement complete: pan=%.1f°, tilt=%.1f°",
                   g_current_pan_deg, g_current_tilt_deg);
+    }
+}
+
+/**
+ * Check for hardware failures based on timing and position.
+ * This implements a watchdog that detects when:
+ * 1. Movement takes too long to complete
+ * 2. Position never stabilizes after command
+ *
+ * Note: True position feedback requires ADC reading of servo potentiometer
+ * or encoder hardware. This software watchdog detects gross failures.
+ */
+static void check_hardware_watchdog(void) {
+    if (!g_hardware_ok) {
+        return;  // Already in fault state
+    }
+
+    // Check for movement timeout
+    if (g_is_moving && g_last_move_cmd_time_ms > 0) {
+        uint64_t elapsed = get_time_ms() - g_last_move_cmd_time_ms;
+        if (elapsed > (SERVO_MOVE_TIME_MS * 4)) {  // Allow 4x expected time
+            g_consecutive_failures++;
+            LOG_WARN("Servo movement timeout: %llu ms (expected ~%d ms), failure count: %u",
+                     (unsigned long long)elapsed, SERVO_MOVE_TIME_MS, g_consecutive_failures);
+
+            if (g_consecutive_failures >= MAX_CONSECUTIVE_FAILURES) {
+                handle_hardware_failure(SERVO_AXIS_PAN, "Movement timeout exceeded");
+            }
+        }
     }
 }
 
@@ -355,6 +560,7 @@ static void update_interpolation(void) {
 
 static void *interpolation_thread_func(void *arg) {
     (void)arg;
+    static uint32_t watchdog_counter = 0;
 
     LOG_DEBUG("Servo interpolation thread started");
 
@@ -362,6 +568,13 @@ static void *interpolation_thread_func(void *arg) {
         SERVO_LOCK();
         if (g_is_moving) {
             update_interpolation();
+        }
+
+        // Run hardware watchdog check periodically (every ~100ms)
+        watchdog_counter++;
+        if (watchdog_counter >= (100 / INTERPOLATION_TICK_MS)) {
+            check_hardware_watchdog();
+            watchdog_counter = 0;
         }
         SERVO_UNLOCK();
 
@@ -376,6 +589,7 @@ static void *interpolation_thread_func(void *arg) {
 
 static void interpolation_task_func(void *arg) {
     (void)arg;
+    static uint32_t watchdog_counter = 0;
 
     LOG_DEBUG("Servo interpolation task started");
 
@@ -383,6 +597,13 @@ static void interpolation_task_func(void *arg) {
         SERVO_LOCK();
         if (g_is_moving) {
             update_interpolation();
+        }
+
+        // Run hardware watchdog check periodically (every ~100ms)
+        watchdog_counter++;
+        if (watchdog_counter >= (100 / INTERPOLATION_TICK_MS)) {
+            check_hardware_watchdog();
+            watchdog_counter = 0;
         }
         SERVO_UNLOCK();
 
@@ -406,16 +627,8 @@ servo_status_t servo_controller_init(void) {
         return SERVO_OK;
     }
 
-#if !defined(APIS_PLATFORM_PI) && !defined(APIS_PLATFORM_TEST)
-    // ESP32: Create mutex
-    if (g_servo_mutex == NULL) {
-        g_servo_mutex = xSemaphoreCreateMutex();
-        if (g_servo_mutex == NULL) {
-            LOG_ERROR("Failed to create servo mutex");
-            return SERVO_ERROR_NO_MEMORY;
-        }
-    }
-#endif
+    // Initialize mutex (no-op on Pi/Test where statically initialized)
+    APIS_MUTEX_INIT(servo);
 
     // Initialize PWM hardware
     pwm_init();
@@ -628,6 +841,65 @@ bool servo_controller_is_hardware_ok(void) {
     return g_initialized && g_hardware_ok;
 }
 
+servo_status_t servo_controller_self_test(void) {
+    if (!g_initialized) {
+        return SERVO_ERROR_NOT_INITIALIZED;
+    }
+
+    LOG_INFO("Starting servo self-test sequence...");
+
+    servo_status_t status;
+    servo_position_t test_positions[] = {
+        // Test pan limits
+        {SERVO_PAN_MIN_DEG, SERVO_TILT_CENTER_DEG},   // Pan left
+        {SERVO_PAN_MAX_DEG, SERVO_TILT_CENTER_DEG},   // Pan right
+        {SERVO_PAN_CENTER_DEG, SERVO_TILT_CENTER_DEG}, // Pan center
+
+        // Test tilt limits
+        {SERVO_PAN_CENTER_DEG, SERVO_TILT_MIN_DEG},   // Tilt down (max)
+        {SERVO_PAN_CENTER_DEG, SERVO_TILT_MAX_DEG},   // Tilt up (min, horizontal)
+        {SERVO_PAN_CENTER_DEG, SERVO_TILT_CENTER_DEG}, // Tilt center
+
+        // Return home
+        {SERVO_PAN_CENTER_DEG, SERVO_TILT_CENTER_DEG}
+    };
+
+    int num_positions = sizeof(test_positions) / sizeof(test_positions[0]);
+
+    for (int i = 0; i < num_positions; i++) {
+        status = servo_controller_move(test_positions[i]);
+        if (status != SERVO_OK && status != SERVO_ERROR_ANGLE_CLAMPED) {
+            LOG_ERROR("Self-test failed at position %d: %s",
+                      i, servo_status_name(status));
+            return status;
+        }
+
+        // Wait for movement to complete
+        int wait_count = 0;
+        while (servo_controller_is_moving() && wait_count < 20) {
+            apis_sleep_ms(10);
+            wait_count++;
+        }
+
+        if (servo_controller_is_moving()) {
+            LOG_ERROR("Self-test failed: movement timeout at position %d", i);
+            return SERVO_ERROR_HARDWARE;
+        }
+
+        // Check hardware status
+        if (!g_hardware_ok) {
+            LOG_ERROR("Self-test failed: hardware fault detected at position %d", i);
+            return SERVO_ERROR_HARDWARE;
+        }
+
+        LOG_DEBUG("Self-test position %d OK: pan=%.1f°, tilt=%.1f°",
+                  i, test_positions[i].pan_deg, test_positions[i].tilt_deg);
+    }
+
+    LOG_INFO("Servo self-test completed successfully");
+    return SERVO_OK;
+}
+
 void servo_controller_cleanup(void) {
     if (!g_initialized) return;
 
@@ -642,10 +914,7 @@ void servo_controller_cleanup(void) {
     }
     g_interpolation_task = NULL;
 
-    if (g_servo_mutex != NULL) {
-        vSemaphoreDelete(g_servo_mutex);
-        g_servo_mutex = NULL;
-    }
+    /* Mutex cleanup handled by platform_mutex lifecycle */
 #endif
 
     pwm_cleanup();

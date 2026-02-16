@@ -19,8 +19,24 @@
 
 #include <string.h>
 
+// =============================================================================
+// Board Selection - Uncomment ONE board definition
+// =============================================================================
+// Supported boards:
+//   - BOARD_ESP32_CAM_AITHINKER  (ESP32-CAM AI-Thinker, default)
+//   - BOARD_XIAO_ESP32S3_SENSE   (Seeed XIAO ESP32-S3 Sense)
+//
+// To switch boards:
+//   1. Uncomment the desired board below, OR
+//   2. Define in CMakeLists.txt: add_definitions(-DBOARD_XIAO_ESP32S3_SENSE)
+// =============================================================================
+
+#if !defined(BOARD_ESP32_CAM_AITHINKER) && !defined(BOARD_XIAO_ESP32S3_SENSE)
+#define BOARD_XIAO_ESP32S3_SENSE  // User's board
+#endif
+
 // Camera pin configuration for ESP32-CAM (AI-Thinker)
-// Change these for different boards
+#ifdef BOARD_ESP32_CAM_AITHINKER
 #define CAM_PIN_PWDN    32
 #define CAM_PIN_RESET   -1
 #define CAM_PIN_XCLK    0
@@ -37,6 +53,27 @@
 #define CAM_PIN_VSYNC   25
 #define CAM_PIN_HREF    23
 #define CAM_PIN_PCLK    22
+#endif
+
+// Camera pin configuration for XIAO ESP32-S3 Sense
+#ifdef BOARD_XIAO_ESP32S3_SENSE
+#define CAM_PIN_PWDN    -1
+#define CAM_PIN_RESET   -1
+#define CAM_PIN_XCLK    10
+#define CAM_PIN_SIOD    40
+#define CAM_PIN_SIOC    39
+#define CAM_PIN_D7      48
+#define CAM_PIN_D6      11
+#define CAM_PIN_D5      12
+#define CAM_PIN_D4      14
+#define CAM_PIN_D3      16
+#define CAM_PIN_D2      18
+#define CAM_PIN_D1      17
+#define CAM_PIN_D0      15
+#define CAM_PIN_VSYNC   38
+#define CAM_PIN_HREF    47
+#define CAM_PIN_PCLK    13
+#endif
 
 #define FPS_SAMPLE_INTERVAL_MS 1000
 
@@ -77,10 +114,21 @@ static void rgb565_to_bgr24(const uint8_t *src, uint8_t *dst, size_t width, size
 }
 
 camera_status_t camera_init(const apis_camera_config_t *config) {
-    (void)config;  // ESP32 uses compile-time pin config
-
     if (g_is_initialized) {
         return CAMERA_OK;
+    }
+
+    // ESP32 uses compile-time pin configuration and fixed VGA resolution
+    // Runtime config values are not applied - warn if they differ from defaults
+    if (config != NULL) {
+        if (config->width != 640 || config->height != 480) {
+            LOG_WARN("ESP32 ignores runtime config: using fixed 640x480 (requested %dx%d)",
+                     config->width, config->height);
+        }
+        if (config->fps != 10 && config->fps != 0) {
+            LOG_WARN("ESP32 ignores runtime fps config: hardware-controlled (requested %d fps)",
+                     config->fps);
+        }
     }
 
     // Use ESP-IDF's camera_config_t for hardware configuration
@@ -176,8 +224,25 @@ camera_status_t camera_read(frame_t *frame, uint32_t timeout_ms) {
                  fb->width, fb->height, FRAME_WIDTH, FRAME_HEIGHT);
     }
 
+    size_t pixel_count = (size_t)fb->width * (size_t)fb->height;
+    size_t max_pixels = (size_t)FRAME_WIDTH * (size_t)FRAME_HEIGHT;
+    if (pixel_count > max_pixels) {
+        LOG_ERROR("Frame too large for buffer: %dx%d exceeds %dx%d",
+                  fb->width, fb->height, FRAME_WIDTH, FRAME_HEIGHT);
+        esp_camera_fb_return(fb);
+        g_frames_dropped++;
+        return CAMERA_ERROR_READ_FAILED;
+    }
+
     // Convert RGB565 to BGR24
     if (fb->format == PIXFORMAT_RGB565) {
+        size_t required_input_bytes = pixel_count * 2;
+        if ((size_t)fb->len < required_input_bytes) {
+            LOG_ERROR("Short RGB565 frame: got %zu bytes, need %zu", (size_t)fb->len, required_input_bytes);
+            esp_camera_fb_return(fb);
+            g_frames_dropped++;
+            return CAMERA_ERROR_READ_FAILED;
+        }
         rgb565_to_bgr24(fb->buf, frame->data, fb->width, fb->height);
     } else {
         // Fallback: copy raw data (may not be correct format)
@@ -207,9 +272,14 @@ camera_status_t camera_read(frame_t *frame, uint32_t timeout_ms) {
         g_fps_start_time_us = now_us;
     }
 
-    // Invoke callback if set
-    if (g_callback) {
-        g_callback(frame, g_callback_user_data);
+    // Invoke callback if set.
+    // Copy function pointer and user data to local variables before invoking
+    // to prevent a race condition if camera_set_callback() is called from
+    // another thread between the NULL check and the invocation.
+    camera_frame_callback_t cb = g_callback;
+    void *cb_data = g_callback_user_data;
+    if (cb) {
+        cb(frame, cb_data);
     }
 
     return CAMERA_OK;
@@ -261,8 +331,12 @@ const char *camera_status_str(camera_status_t status) {
 }
 
 void camera_set_callback(camera_frame_callback_t callback, void *user_data) {
-    g_callback = callback;
+    // S8-H6 fix: Set user_data BEFORE the function pointer, and use a memory
+    // barrier to ensure ordering. On dual-core ESP32, without a barrier another
+    // core could see the new callback pointer but stale user_data.
     g_callback_user_data = user_data;
+    __sync_synchronize();  // Full memory barrier
+    g_callback = callback;
 }
 
 #endif // ESP_PLATFORM

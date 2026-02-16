@@ -9,10 +9,9 @@
  * Part of Epic 7, Story 7.5: Voice Input for Notes
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Space, Typography, Tooltip, Spin } from 'antd';
+import { Button, Typography, Tooltip } from 'antd';
 import {
   AudioOutlined,
-  AudioMutedOutlined,
   EditOutlined,
 } from '@ant-design/icons';
 import { colors, touchTargets } from '../theme/apisTheme';
@@ -20,6 +19,8 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useSettings } from '../context/SettingsContext';
 import * as whisperService from '../services/whisperTranscription';
+// Import CSS animations (moved from inline JS for security)
+import '../styles/voice-input.css';
 
 const { Text } = Typography;
 
@@ -95,37 +96,13 @@ export function VoiceInputButton({
   const useWhisperMode = voiceInputMethod === 'whisper';
   const useNativeMode = voiceInputMethod === 'native' || (voiceInputMethod === 'auto' && isSupported);
 
-  // Inject pulsing animation CSS once on mount
-  useEffect(() => {
-    const styleId = 'voice-button-pulse-style';
-    if (document.getElementById(styleId)) {
-      return; // Already injected
-    }
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      @keyframes voicePulse {
-        0%, 100% {
-          transform: scale(1);
-          box-shadow: 0 0 0 0 rgba(247, 164, 45, 0.4);
-        }
-        50% {
-          transform: scale(1.02);
-          box-shadow: 0 0 0 8px rgba(247, 164, 45, 0);
-        }
-      }
-      .voice-button-pulse {
-        animation: voicePulse 1.5s ease-in-out infinite;
-      }
-    `;
-    document.head.appendChild(style);
-    // Note: We don't remove the style on unmount since other instances may use it
-  }, []);
+  // Note: CSS animations are now loaded via '../styles/voice-input.css' import
+  // This avoids dynamic style injection which could be an XSS vector
 
-  // When native transcript is complete, emit it
+  // When native transcript is complete, emit it (only if non-empty after trim)
   useEffect(() => {
-    if (transcript && !isListening && useNativeMode) {
-      onTranscript(transcript);
+    if (transcript && transcript.trim() && !isListening && useNativeMode) {
+      onTranscript(transcript.trim());
       reset();
     }
   }, [transcript, isListening, onTranscript, reset, useNativeMode]);
@@ -143,6 +120,11 @@ export function VoiceInputButton({
 
   /**
    * Handle voice button click for Whisper mode
+   *
+   * Note: The effectiveLanguage is captured at recording start time. If the user
+   * changes language settings mid-recording, the transcription request will use
+   * the language from when recording started. This is intentional behavior to
+   * maintain consistency during a recording session.
    */
   const handleWhisperVoiceClick = useCallback(async () => {
     setWhisperError(null);
@@ -204,95 +186,163 @@ export function VoiceInputButton({
     ? 'Processing...'
     : interimTranscript || (isActive ? placeholder : '');
 
-  // Button styling based on state
-  const buttonStyle: React.CSSProperties = {
-    minHeight: touchTargets.mobile, // 64px
-    minWidth: 120,
+  // Primary speak button styling per mockup - rounded-full, shadow-glow
+  const speakButtonStyle: React.CSSProperties = {
+    height: touchTargets.mobile, // 64px
+    minWidth: 200,
     fontSize: 18,
+    fontWeight: 700,
+    borderRadius: 9999, // rounded-full
+    backgroundColor: colors.seaBuckthorn,
+    borderColor: colors.seaBuckthorn,
+    color: '#fff',
+    boxShadow: isActive ? '0 0 25px rgba(247, 164, 45, 0.4)' : undefined, // shadow-glow
+    transition: 'all 0.3s ease',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase' as const,
+  };
+
+  // Secondary keyboard button styling
+  const keyboardButtonStyle: React.CSSProperties = {
+    height: touchTargets.mobile, // 64px
+    minWidth: 120,
+    fontSize: 16,
     fontWeight: 600,
     borderRadius: 12,
-    backgroundColor: isActive ? colors.seaBuckthorn : undefined,
-    borderColor: isActive ? colors.seaBuckthorn : undefined,
-    color: isActive ? '#fff' : undefined,
     transition: 'all 0.3s ease',
   };
 
-  // Pulsing animation style for listening state
-  const pulsingClass = isActive && !isProcessingWhisper ? 'voice-button-pulse' : '';
-
   return (
-    <div>
-      {/* Interim transcript preview */}
-      {(previewText || isActive) && (
-        <div
-          style={{
-            padding: 12,
-            marginBottom: 12,
-            borderRadius: 8,
-            backgroundColor: 'rgba(247, 164, 45, 0.1)',
-            border: `1px solid ${colors.seaBuckthorn}`,
-            minHeight: 48,
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          <Text style={{ color: colors.brownBramble, flex: 1 }}>
-            {previewText}
-          </Text>
-          {isActive && <Spin size="small" style={{ marginLeft: 8 }} />}
-        </div>
-      )}
-
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       {/* Error message */}
       {error && (
-        <Text type="danger" style={{ display: 'block', marginBottom: 12 }}>
+        <Text type="danger" style={{ display: 'block', marginBottom: 16, textAlign: 'center' }}>
           {error}
         </Text>
       )}
 
       {/* Voice unavailable message */}
       {showUnavailableMessage && !error && (
-        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+        <Text type="secondary" style={{ display: 'block', marginBottom: 16, textAlign: 'center' }}>
           {!isOnline
             ? 'Voice input requires internet connection'
             : 'Voice input not supported in this browser'}
         </Text>
       )}
 
-      {/* Buttons */}
-      <Space style={{ width: '100%' }} size={12}>
+      {/* Voice button with pulsing rings - per mockup */}
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: 160,
+          width: '100%',
+          marginBottom: 8,
+        }}
+      >
+        {/* Pulsing background rings - only visible when active */}
+        {isActive && !isProcessingWhisper && (
+          <>
+            <div
+              className="voice-pulse-ring"
+              style={{
+                position: 'absolute',
+                width: 260,
+                height: 110,
+                borderRadius: 9999,
+                backgroundColor: 'rgba(247, 164, 45, 0.05)',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                width: 220,
+                height: 90,
+                borderRadius: 9999,
+                backgroundColor: 'rgba(247, 164, 45, 0.1)',
+                transition: 'all 1s ease',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                width: 190,
+                height: 75,
+                borderRadius: 9999,
+                backgroundColor: 'rgba(247, 164, 45, 0.2)',
+              }}
+            />
+          </>
+        )}
+
+        {/* Main speak button */}
         <Tooltip title={!canUseVoice ? 'Voice input unavailable' : ''}>
           <Button
-            className={pulsingClass}
-            style={{ ...buttonStyle, flex: 1 }}
-            icon={isActive ? <AudioMutedOutlined /> : <AudioOutlined />}
+            style={speakButtonStyle}
+            icon={<AudioOutlined style={{ fontSize: 28 }} />}
             onClick={handleVoiceClick}
             disabled={disabled || !canUseVoice}
             loading={isProcessingWhisper}
             size="large"
           >
-            {isProcessingWhisper ? 'Processing' : isActive ? 'Done' : 'SPEAK'}
+            {isProcessingWhisper ? 'Processing' : isActive ? 'Stop' : 'Speak'}
           </Button>
         </Tooltip>
+      </div>
 
-        {showKeyboardButton && (
-          <Button
+      {/* Listening indicator and interim transcript - per mockup */}
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        {isActive && !isProcessingWhisper && (
+          <p
+            className="voice-listening-pulse"
             style={{
-              ...buttonStyle,
-              flex: 1,
-              backgroundColor: undefined,
-              borderColor: undefined,
-              color: undefined,
+              color: colors.seaBuckthorn,
+              fontWeight: 500,
+              fontSize: 14,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              marginBottom: 8,
             }}
-            icon={<EditOutlined />}
-            onClick={onKeyboardClick}
-            disabled={disabled}
-            size="large"
           >
-            Keyboard
-          </Button>
+            <AudioOutlined style={{ fontSize: 18 }} />
+            <span>Listening...</span>
+          </p>
         )}
-      </Space>
+        {previewText && (
+          <Text
+            style={{
+              color: colors.brownBramble,
+              fontSize: 14,
+              display: 'block',
+            }}
+          >
+            {previewText}
+          </Text>
+        )}
+        <Text
+          type="secondary"
+          style={{ fontSize: 12, opacity: 0.7, display: 'block', marginTop: 4 }}
+        >
+          {isActive ? 'Tap the button to stop recording.' : 'Tap the button to start recording.'}
+        </Text>
+      </div>
+
+      {/* Keyboard fallback button */}
+      {showKeyboardButton && (
+        <Button
+          style={keyboardButtonStyle}
+          icon={<EditOutlined />}
+          onClick={onKeyboardClick}
+          disabled={disabled}
+          size="large"
+        >
+          Type Instead
+        </Button>
+      )}
     </div>
   );
 }

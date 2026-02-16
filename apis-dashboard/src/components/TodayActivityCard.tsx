@@ -1,10 +1,9 @@
-import { Card, Typography, Skeleton, Space } from 'antd';
-import { CheckCircleFilled, ClockCircleOutlined, AimOutlined } from '@ant-design/icons';
+import { Card, Typography, Skeleton } from 'antd';
 import { useDetectionStats } from '../hooks/useDetectionStats';
 import { useTimeRange, TimeRange } from '../context';
 import { colors } from '../theme/apisTheme';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 interface TodayActivityCardProps {
   siteId: string | null;
@@ -85,141 +84,144 @@ export function TodayActivityCard({ siteId }: TodayActivityCardProps) {
   const { stats, loading, error } = useDetectionStats(siteId, range, date);
   const rangeLabel = getRangeLabel(range);
 
+  // Card base styles per mockup: white bg, rounded-2xl, border-orange-100, shadow-soft
+  const cardStyle = {
+    background: '#ffffff',
+    borderRadius: 16,
+    border: '1px solid #ece8d6',
+    boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
+    transition: 'all 0.3s ease-in-out',
+  };
+
   // No site selected state
   if (!siteId) {
     return (
-      <Card
-        style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
-        }}
-      >
+      <Card style={cardStyle} styles={{ body: { padding: 20 } }}>
         <Text type="secondary">Select a site to view activity</Text>
       </Card>
     );
   }
 
-  // Loading state with skeleton
-  if (loading && !stats) {
+  // Loading/Error state with skeleton
+  if ((loading && !stats) || (error && !stats)) {
     return (
-      <Card
-        style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
-        }}
-      >
+      <Card style={cardStyle} styles={{ body: { padding: 20 } }}>
         <Skeleton active paragraph={{ rows: 2 }} />
       </Card>
     );
   }
 
-  // Error state (but only if we have no stats at all)
-  if (error && !stats) {
-    return (
-      <Card
-        style={{
-          background: colors.salomie,
-          borderColor: colors.seaBuckthorn,
-        }}
-      >
-        <Text type="danger">Failed to load detection data</Text>
-      </Card>
-    );
-  }
-
   const hasDetections = stats && stats.total_detections > 0;
-
-  // Zero detections - "All quiet" state
-  if (!hasDetections) {
-    return (
-      <Card
-        style={{
-          background: `linear-gradient(135deg, ${colors.salomie} 0%, #e8f5e9 100%)`,
-          borderColor: '#52c41a',
-          borderWidth: 2,
-        }}
-      >
-        <Space direction="vertical" size="small" style={{ width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CheckCircleFilled style={{ fontSize: 24, color: '#52c41a' }} />
-            <Title level={4} style={{ margin: 0, color: '#52c41a' }}>
-              All quiet
-            </Title>
-          </div>
-          <Paragraph style={{ margin: 0, color: colors.brownBramble }}>
-            {getQuietMessage(range)} — your hives are protected
-          </Paragraph>
-        </Space>
-      </Card>
-    );
-  }
-
-  // Detections found - show stats
-  const laserRate = stats.total_detections > 0
+  const laserRate = stats && stats.total_detections > 0
     ? Math.round((stats.laser_activations / stats.total_detections) * 100)
     : 0;
 
   return (
     <Card
+      aria-label={`${rangeLabel} Activity: ${hasDetections ? stats.total_detections : 0} hornets deterred`}
+      role="region"
       style={{
-        background: `linear-gradient(135deg, ${colors.salomie} 0%, ${colors.seaBuckthorn}20 100%)`,
-        borderColor: colors.seaBuckthorn,
-        borderWidth: 2,
+        ...cardStyle,
+        opacity: loading ? 0.7 : 1,
       }}
+      styles={{ body: { padding: 20 } }}
     >
-      <Space direction="vertical" size="small" style={{ width: '100%' }}>
-        {/* Header */}
-        <Text strong style={{ color: colors.brownBramble, fontSize: 14 }}>
-          {rangeLabel} Activity
-        </Text>
-
-        {/* Large count */}
-        <div style={{ textAlign: 'center', padding: '8px 0' }}>
-          <Title
-            level={1}
-            style={{
-              margin: 0,
-              fontSize: 56,
-              color: colors.seaBuckthorn,
-              lineHeight: 1,
-            }}
-          >
-            {stats.total_detections}
-          </Title>
-          <Text style={{ color: colors.brownBramble, fontSize: 16 }}>
-            hornet{stats.total_detections !== 1 ? 's' : ''} deterred
-          </Text>
+      {/* Top row: icon + badge per mockup */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{
+          padding: 8,
+          background: 'rgba(247, 164, 45, 0.1)',
+          borderRadius: 12,
+          color: colors.seaBuckthorn,
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 24 }}>pest_control</span>
         </div>
+        {hasDetections && (
+          <span style={{
+            background: '#E8F5E9', // DESIGN-KEY success background
+            color: '#2E7D32', // DESIGN-KEY success text
+            fontSize: 12,
+            padding: '2px 8px',
+            borderRadius: 9999,
+            fontWeight: 500,
+          }}>
+            Active
+          </span>
+        )}
+      </div>
 
-        {/* Stats footer */}
-        <div
-          style={{
-            borderTop: `1px solid ${colors.seaBuckthorn}40`,
-            paddingTop: 12,
-            marginTop: 4,
-          }}
-        >
-          <Space direction="vertical" size={4} style={{ width: '100%' }}>
-            {/* Last detection time */}
+      {/* Bottom: Label + stats per mockup */}
+      <div>
+        <p style={{
+          color: '#8a5025',
+          fontSize: 14,
+          fontWeight: 500,
+          marginBottom: 4,
+        }}>
+          {rangeLabel} Activity
+        </p>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{
+            fontSize: 30,
+            fontWeight: 700,
+            color: colors.brownBramble,
+            lineHeight: 1,
+          }}>
+            {hasDetections ? stats.total_detections : 0}
+          </span>
+          <span style={{
+            fontSize: 14,
+            fontWeight: 500,
+            color: '#8a5025',
+          }}>
+            detections
+          </span>
+        </div>
+        {hasDetections && (
+          <>
+            <div style={{
+              marginTop: 8,
+              fontSize: 12,
+              fontWeight: 500,
+              color: colors.seaBuckthorn,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>bolt</span>
+              {laserRate}% Laser Success
+            </div>
             {stats.last_detection && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <ClockCircleOutlined style={{ color: colors.brownBramble }} />
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Last detection: {formatRelativeTime(stats.last_detection)}
-                </Text>
+              <div style={{
+                marginTop: 4,
+                fontSize: 11,
+                fontWeight: 500,
+                color: '#8a5025',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>schedule</span>
+                Last: {formatRelativeTime(stats.last_detection)}
               </div>
             )}
-
-            {/* Laser activation stats */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <AimOutlined style={{ color: colors.brownBramble }} />
-              <Text type="secondary" style={{ fontSize: 13 }}>
-                {stats.laser_activations} of {stats.total_detections} deterred with laser ({laserRate}%)
-              </Text>
-            </div>
-          </Space>
-        </div>
-      </Space>
+          </>
+        )}
+        {!hasDetections && (
+          <div style={{
+            marginTop: 8,
+            fontSize: 12,
+            fontWeight: 500,
+            color: colors.success,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span>
+            {getQuietMessage(range)}
+          </div>
+        )}
+      </div>
     </Card>
   );
 }

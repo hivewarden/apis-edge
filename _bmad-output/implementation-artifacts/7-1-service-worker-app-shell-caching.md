@@ -76,6 +76,7 @@ So that I can use it in the field where signal is poor.
 - [x] 5.3 Style with APIS theme (warning color, amber tones, honeycomb pattern)
 - [x] 5.4 Add to AppLayout.tsx above Content area
 - [x] 5.5 Banner auto-hides when connection restored
+- [x] 5.6 **Dependency:** Uses usePendingSync from Story 7.3 for pending count display (forward dependency documented)
 
 ### Task 6: Update Notification Component (AC: #3)
 - [x] 6.1 Create src/components/UpdateNotification.tsx component
@@ -87,10 +88,10 @@ So that I can use it in the field where signal is poor.
 ### Task 7: Public Assets & Icons (AC: #2)
 - [x] 7.1 Create apis-dashboard/public/ directory if not exists
 - [x] 7.2 Create public/icons/ directory
-- [x] 7.3 Generate icon-192x192.svg (APIS logo/bee icon with shield)
-- [x] 7.4 Generate icon-512x512.svg
-- [x] 7.5 Generate icon-maskable-512x512.svg (with safe zone padding)
-- [x] 7.6 Generate apple-touch-icon.svg (180x180 with rounded corners)
+- [x] 7.3 Generate icon-192x192.svg (APIS logo/bee icon with shield) **Note: SVG format used for better scalability**
+- [x] 7.4 Generate icon-512x512.svg **Note: SVG format used instead of PNG per Completion Notes**
+- [x] 7.5 Generate icon-maskable-512x512.svg (with safe zone padding) **Note: SVG format**
+- [x] 7.6 Generate apple-touch-icon.svg (180x180 with rounded corners) **Note: SVG format**
 - [x] 7.7 Keep existing favicon.svg with APIS branding
 
 ### Task 8: Integration & Testing (AC: #1, #2, #3, #4)
@@ -510,5 +511,7 @@ N/A
 - `apis-dashboard/src/components/layout/AppLayout.tsx` - Integrated OfflineBanner component
 - `apis-dashboard/src/components/index.ts` - Exported new components
 - `apis-dashboard/src/hooks/index.ts` - Exported new hooks
-- `apis-dashboard/vitest.config.ts` - Added virtual:pwa-register alias for tests
+- `apis-dashboard/vitest.config.ts` - Added virtual:pwa-register alias for tests and testTimeout configuration
 - `apis-dashboard/tests/setup.ts` - Unchanged (mock handled via alias)
+- `apis-dashboard/tests/hooks/useSWUpdate.test.ts` - Tests for useSWUpdate hook (added post-review)
+- `apis-dashboard/tests/components/UpdateNotification.test.tsx` - Tests for UpdateNotification component (added post-review)

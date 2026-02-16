@@ -1,42 +1,20 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, Button, Tag, Space, message, Tooltip } from 'antd';
-import { DownloadOutlined, EyeOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { useState, useMemo } from 'react';
+import { Table, Button, Tag, Space, message, Tooltip, Typography, Collapse } from 'antd';
+import { DownloadOutlined, EyeOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, AppstoreOutlined, HistoryOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { apiClient } from '../providers/apiClient';
 import { InspectionDetailModal } from './InspectionDetailModal';
 import { OfflineInspectionBadge } from './OfflineInspectionBadge';
+import { ActivityLogItem } from './ActivityLogItem';
 import { colors } from '../theme/apisTheme';
 import { db } from '../services/db';
 import type { PendingInspection } from '../services/db';
+import { useInspectionsList, useHiveActivity, type Inspection, type InspectionFrameData } from '../hooks';
 
-interface Inspection {
-  id: string;
-  hive_id: string;
-  inspected_at: string;
-  queen_seen: boolean | null;
-  eggs_seen: boolean | null;
-  queen_cells: boolean | null;
-  brood_frames: number | null;
-  brood_pattern: string | null;
-  honey_level: string | null;
-  pollen_level: string | null;
-  temperament: string | null;
-  issues: string[];
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-  // Offline inspection fields
-  pending_sync?: boolean;
-  local_id?: string | null;
-  sync_error?: string | null;
-}
+const { Text } = Typography;
 
-interface InspectionsListResponse {
-  data: Inspection[];
-  meta: { total: number };
-}
+type FrameData = InspectionFrameData;
 
 interface InspectionHistoryProps {
   hiveId: string;
@@ -49,6 +27,37 @@ const formatBoolean = (value: boolean | null): React.ReactNode => {
     <CheckCircleOutlined style={{ color: '#52c41a' }} />
   ) : (
     <CloseCircleOutlined style={{ color: '#999' }} />
+  );
+};
+
+/**
+ * Format frame data as a compact summary: "6B/4H/2P" for brood/honey/pollen totals
+ * Part of Story 5.5: Frame-Level Data Tracking - AC#4 frame progression visibility
+ */
+const formatFrameSummary = (frames: FrameData[] | undefined): React.ReactNode => {
+  if (!frames || frames.length === 0) {
+    return <QuestionCircleOutlined style={{ color: '#999' }} />;
+  }
+
+  // Sum up frame counts across all boxes
+  const totals = frames.reduce(
+    (acc, frame) => ({
+      brood: acc.brood + frame.brood_frames,
+      honey: acc.honey + frame.honey_frames,
+      pollen: acc.pollen + frame.pollen_frames,
+    }),
+    { brood: 0, honey: 0, pollen: 0 }
+  );
+
+  return (
+    <Tooltip title={`${frames.length} box${frames.length > 1 ? 'es' : ''}: ${totals.brood} brood, ${totals.honey} honey, ${totals.pollen} pollen`}>
+      <Space size={4}>
+        <AppstoreOutlined style={{ color: colors.brownBramble }} />
+        <span style={{ fontSize: 12 }}>
+          {totals.brood}B/{totals.honey}H/{totals.pollen}P
+        </span>
+      </Space>
+    </Tooltip>
   );
 };
 
@@ -93,17 +102,45 @@ function convertOfflineToInspection(pending: PendingInspection): Inspection {
  *
  * Part of Epic 5, Story 5.4: Inspection History View
  * Enhanced in Story 7.3 to show offline inspections
+ * Enhanced in Story 14.13 to show task completion activity
+ * Refactored for Layered Hooks Architecture
  */
 export function InspectionHistory({ hiveId, hiveName }: InspectionHistoryProps) {
-  const [serverInspections, setServerInspections] = useState<Inspection[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [exporting, setExporting] = useState(false);
+  // Use hook for server inspections
+  const {
+    inspections: serverInspections,
+    total,
+    page,
+    pageSize,
+    sortOrder,
+    loading,
+    error,
+    setPage,
+    setPageSize,
+    setSortOrder,
+    exportInspections,
+    exporting,
+    refetch,
+  } = useInspectionsList(hiveId);
+
+  // Use hook for activity log entries (Story 14.13)
+  const {
+    data: activityEntries,
+    loading: activityLoading,
+    error: activityError,
+  } = useHiveActivity(hiveId, { type: 'task_completion', pageSize: 50 });
+
   const [selectedInspection, setSelectedInspection] = useState<Inspection | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+
+  // Show error message if fetch fails
+  if (error) {
+    message.error('Failed to load inspections');
+  }
+  if (activityError) {
+    // Log but don't block rendering - activity log is supplemental
+    console.warn('Failed to load activity log:', activityError);
+  }
 
   // Query offline inspections for this hive reactively
   const offlineInspections = useLiveQuery(
@@ -142,48 +179,12 @@ export function InspectionHistory({ hiveId, hiveName }: InspectionHistoryProps) 
   // Combined total for pagination (server + offline)
   const combinedTotal = useMemo(() => total + offlineCount, [total, offlineCount]);
 
-  const fetchInspections = useCallback(async () => {
-    try {
-      setLoading(true);
-      const offset = (page - 1) * pageSize;
-      const response = await apiClient.get<InspectionsListResponse>(
-        `/hives/${hiveId}/inspections?limit=${pageSize}&offset=${offset}&sort=${sortOrder}`
-      );
-      setServerInspections(response.data.data);
-      setTotal(response.data.meta.total);
-    } catch {
-      message.error('Failed to load inspections');
-    } finally {
-      setLoading(false);
-    }
-  }, [hiveId, page, pageSize, sortOrder]);
-
-  useEffect(() => {
-    fetchInspections();
-  }, [fetchInspections]);
-
   const handleExport = async () => {
     try {
-      setExporting(true);
-      const response = await apiClient.get(`/hives/${hiveId}/inspections/export`, {
-        responseType: 'blob',
-      });
-
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${hiveName.replace(/\s+/g, '_')}-inspections.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
+      await exportInspections(hiveName);
       message.success('Inspections exported successfully');
     } catch {
       message.error('Failed to export inspections');
-    } finally {
-      setExporting(false);
     }
   };
 
@@ -237,7 +238,7 @@ export function InspectionHistory({ hiveId, hiveName }: InspectionHistoryProps) 
       key: 'brood',
       render: (_: unknown, record: Inspection) => {
         const parts = [];
-        if (record.brood_frames !== null) {
+        if (record.brood_frames != null) {
           parts.push(`${record.brood_frames} frames`);
         }
         if (record.brood_pattern) {
@@ -282,6 +283,12 @@ export function InspectionHistory({ hiveId, hiveName }: InspectionHistoryProps) 
       },
     },
     {
+      title: 'Frames',
+      key: 'frames',
+      width: 100,
+      render: (_: unknown, record: Inspection) => formatFrameSummary(record.frames),
+    },
+    {
       title: 'Issues',
       key: 'issues',
       render: (_: unknown, record: Inspection) =>
@@ -294,19 +301,68 @@ export function InspectionHistory({ hiveId, hiveName }: InspectionHistoryProps) 
     {
       title: '',
       key: 'actions',
-      width: 80,
+      width: 56,
       render: (_: unknown, record: Inspection) => (
         <Button
-          type="text"
-          icon={<EyeOutlined />}
+          type="default"
+          shape="circle"
+          icon={<EyeOutlined style={{ fontSize: 14 }} />}
           onClick={() => handleViewDetails(record)}
+          style={{
+            minWidth: 36,
+            width: 36,
+            height: 36,
+            color: '#9d7a48',
+            borderColor: 'rgba(157, 122, 72, 0.45)',
+            backgroundColor: 'rgba(157, 122, 72, 0.1)',
+          }}
         />
       ),
     },
   ];
 
+  // Recent activity entries for display
+  const recentActivity = useMemo(() => {
+    if (!activityEntries || activityEntries.length === 0) return [];
+    // Show most recent 10 activity entries
+    return activityEntries.slice(0, 10);
+  }, [activityEntries]);
+
   return (
     <div>
+      {/* Activity Log Section - Story 14.13 */}
+      {recentActivity.length > 0 && (
+        <Collapse
+          ghost
+          defaultActiveKey={[]}
+          style={{ marginBottom: 16 }}
+          items={[
+            {
+              key: 'activity',
+              label: (
+                <Space>
+                  <HistoryOutlined style={{ color: colors.brownBramble }} />
+                  <Text strong style={{ color: colors.brownBramble }}>
+                    Recent Task Completions ({recentActivity.length})
+                  </Text>
+                </Space>
+              ),
+              children: (
+                <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                  {activityLoading ? (
+                    <Text type="secondary">Loading activity...</Text>
+                  ) : (
+                    recentActivity.map((entry) => (
+                      <ActivityLogItem key={entry.id} entry={entry} />
+                    ))
+                  )}
+                </div>
+              ),
+            },
+          ]}
+        />
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <Button
           icon={<DownloadOutlined />}
@@ -330,10 +386,10 @@ export function InspectionHistory({ hiveId, hiveName }: InspectionHistoryProps) 
           showSizeChanger: true,
           showTotal: (t) => `${t} inspection${t !== 1 ? 's' : ''}${offlineCount > 0 ? ` (${offlineCount} pending sync)` : ''}`,
           onChange: (newPage, newPageSize) => {
-            setPage(newPage);
             if (newPageSize !== pageSize) {
               setPageSize(newPageSize);
-              setPage(1);
+            } else {
+              setPage(newPage);
             }
           },
         }}
@@ -343,7 +399,6 @@ export function InspectionHistory({ hiveId, hiveName }: InspectionHistoryProps) 
             const newOrder = sorter.order === 'ascend' ? 'asc' : 'desc';
             if (newOrder !== sortOrder) {
               setSortOrder(newOrder);
-              setPage(1); // Reset to first page on sort change
             }
           }
         }}
@@ -358,7 +413,7 @@ export function InspectionHistory({ hiveId, hiveName }: InspectionHistoryProps) 
           setDetailModalOpen(false);
           setSelectedInspection(null);
         }}
-        onDeleted={fetchInspections}
+        onDeleted={refetch}
       />
     </div>
   );

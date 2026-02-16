@@ -6,7 +6,7 @@
  *
  * Part of Epic 8, Story 8.5: Maintenance Priority View
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '../providers/apiClient';
 import type { Insight } from './useBeeBrain';
 
@@ -82,6 +82,18 @@ interface MaintenanceResponse {
 }
 
 /**
+ * UUID v4 format validation regex.
+ */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Validates if a string is a valid UUID v4 format.
+ */
+function isValidUUID(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
+
+/**
  * Return type for the useMaintenanceItems hook.
  */
 export interface UseMaintenanceItemsResult {
@@ -115,28 +127,46 @@ export function useMaintenanceItems(siteId: string | null): UseMaintenanceItemsR
   const [data, setData] = useState<MaintenanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // SECURITY (S5-H1): isMountedRef prevents state updates after unmount
+  const isMountedRef = useRef(true);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const queryParams = siteId ? `?site_id=${siteId}` : '';
+      // Validate site_id format if provided to prevent invalid API requests
+      let queryParams = '';
+      if (siteId) {
+        if (!isValidUUID(siteId)) {
+          throw new Error('Invalid site ID format');
+        }
+        queryParams = `?site_id=${encodeURIComponent(siteId)}`;
+      }
+
       const response = await apiClient.get<MaintenanceResponse>(
         `/beebrain/maintenance${queryParams}`
       );
 
-      setData(response.data.data);
+      if (isMountedRef.current) {
+        setData(response.data.data);
+      }
     } catch (err) {
-      setError(err as Error);
+      if (isMountedRef.current) {
+        setError(err as Error);
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [siteId]);
 
   // Fetch on mount and when siteId changes
   useEffect(() => {
+    isMountedRef.current = true;
     fetchData();
+    return () => { isMountedRef.current = false; };
   }, [fetchData]);
 
   // Refetch function for use after completing actions

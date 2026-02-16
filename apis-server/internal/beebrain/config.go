@@ -81,8 +81,10 @@ func (l *RulesLoader) GetRules() []Rule {
 		// File has been modified, need to reload
 		l.mu.RUnlock()
 		l.mu.Lock()
-		// Double-check after acquiring write lock
-		if stat.ModTime().After(l.modTime) {
+		// Re-stat the file after acquiring write lock to avoid race condition
+		// (the original stat may be stale if another goroutine reloaded)
+		newStat, err := os.Stat(l.rulesPath)
+		if err == nil && newStat.ModTime().After(l.modTime) {
 			if err := l.reloadLocked(); err != nil {
 				log.Warn().Err(err).Msg("beebrain: failed to reload rules, using cached")
 			}

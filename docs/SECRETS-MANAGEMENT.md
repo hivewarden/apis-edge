@@ -47,7 +47,8 @@ For local development, OpenBao runs in **dev mode**:
 # Just start the stack - no configuration needed
 docker compose up
 
-# Secrets are read from .env defaults
+# OpenBao is automatically seeded with default dev secrets (via `openbao-bootstrap`)
+# and `apis-server` reads runtime DB credentials from OpenBao by default.
 ```
 
 ## Team Development (Shared Secrets)
@@ -112,7 +113,7 @@ export OPENBAO_TOKEN=hvs.your-production-token
 export OPENBAO_SECRET_PATH=secret/data/apis
 
 # Start without local OpenBao
-docker compose up apis-server apis-dashboard yugabytedb zitadel
+docker compose up apis-server apis-dashboard yugabytedb keycloak
 ```
 
 ### Option B: Self-Hosted OpenBao (Production Mode)
@@ -145,7 +146,8 @@ Update `docker-compose.yml`:
 
 ```yaml
 openbao:
-  image: quay.io/openbao/openbao:latest
+  # Pin the OpenBao image (avoid :latest in production)
+  image: quay.io/openbao/openbao:2.4.4
   container_name: apis-openbao
   command: server -config=/etc/openbao/config.hcl
   volumes:
