@@ -6,17 +6,15 @@
  *
  * Part of Epic 9, Story 9.4: Season Recap Summary
  */
-import React, { forwardRef } from 'react';
-import { Card, Typography, Row, Col, Statistic, Tag, Space, Divider } from 'antd';
+import { forwardRef } from 'react';
+import { Typography, Row, Col, Space } from 'antd';
 import {
   TrophyOutlined,
   BugOutlined,
   SearchOutlined,
-  MedicineBoxOutlined,
-  CoffeeOutlined,
 } from '@ant-design/icons';
 import { colors } from '../theme/apisTheme';
-import { SeasonRecap, Milestone, formatHarvestKg, getMilestoneIcon } from '../hooks/useSeasonRecap';
+import { SeasonRecap, getMilestoneIcon } from '../hooks/useSeasonRecap';
 
 const { Title, Text } = Typography;
 
@@ -47,144 +45,219 @@ function MilestoneIcon({ type }: { type: string }) {
 /**
  * SeasonRecapCard displays the season summary with key statistics.
  * Uses forwardRef to allow capturing via html2canvas for image export.
+ * Design per mockup: white card with top primary border, centered layout.
  */
 export const SeasonRecapCard = forwardRef<HTMLDivElement, SeasonRecapCardProps>(
   function SeasonRecapCard({ recap, compact = false }, ref) {
-    const { season_dates, milestones, comparison_data } = recap;
+    const { season_dates, milestones } = recap;
+
+    // Stat item component
+    const StatItem = ({
+      icon,
+      label,
+      value,
+    }: {
+      icon: React.ReactNode;
+      label: string;
+      value: string | number;
+    }) => (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 12,
+          padding: 24,
+          borderRadius: 16,
+          backgroundColor: colors.coconutCream,
+          border: '1px solid transparent',
+          transition: 'border-color 0.2s',
+        }}
+      >
+        <div
+          style={{
+            padding: 12,
+            backgroundColor: '#ffffff',
+            borderRadius: '50%',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+          }}
+        >
+          {icon}
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <Text
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: '#8a4a28',
+              display: 'block',
+            }}
+          >
+            {label}
+          </Text>
+          <Text
+            style={{
+              fontSize: 28,
+              fontWeight: 700,
+              color: colors.brownBramble,
+              lineHeight: 1.2,
+              marginTop: 4,
+              display: 'block',
+            }}
+          >
+            {value}
+          </Text>
+        </div>
+      </div>
+    );
 
     return (
       <div ref={ref}>
-        <Card
+        {/* Card with top border per mockup */}
+        <div
           style={{
-            background: `linear-gradient(135deg, ${colors.coconutCream} 0%, ${colors.salomie}40 100%)`,
-            borderColor: colors.seaBuckthorn,
-            borderWidth: 2,
+            backgroundColor: '#ffffff',
+            borderRadius: 16,
+            boxShadow: '0 10px 40px -10px rgba(0, 0, 0, 0.1)',
+            borderTop: `8px solid ${colors.seaBuckthorn}`,
+            overflow: 'hidden',
           }}
-          bodyStyle={{ padding: compact ? 16 : 24 }}
         >
-          {/* Header */}
           <div
             style={{
-              textAlign: 'center',
-              marginBottom: compact ? 12 : 20,
-              padding: compact ? 8 : 16,
-              background: colors.seaBuckthorn,
-              borderRadius: 8,
-              marginTop: -8,
-              marginLeft: -8,
-              marginRight: -8,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              padding: compact ? '32px 24px' : '64px 64px',
+              gap: compact ? 24 : 40,
             }}
           >
-            <Title
-              level={compact ? 4 : 3}
-              style={{ color: 'white', margin: 0 }}
+            {/* Header with trophy icon */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+                gap: 16,
+                maxWidth: 600,
+              }}
             >
-              Season Recap {recap.season_year}
-            </Title>
-            <Text style={{ color: 'white', opacity: 0.9 }}>
-              {season_dates.display_text}
-            </Text>
-          </div>
-
-          {/* Key Stats */}
-          <Row gutter={[16, 16]} style={{ marginBottom: compact ? 12 : 20 }}>
-            <Col xs={12} sm={8}>
-              <Statistic
-                title="Harvest"
-                value={recap.total_harvest_kg}
-                suffix="kg"
-                valueStyle={{ color: colors.brownBramble, fontSize: compact ? 20 : 24 }}
-                prefix={<TrophyOutlined style={{ color: colors.seaBuckthorn }} />}
-              />
-            </Col>
-            <Col xs={12} sm={8}>
-              <Statistic
-                title="Hornets Deterred"
-                value={recap.hornets_deterred}
-                valueStyle={{ color: colors.brownBramble, fontSize: compact ? 20 : 24 }}
-                prefix={<BugOutlined style={{ color: colors.seaBuckthorn }} />}
-              />
-            </Col>
-            <Col xs={12} sm={8}>
-              <Statistic
-                title="Inspections"
-                value={recap.inspections_count}
-                valueStyle={{ color: colors.brownBramble, fontSize: compact ? 20 : 24 }}
-                prefix={<SearchOutlined style={{ color: colors.seaBuckthorn }} />}
-              />
-            </Col>
-            {!compact && (
-              <>
-                <Col xs={12} sm={8}>
-                  <Statistic
-                    title="Treatments"
-                    value={recap.treatments_count}
-                    valueStyle={{ color: colors.brownBramble, fontSize: 20 }}
-                    prefix={<MedicineBoxOutlined style={{ color: colors.seaBuckthorn }} />}
-                  />
-                </Col>
-                <Col xs={12} sm={8}>
-                  <Statistic
-                    title="Feedings"
-                    value={recap.feedings_count}
-                    valueStyle={{ color: colors.brownBramble, fontSize: 20 }}
-                    prefix={<CoffeeOutlined style={{ color: colors.seaBuckthorn }} />}
-                  />
-                </Col>
-              </>
-            )}
-          </Row>
-
-          {/* Year Comparison */}
-          {comparison_data && (
-            <>
-              <Divider style={{ margin: compact ? '8px 0' : '16px 0' }} />
-              <div style={{ textAlign: 'center', marginBottom: compact ? 8 : 16 }}>
-                <Text type="secondary">vs {comparison_data.previous_year}: </Text>
-                <Tag color={comparison_data.harvest_change_percent >= 0 ? 'green' : 'red'}>
-                  {comparison_data.harvest_change_percent >= 0 ? '+' : ''}
-                  {comparison_data.harvest_change_percent.toFixed(1)}% harvest
-                </Tag>
-                <Tag color={comparison_data.hornets_change_percent >= 0 ? 'orange' : 'green'}>
-                  {comparison_data.hornets_change_percent >= 0 ? '+' : ''}
-                  {comparison_data.hornets_change_percent.toFixed(1)}% hornets
-                </Tag>
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(247, 164, 45, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 8,
+                }}
+              >
+                <TrophyOutlined style={{ fontSize: 32, color: colors.seaBuckthorn }} />
               </div>
-            </>
-          )}
-
-          {/* Milestones */}
-          {milestones.length > 0 && !compact && (
-            <>
-              <Divider style={{ margin: '16px 0' }} />
-              <Title level={5} style={{ color: colors.brownBramble, marginBottom: 12 }}>
-                Highlights
+              <Title
+                level={compact ? 3 : 2}
+                style={{
+                  color: colors.brownBramble,
+                  margin: 0,
+                  fontWeight: 700,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {recap.season_year} Season Recap
               </Title>
-              <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                {milestones.slice(0, 5).map((milestone, index) => (
-                  <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <MilestoneIcon type={milestone.type} />
-                    <Text>{milestone.description}</Text>
-                  </div>
-                ))}
-              </Space>
-            </>
-          )}
+              <Text
+                style={{
+                  fontSize: compact ? 16 : 20,
+                  color: '#8a4a28',
+                  lineHeight: 1.6,
+                }}
+              >
+                {season_dates.display_text}
+              </Text>
+            </div>
 
-          {/* Footer */}
-          <div
-            style={{
-              textAlign: 'center',
-              marginTop: compact ? 12 : 20,
-              paddingTop: 12,
-              borderTop: `1px solid ${colors.seaBuckthorn}40`,
-            }}
-          >
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Generated with APIS - apis.honeybeegood.be
-            </Text>
+            {/* Decorative divider */}
+            <div
+              style={{
+                width: 96,
+                height: 4,
+                background: `linear-gradient(to right, transparent, rgba(247, 164, 45, 0.3), transparent)`,
+                borderRadius: 2,
+              }}
+            />
+
+            {/* Stats grid - 4 columns per mockup */}
+            <Row gutter={[16, 16]} style={{ width: '100%' }}>
+              <Col xs={12} sm={12} md={6}>
+                <StatItem
+                  icon={<TrophyOutlined style={{ fontSize: 24, color: colors.seaBuckthorn }} />}
+                  label="Total Harvest"
+                  value={`${recap.total_harvest_kg} kg`}
+                />
+              </Col>
+              <Col xs={12} sm={12} md={6}>
+                <StatItem
+                  icon={<BugOutlined style={{ fontSize: 24, color: colors.seaBuckthorn }} />}
+                  label="Hornets Deterred"
+                  value={recap.hornets_deterred}
+                />
+              </Col>
+              <Col xs={12} sm={12} md={6}>
+                <StatItem
+                  icon={<SearchOutlined style={{ fontSize: 24, color: colors.seaBuckthorn }} />}
+                  label="Inspections"
+                  value={recap.inspections_count}
+                />
+              </Col>
+              <Col xs={12} sm={12} md={6}>
+                <StatItem
+                  icon={<TrophyOutlined style={{ fontSize: 24, color: colors.seaBuckthorn }} />}
+                  label="Milestones"
+                  value={milestones.length}
+                />
+              </Col>
+            </Row>
+
+            {/* Milestones list - only in non-compact mode */}
+            {milestones.length > 0 && !compact && (
+              <div style={{ width: '100%', maxWidth: 600 }}>
+                <Title level={5} style={{ color: colors.brownBramble, marginBottom: 16, textAlign: 'center' }}>
+                  Highlights
+                </Title>
+                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                  {milestones.slice(0, 5).map((milestone, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: '12px 16px',
+                        backgroundColor: colors.coconutCream,
+                        borderRadius: 12,
+                      }}
+                    >
+                      <MilestoneIcon type={milestone.type} />
+                      <Text style={{ color: colors.brownBramble }}>{milestone.description}</Text>
+                    </div>
+                  ))}
+                </Space>
+              </div>
+            )}
           </div>
-        </Card>
+        </div>
+
+        {/* Footer - outside card */}
+        <div style={{ textAlign: 'center', marginTop: 32 }}>
+          <Text style={{ fontSize: 14, color: '#8a4a28' }}>
+            Generated with Hive Warden - hivewarden.com
+          </Text>
+        </div>
       </div>
     );
   }

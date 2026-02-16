@@ -9,63 +9,76 @@ interface LogoProps {
   collapsed: boolean;
   /** Additional inline styles */
   style?: CSSProperties;
+  /** Variant: 'light' for white sidebar, 'dark' for mobile drawer */
+  variant?: 'light' | 'dark';
 }
 
 /**
  * APIS Logo Component
  *
- * The brand mark for APIS - featuring a bee emoji and the app name.
- * Uses warm cream text on the dark brown sidebar background for
- * excellent contrast and a honey-themed aesthetic.
+ * Per DESIGN-KEY mockups: Orange square icon with hive symbol + "APIS" text.
+ * Supports light (white sidebar) and dark (mobile drawer) variants.
  *
  * Behavior:
- * - Expanded: Shows "🐝 APIS" with subtle glow effect
- * - Collapsed: Shows just "🐝" centered
- * - Smooth transition between states
+ * - Expanded: Shows icon + "APIS" text
+ * - Collapsed: Shows just icon centered
  */
-export function Logo({ collapsed, style }: LogoProps) {
+export function Logo({ collapsed, style, variant = 'light' }: LogoProps) {
+  const isDark = variant === 'dark';
+
   return (
     <div
       style={{
-        height: 64,
+        padding: collapsed ? '24px 8px' : '24px 20px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: collapsed ? 'center' : 'flex-start',
-        padding: collapsed ? 0 : '0 20px',
-        borderBottom: `1px solid rgba(251, 249, 231, 0.1)`,
+        gap: 12,
         transition: 'padding 0.25s ease',
         ...style,
       }}
     >
-      {/* Bee icon with subtle golden glow */}
-      <span
+      {/* Orange square icon with hive symbol per mockups */}
+      <div
         style={{
-          fontSize: collapsed ? 24 : 22,
-          lineHeight: 1,
-          filter: 'drop-shadow(0 0 4px rgba(247, 164, 45, 0.4))',
-          transition: 'font-size 0.25s ease',
+          width: 40,
+          height: 40,
+          background: colors.seaBuckthorn,
+          borderRadius: 12,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 1px 3px rgba(102, 38, 4, 0.1)',
+          flexShrink: 0,
         }}
-        role="img"
-        aria-label="Bee"
       >
-        🐝
-      </span>
+        {/* Using Material Symbol 'hive' icon */}
+        <span
+          className="material-symbols-outlined"
+          style={{
+            color: '#ffffff',
+            fontSize: 24,
+            fontVariationSettings: "'wght' 300",
+          }}
+        >
+          hive
+        </span>
+      </div>
 
       {/* App name - only visible when expanded */}
       {!collapsed && (
         <Title
           level={4}
           style={{
-            color: colors.coconutCream,
+            color: isDark ? colors.coconutCream : colors.brownBramble,
             margin: 0,
-            marginLeft: 10,
             whiteSpace: 'nowrap',
-            fontWeight: 600,
-            letterSpacing: '0.5px',
-            textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)',
+            fontWeight: 700,
+            fontSize: 20,
+            letterSpacing: '-0.02em',
           }}
         >
-          APIS
+          Hive Warden
         </Title>
       )}
     </div>
