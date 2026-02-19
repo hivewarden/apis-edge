@@ -17,6 +17,17 @@ vi.mock('../../src/providers/apiClient', () => ({
   },
 }));
 
+// Mock hooks
+const mockUseSites = vi.fn();
+vi.mock('../../src/hooks', () => ({
+  useSites: () => mockUseSites(),
+}));
+
+// Mock lazy components
+vi.mock('../../src/components/lazy', () => ({
+  SiteMapThumbnailLazy: () => <div data-testid="mock-map-thumbnail">Map</div>,
+}));
+
 // Mock navigate
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -47,17 +58,28 @@ describe('Sites Page', () => {
 
   describe('Loading state', () => {
     it('shows loading spinner when loading', () => {
-      mockGet.mockImplementation(() => new Promise(() => {})); // Never resolves
+      mockUseSites.mockReturnValue({
+        sites: [],
+        loading: true,
+        error: null,
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<Sites />);
 
-      expect(screen.getByRole('img', { name: /loading/i })).toBeInTheDocument();
+      // Ant Design Spin renders with class ant-spin-spinning, not role="img"
+      expect(document.querySelector('.ant-spin-spinning')).toBeInTheDocument();
     });
   });
 
   describe('Empty state', () => {
     it('shows empty message when no sites exist', async () => {
-      mockGet.mockResolvedValue({ data: { data: [], meta: { total: 0 } } });
+      mockUseSites.mockReturnValue({
+        sites: [],
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<Sites />);
 
@@ -67,7 +89,12 @@ describe('Sites Page', () => {
     });
 
     it('shows create first site button in empty state', async () => {
-      mockGet.mockResolvedValue({ data: { data: [], meta: { total: 0 } } });
+      mockUseSites.mockReturnValue({
+        sites: [],
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<Sites />);
 
@@ -77,7 +104,12 @@ describe('Sites Page', () => {
     });
 
     it('navigates to create page when create first site button clicked', async () => {
-      mockGet.mockResolvedValue({ data: { data: [], meta: { total: 0 } } });
+      mockUseSites.mockReturnValue({
+        sites: [],
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<Sites />);
 
@@ -113,17 +145,27 @@ describe('Sites Page', () => {
     ];
 
     it('renders page title', async () => {
-      mockGet.mockResolvedValue({ data: { data: mockSites, meta: { total: 2 } } });
+      mockUseSites.mockReturnValue({
+        sites: mockSites,
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<Sites />);
 
       await waitFor(() => {
-        expect(screen.getByText('Sites')).toBeInTheDocument();
+        expect(screen.getByText('Your Sites')).toBeInTheDocument();
       });
     });
 
     it('renders all sites', async () => {
-      mockGet.mockResolvedValue({ data: { data: mockSites, meta: { total: 2 } } });
+      mockUseSites.mockReturnValue({
+        sites: mockSites,
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<Sites />);
 
@@ -134,7 +176,12 @@ describe('Sites Page', () => {
     });
 
     it('shows timezone for each site', async () => {
-      mockGet.mockResolvedValue({ data: { data: mockSites, meta: { total: 2 } } });
+      mockUseSites.mockReturnValue({
+        sites: mockSites,
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<Sites />);
 
@@ -145,7 +192,12 @@ describe('Sites Page', () => {
     });
 
     it('shows Add Site button in header', async () => {
-      mockGet.mockResolvedValue({ data: { data: mockSites, meta: { total: 2 } } });
+      mockUseSites.mockReturnValue({
+        sites: mockSites,
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<Sites />);
 
@@ -155,7 +207,12 @@ describe('Sites Page', () => {
     });
 
     it('navigates to create page when Add Site button clicked', async () => {
-      mockGet.mockResolvedValue({ data: { data: mockSites, meta: { total: 2 } } });
+      mockUseSites.mockReturnValue({
+        sites: mockSites,
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<Sites />);
 
@@ -168,7 +225,12 @@ describe('Sites Page', () => {
     });
 
     it('navigates to site detail when site card clicked', async () => {
-      mockGet.mockResolvedValue({ data: { data: mockSites, meta: { total: 2 } } });
+      mockUseSites.mockReturnValue({
+        sites: mockSites,
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<Sites />);
 
@@ -185,14 +247,19 @@ describe('Sites Page', () => {
 
   describe('Error handling', () => {
     it('shows error message when fetch fails', async () => {
-      mockGet.mockRejectedValue(new Error('Network error'));
+      mockUseSites.mockReturnValue({
+        sites: [],
+        loading: false,
+        error: new Error('Network error'),
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<Sites />);
 
       await waitFor(() => {
         // The error is shown via message.error, which we can't easily test
         // But we should still get past loading state
-        expect(screen.queryByRole('img', { name: /loading/i })).not.toBeInTheDocument();
+        expect(document.querySelector('.ant-spin-spinning')).not.toBeInTheDocument();
       });
     });
   });

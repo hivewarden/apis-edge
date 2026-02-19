@@ -279,6 +279,10 @@ func TestHeartbeatDataResponseFormat(t *testing.T) {
 }
 
 func TestExtractClientIP_XForwardedFor(t *testing.T) {
+	old := TrustProxyHeaders
+	TrustProxyHeaders = true
+	defer func() { TrustProxyHeaders = old }()
+
 	req := httptest.NewRequest("POST", "/api/units/heartbeat", nil)
 	req.Header.Set("X-Forwarded-For", "203.0.113.50, 70.41.3.18, 150.172.238.178")
 
@@ -288,6 +292,10 @@ func TestExtractClientIP_XForwardedFor(t *testing.T) {
 }
 
 func TestExtractClientIP_XForwardedForSingle(t *testing.T) {
+	old := TrustProxyHeaders
+	TrustProxyHeaders = true
+	defer func() { TrustProxyHeaders = old }()
+
 	req := httptest.NewRequest("POST", "/api/units/heartbeat", nil)
 	req.Header.Set("X-Forwarded-For", "203.0.113.50")
 
@@ -296,6 +304,10 @@ func TestExtractClientIP_XForwardedForSingle(t *testing.T) {
 }
 
 func TestExtractClientIP_XRealIP(t *testing.T) {
+	old := TrustProxyHeaders
+	TrustProxyHeaders = true
+	defer func() { TrustProxyHeaders = old }()
+
 	req := httptest.NewRequest("POST", "/api/units/heartbeat", nil)
 	req.Header.Set("X-Real-IP", "192.168.1.100")
 
@@ -313,6 +325,10 @@ func TestExtractClientIP_RemoteAddr(t *testing.T) {
 }
 
 func TestExtractClientIP_Precedence(t *testing.T) {
+	old := TrustProxyHeaders
+	TrustProxyHeaders = true
+	defer func() { TrustProxyHeaders = old }()
+
 	// X-Forwarded-For takes precedence over X-Real-IP
 	req := httptest.NewRequest("POST", "/api/units/heartbeat", nil)
 	req.Header.Set("X-Forwarded-For", "1.2.3.4")

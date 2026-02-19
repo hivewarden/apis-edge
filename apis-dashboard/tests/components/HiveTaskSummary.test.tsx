@@ -8,7 +8,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { HiveTaskSummary } from '../../src/components/HiveTaskSummary';
-import { colors } from '../../src/theme/apisTheme';
 
 describe('HiveTaskSummary', () => {
   const defaultProps = {
@@ -19,29 +18,25 @@ describe('HiveTaskSummary', () => {
   it('renders correct format with open and overdue counts', () => {
     render(<HiveTaskSummary {...defaultProps} />);
 
-    expect(screen.getByText('Tasks:')).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument();
-    expect(screen.getByText(/open/i)).toBeInTheDocument();
-    expect(screen.getByText('1')).toBeInTheDocument();
-    expect(screen.getByText(/overdue/i)).toBeInTheDocument();
+    // Text format: "Tasks: {open} open · {overdue} overdue"
+    expect(screen.getByText(/Tasks: 3 open/)).toBeInTheDocument();
+    expect(screen.getByText(/1 overdue/)).toBeInTheDocument();
   });
 
-  it('displays overdue count in red when > 0', () => {
+  it('displays overdue count in muted-rose when > 0', () => {
     render(<HiveTaskSummary {...defaultProps} overdue={2} />);
 
-    // Find the overdue count element
-    const overdueCount = screen.getByText('2');
-    // The color should be the error color from theme
-    expect(overdueCount).toHaveStyle({ color: colors.error });
+    // Find the overdue span element
+    const overdueSpan = screen.getByText(/2 overdue/);
+    // The color should be muted-rose (#c4857a) per v2 mockup
+    expect(overdueSpan).toHaveStyle({ color: '#c4857a' });
   });
 
-  it('does not style overdue count in red when = 0', () => {
+  it('does not show overdue when count is 0', () => {
     render(<HiveTaskSummary {...defaultProps} overdue={0} />);
 
-    // When overdue is 0, it should not have the error color
-    const overdueCount = screen.getByText('0');
-    // Check it doesn't have the red color style
-    expect(overdueCount).not.toHaveStyle({ color: colors.error });
+    // When overdue is 0, the overdue section is not rendered
+    expect(screen.queryByText(/overdue/)).not.toBeInTheDocument();
   });
 
   it('triggers onClick callback when clicked', () => {
@@ -106,7 +101,7 @@ describe('HiveTaskSummary', () => {
   it('handles high task counts', () => {
     render(<HiveTaskSummary open={99} overdue={50} />);
 
-    expect(screen.getByText('99')).toBeInTheDocument();
-    expect(screen.getByText('50')).toBeInTheDocument();
+    expect(screen.getByText(/Tasks: 99 open/)).toBeInTheDocument();
+    expect(screen.getByText(/50 overdue/)).toBeInTheDocument();
   });
 });

@@ -107,32 +107,35 @@ const renderWithProviders = async (
 describe('Logo Component', () => {
   it('renders full text when expanded', async () => {
     await renderWithProviders(<Logo collapsed={false} />);
-    // Bee icon and APIS text are now separate elements
-    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
-    expect(screen.getByText('APIS')).toBeInTheDocument();
+    // Material Symbol 'hive' icon and brand name
+    expect(screen.getByText('hive')).toBeInTheDocument();
+    expect(screen.getByText('Hive Warden')).toBeInTheDocument();
   });
 
   it('renders only icon when collapsed', async () => {
     await renderWithProviders(<Logo collapsed={true} />);
-    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
-    // APIS text should not be visible when collapsed
-    expect(screen.queryByText('APIS')).not.toBeInTheDocument();
+    expect(screen.getByText('hive')).toBeInTheDocument();
+    // Brand text should not be visible when collapsed
+    expect(screen.queryByText('Hive Warden')).not.toBeInTheDocument();
   });
 });
 
 describe('navItems Configuration', () => {
-  it('contains exactly 8 navigation items', () => {
+  it('contains exactly 11 navigation items', () => {
     // Verify exact count to catch undocumented additions
-    expect(navItems?.length).toBe(8);
+    expect(navItems?.length).toBe(11);
   });
 
   it('contains all required navigation items', () => {
     const expectedItems = [
       { key: '/', label: 'Dashboard' },
-      { key: '/sites', label: 'Sites' },       // Added in Epic 3
+      { key: '/sites', label: 'Sites' },
       { key: '/units', label: 'Units' },
       { key: '/hives', label: 'Hives' },
-      { key: '/maintenance', label: 'Maintenance' }, // Added in Epic 5
+      { key: '/calendar', label: 'Calendar' },
+      { key: '/activity', label: 'Activity' },
+      { key: '/maintenance', label: 'Maintenance' },
+      { key: '/tasks', label: 'Tasks' },
       { key: '/clips', label: 'Clips' },
       { key: '/statistics', label: 'Statistics' },
       { key: '/settings', label: 'Settings' },
@@ -172,11 +175,11 @@ describe('AppLayout Component (Desktop)', () => {
     expect(screen.getByText('Settings')).toBeInTheDocument();
   });
 
-  it('renders APIS logo', async () => {
+  it('renders Hive Warden logo', async () => {
     await renderWithProviders(<AppLayout />, { withSyncProvider: true });
-    // Bee icon and APIS text are separate elements
-    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
-    expect(screen.getByText('APIS')).toBeInTheDocument();
+    // Material Symbol 'hive' icon and brand name
+    expect(screen.getByText('hive')).toBeInTheDocument();
+    expect(screen.getByText('Hive Warden')).toBeInTheDocument();
   });
 
   it('has a collapse button', async () => {
@@ -190,9 +193,9 @@ describe('AppLayout Component (Desktop)', () => {
   it('toggles sidebar collapse state when button is clicked', async () => {
     await renderWithProviders(<AppLayout />, { withSyncProvider: true });
 
-    // Initially expanded - Bee icon and APIS text are separate elements
-    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
-    expect(screen.getByText('APIS')).toBeInTheDocument();
+    // Initially expanded - Material Symbol 'hive' icon and brand name
+    expect(screen.getByText('hive')).toBeInTheDocument();
+    expect(screen.getByText('Hive Warden')).toBeInTheDocument();
 
     // Click collapse button
     const collapseButton = screen.getByRole('button', {
@@ -202,10 +205,10 @@ describe('AppLayout Component (Desktop)', () => {
       fireEvent.click(collapseButton);
     });
 
-    // After collapse, logo should show only icon (APIS text hidden)
+    // After collapse, logo should show only icon (brand text hidden)
     await waitFor(() => {
-      expect(screen.getByLabelText('Bee')).toBeInTheDocument();
-      expect(screen.queryByText('APIS')).not.toBeInTheDocument();
+      expect(screen.getByText('hive')).toBeInTheDocument();
+      expect(screen.queryByText('Hive Warden')).not.toBeInTheDocument();
     });
   });
 
@@ -227,8 +230,8 @@ describe('AppLayout Component (Desktop)', () => {
 
     await renderWithProviders(<AppLayout />, { withSyncProvider: true });
 
-    // Should restore collapsed state - logo shows only icon
-    expect(screen.getByText('🐝')).toBeInTheDocument();
+    // Should restore collapsed state - logo shows only icon (brand text hidden)
+    expect(screen.getByText('hive')).toBeInTheDocument();
   });
 
   it('handles invalid localStorage value gracefully', async () => {
@@ -238,9 +241,8 @@ describe('AppLayout Component (Desktop)', () => {
     await renderWithProviders(<AppLayout />, { withSyncProvider: true });
 
     // Should default to expanded when value is not 'true'
-    // Bee icon and APIS text are separate elements
-    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
-    expect(screen.getByText('APIS')).toBeInTheDocument();
+    expect(screen.getByText('hive')).toBeInTheDocument();
+    expect(screen.getByText('Hive Warden')).toBeInTheDocument();
   });
 });
 
@@ -262,9 +264,9 @@ describe('AppLayout Component (Mobile)', () => {
 
   it('renders logo in header on mobile', async () => {
     await renderWithProviders(<AppLayout />, { withSyncProvider: true });
-    // Bee icon and APIS text are separate elements
-    expect(screen.getByLabelText('Bee')).toBeInTheDocument();
-    expect(screen.getByText('APIS')).toBeInTheDocument();
+    // Material Symbol 'hive' icon and brand name
+    expect(screen.getByText('hive')).toBeInTheDocument();
+    expect(screen.getByText('Hive Warden')).toBeInTheDocument();
   });
 
   it('opens drawer when hamburger is clicked', async () => {

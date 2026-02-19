@@ -35,10 +35,24 @@ vi.mock('../../src/context', () => ({
   useSettings: () => ({ advancedMode: false }),
 }));
 
-// Mock hooks
+// Mock hooks - must include ALL hooks the component imports
+const mockUseHiveDetail = vi.fn();
 vi.mock('../../src/hooks', () => ({
   useOnlineStatus: () => true,
   useAuth: () => ({ user: { id: 'test-user' } }),
+  useHiveDetail: (...args: unknown[]) => mockUseHiveDetail(...args),
+}));
+
+// Mock components - avoid importActual which loads ALL barrel exports and their dependencies
+vi.mock('../../src/components', () => ({
+  FrameEntryCard: ({ broodBoxes, honeySupers, frames, onChange }: { broodBoxes: number; honeySupers: number; frames: unknown[]; onChange: (f: unknown[]) => void }) => (
+    <div data-testid="mock-frame-entry-card">Frame Entry Card</div>
+  ),
+  VoiceInputButton: ({ onTranscript, placeholder }: { onTranscript: (text: string) => void; placeholder?: string }) => (
+    <button onClick={() => onTranscript('test transcript')} aria-label="Speak your observations">
+      Speak
+    </button>
+  ),
 }));
 
 // Mock offline inspection service
@@ -73,17 +87,41 @@ const renderWithRouter = (ui: React.ReactElement, initialEntries = ['/hives/hive
 describe('InspectionCreate Page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGet.mockResolvedValue({ data: { data: mockHive } });
+    mockUseHiveDetail.mockReturnValue({
+      hive: mockHive,
+      site: null,
+      siteHives: [],
+      loading: false,
+      error: null,
+      deleteHive: vi.fn(),
+      deleting: false,
+      replaceQueen: vi.fn(),
+      replacingQueen: false,
+      refetch: vi.fn(),
+    });
     mockPost.mockResolvedValue({ data: { data: { id: 'new-inspection' } } });
     mockSaveOfflineInspection.mockResolvedValue({ id: 'local_123', local_id: 'local_123' });
   });
 
   describe('Page rendering', () => {
     it('renders loading state initially', () => {
-      mockGet.mockImplementation(() => new Promise(() => {})); // Never resolves
+      mockUseHiveDetail.mockReturnValue({
+        hive: null,
+        site: null,
+        siteHives: [],
+        loading: true,
+        error: null,
+        deleteHive: vi.fn(),
+        deleting: false,
+        replaceQueen: vi.fn(),
+        replacingQueen: false,
+        refetch: vi.fn(),
+      });
       renderWithRouter(<InspectionCreate />);
 
-      expect(screen.getByRole('img', { name: /loading/i })).toBeInTheDocument();
+      // Ant Design Spin renders a div with aria-busy="true", not an img role
+      const spinner = document.querySelector('.ant-spin-spinning');
+      expect(spinner).toBeInTheDocument();
     });
 
     it('renders page title after loading', async () => {
@@ -444,7 +482,18 @@ describe('InspectionCreate Page', () => {
 
   describe('Error handling', () => {
     it('shows error when hive not found', async () => {
-      mockGet.mockRejectedValue({ response: { status: 404 } });
+      mockUseHiveDetail.mockReturnValue({
+        hive: null,
+        site: null,
+        siteHives: [],
+        loading: false,
+        error: new Error('Not found'),
+        deleteHive: vi.fn(),
+        deleting: false,
+        replaceQueen: vi.fn(),
+        replacingQueen: false,
+        refetch: vi.fn(),
+      });
       renderWithRouter(<InspectionCreate />);
 
       await waitFor(() => {

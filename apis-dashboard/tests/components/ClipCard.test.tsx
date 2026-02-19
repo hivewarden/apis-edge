@@ -34,12 +34,8 @@ vi.mock('antd', () => ({
   ),
 }));
 
-// Mock icons
-vi.mock('@ant-design/icons', () => ({
-  PlayCircleOutlined: () => <span data-testid="play-icon">Play</span>,
-  ClockCircleOutlined: () => <span data-testid="clock-icon">Clock</span>,
-  AlertOutlined: () => <span data-testid="alert-icon">Alert</span>,
-}));
+// Icons are mocked globally via resolve alias in vitest.config.ts
+// (ant-design-icons.ts provides all icons with data-testid="icon-{Name}")
 
 // Mock theme
 vi.mock('../../src/theme/apisTheme', () => ({
@@ -107,7 +103,8 @@ describe('ClipCard', () => {
     it('renders play icon overlay', () => {
       render(<ClipCard clip={mockClip} onClick={mockOnClick} />);
 
-      expect(screen.getByTestId('play-icon')).toBeInTheDocument();
+      // ClipCard uses a material symbol icon for the play button
+      expect(screen.getByText('play_arrow')).toBeInTheDocument();
     });
 
     it('renders detection badge', () => {

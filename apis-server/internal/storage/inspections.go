@@ -441,6 +441,48 @@ func DeleteInspection(ctx context.Context, conn *pgxpool.Conn, id string) error 
 	return nil
 }
 
+// ListInspectionsForDateRange returns all inspections within a date range for a tenant.
+func ListInspectionsForDateRange(ctx context.Context, conn *pgxpool.Conn, tenantID string, startDate, endDate time.Time) ([]Inspection, error) {
+	rows, err := conn.Query(ctx,
+		`SELECT id, tenant_id, hive_id, inspected_at, queen_seen, eggs_seen, queen_cells,
+		 brood_frames, brood_pattern, honey_level, pollen_level, temperament, issues, notes, created_at, updated_at
+		 FROM inspections
+		 WHERE tenant_id = $1 AND inspected_at >= $2 AND inspected_at <= $3
+		 ORDER BY inspected_at ASC, created_at ASC`,
+		tenantID, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to list inspections for date range: %w", err)
+	}
+	defer rows.Close()
+
+	var inspections []Inspection
+	for rows.Next() {
+		var inspection Inspection
+		var issuesBytes []byte
+
+		err := rows.Scan(&inspection.ID, &inspection.TenantID, &inspection.HiveID, &inspection.InspectedAt,
+			&inspection.QueenSeen, &inspection.EggsSeen, &inspection.QueenCells,
+			&inspection.BroodFrames, &inspection.BroodPattern, &inspection.HoneyLevel, &inspection.PollenLevel,
+			&inspection.Temperament, &issuesBytes, &inspection.Notes, &inspection.CreatedAt, &inspection.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("storage: failed to scan inspection: %w", err)
+		}
+
+		// Parse issues JSON
+		if err := json.Unmarshal(issuesBytes, &inspection.Issues); err != nil {
+			inspection.Issues = []string{}
+		}
+
+		inspections = append(inspections, inspection)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("storage: error iterating inspections: %w", err)
+	}
+
+	return inspections, nil
+}
+
 // CountInspectionsByHive returns the total number of inspections for a hive.
 func CountInspectionsByHive(ctx context.Context, conn *pgxpool.Conn, hiveID string) (int, error) {
 	var count int

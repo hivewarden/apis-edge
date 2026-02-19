@@ -126,7 +126,8 @@ describe('FrameEntryCard Component', () => {
       // Check for input labels
       expect(screen.getByText('Total')).toBeInTheDocument();
       expect(screen.getByText('Drawn')).toBeInTheDocument();
-      expect(screen.getByText('Brood')).toBeInTheDocument();
+      // "Brood" appears both as a box type tag and as a frame label
+      expect(screen.getAllByText('Brood').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('Honey')).toBeInTheDocument();
       expect(screen.getByText('Pollen')).toBeInTheDocument();
     });
@@ -272,6 +273,12 @@ describe('FrameEntryCard Component', () => {
         </ConfigProvider>
       );
 
+      // Re-expand the collapse (it may have reset on rerender)
+      const frameLevelData = screen.getByText('Frame-Level Data');
+      if (!screen.queryByText('Brood Box 2')) {
+        fireEvent.click(frameLevelData);
+      }
+
       expect(screen.getByText('Brood Box 2')).toBeInTheDocument();
     });
   });
@@ -290,7 +297,8 @@ describe('FrameEntryCard Component', () => {
       // Expand the collapse
       fireEvent.click(screen.getByText('Frame-Level Data'));
 
-      expect(screen.getByText('Brood')).toBeInTheDocument();
+      // "Brood" appears in both the box type Tag and the column header label
+      expect(screen.getAllByText('Brood').length).toBeGreaterThanOrEqual(1);
     });
 
     it('displays Super tag for honey supers', () => {

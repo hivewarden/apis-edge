@@ -116,8 +116,8 @@ describe.skipIf(!isLocalMode())('Local Mode Features', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('Email')).toBeInTheDocument();
-        expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('beekeeper@apis.com')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
       });
     });
 
@@ -163,20 +163,20 @@ describe.skipIf(!isLocalMode())('Local Mode Features', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('Email')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('beekeeper@apis.com')).toBeInTheDocument();
         expect(screen.queryByTestId('setup-page')).not.toBeInTheDocument();
       });
     });
   });
 
   describe('Local Auth Attribution', () => {
-    it('shows "Secure local authentication" footer', async () => {
+    it('shows local mode subtitle', async () => {
       await act(async () => {
         renderWithProviders(<Login />);
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Secure local authentication')).toBeInTheDocument();
+        expect(screen.getByText('Log in to manage your apiary locally.')).toBeInTheDocument();
       });
     });
   });
@@ -210,8 +210,8 @@ describe.skipIf(!isKeycloakMode())('Keycloak Mode Features', () => {
       });
 
       await waitFor(() => {
-        expect(screen.queryByPlaceholderText('Email')).not.toBeInTheDocument();
-        expect(screen.queryByPlaceholderText('Password')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('beekeeper@apis.com')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('••••••••')).not.toBeInTheDocument();
       });
     });
   });
@@ -263,12 +263,24 @@ describe('Shared Auth Behavior (Both Modes)', () => {
   });
 
   describe('Page Branding', () => {
-    it('renders the APIS title', async () => {
+    it('renders the Hive Warden brand name', async () => {
       await act(async () => {
         renderWithProviders(<Login />);
       });
 
-      expect(screen.getByText('APIS')).toBeInTheDocument();
+      expect(screen.getByText('Hive Warden')).toBeInTheDocument();
+    });
+
+    it('renders the welcome title or SSO title', async () => {
+      await act(async () => {
+        renderWithProviders(<Login />);
+      });
+
+      if (isLocalMode()) {
+        expect(screen.getByText('Welcome back')).toBeInTheDocument();
+      } else {
+        expect(screen.getByText('Sign in to Hive Warden')).toBeInTheDocument();
+      }
     });
 
     it('renders the subtitle', async () => {
@@ -276,15 +288,11 @@ describe('Shared Auth Behavior (Both Modes)', () => {
         renderWithProviders(<Login />);
       });
 
-      expect(screen.getByText('Anti-Predator Interference System')).toBeInTheDocument();
-    });
-
-    it('renders the description', async () => {
-      await act(async () => {
-        renderWithProviders(<Login />);
-      });
-
-      expect(screen.getByText(/sign in to monitor your hives/i)).toBeInTheDocument();
+      if (isLocalMode()) {
+        expect(screen.getByText('Log in to manage your apiary locally.')).toBeInTheDocument();
+      } else {
+        expect(screen.getByText('Secure authentication via your identity provider.')).toBeInTheDocument();
+      }
     });
   });
 

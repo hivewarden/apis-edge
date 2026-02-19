@@ -100,7 +100,7 @@ describe('MobileTaskCompletionSheet', () => {
       />
     );
 
-    expect(screen.getByText(/Complete Task: Requeen/)).toBeInTheDocument();
+    expect(screen.getByText('Requeen')).toBeInTheDocument();
   });
 
   it('renders prompts from auto_effects', () => {
@@ -170,7 +170,7 @@ describe('MobileTaskCompletionSheet', () => {
     });
   });
 
-  it('calls onClose when Cancel is clicked', () => {
+  it('calls onClose when close button is clicked', () => {
     renderWithTheme(
       <MobileTaskCompletionSheet
         task={taskWithPrompts}
@@ -181,8 +181,8 @@ describe('MobileTaskCompletionSheet', () => {
       />
     );
 
-    const cancelButton = screen.getByTestId('cancel-button');
-    fireEvent.click(cancelButton);
+    const closeButton = screen.getByRole('button', { name: /close/i });
+    fireEvent.click(closeButton);
 
     expect(mockOnClose).toHaveBeenCalled();
   });

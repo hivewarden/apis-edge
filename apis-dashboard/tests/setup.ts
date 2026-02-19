@@ -1,6 +1,10 @@
 import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
 
+// NOTE: @ant-design/icons and qrcode are mocked via resolve aliases in vitest.config.ts
+// (Proxy-based vi.mock caused vitest hangs during module resolution)
+
+
 // Mock matchMedia for Ant Design responsive components
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

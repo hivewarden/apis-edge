@@ -176,6 +176,7 @@ describe('refineAuthProvider', () => {
         name: 'Dev User',
         email: 'dev@apis.local',
         avatar: undefined,
+        tenant_id: 'dev-tenant-001',
       });
     });
 

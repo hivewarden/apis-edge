@@ -322,8 +322,9 @@ describe('InspectionDetailModal Component', () => {
         expect(screen.getByText('Delete this inspection?')).toBeInTheDocument();
       });
 
-      // Confirm deletion
-      const confirmButton = screen.getByRole('button', { name: 'Delete' });
+      // Confirm deletion - use the Popconfirm's OK button (last Delete button in the DOM)
+      const deleteButtons = screen.getAllByRole('button', { name: /Delete/i });
+      const confirmButton = deleteButtons[deleteButtons.length - 1];
       fireEvent.click(confirmButton);
 
       await waitFor(() => {

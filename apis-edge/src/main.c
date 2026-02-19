@@ -22,18 +22,34 @@
 #include "rolling_buffer.h"
 #include "clip_recorder.h"
 #include "storage_manager.h"
+#include "led_controller.h"
 #include "platform.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 #include <signal.h>
+#endif
 #include <stdbool.h>
 #include <errno.h>
 
 #ifdef APIS_PLATFORM_PI
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
+
+#ifdef APIS_PLATFORM_ESP32
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_wifi.h"
+#include "esp_netif.h"
+#include "wifi_provision.h"
+#include "http_server.h"
+#include "config_manager.h"
+#include "captive_dns.h"
+#include "mdns_discovery.h"
+#include "onboarding_defaults.h"
 #endif
 
 // Configuration
@@ -45,17 +61,21 @@
 // Global shutdown flag
 static volatile bool g_running = true;
 
+#if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 /**
  * Signal handler for graceful shutdown.
  *
  * NOTE: Only sets g_running flag. Logging here would be unsafe because
  * LOG_INFO uses non-async-signal-safe functions (printf, mutex, etc.).
  * The shutdown message is logged after the main loop exits instead.
+ *
+ * Not used on ESP32 (FreeRTOS doesn't support POSIX signals).
  */
 static void signal_handler(int sig) {
     (void)sig;
     g_running = false;
 }
+#endif
 
 /**
  * Create required directories.
@@ -156,6 +176,8 @@ static int run_capture_loop(const config_t *config) {
     camera_status_t status = camera_init(&config->camera);
     if (status != CAMERA_OK) {
         LOG_ERROR("Camera init failed: %s", camera_status_str(status));
+        if (led_controller_is_initialized())
+            led_controller_set_state(LED_STATE_CAMERA_FAIL);
         return 1;
     }
 
@@ -163,6 +185,8 @@ static int run_capture_loop(const config_t *config) {
     status = camera_open();
     if (status != CAMERA_OK) {
         LOG_ERROR("Camera open failed: %s", camera_status_str(status));
+        if (led_controller_is_initialized())
+            led_controller_set_state(LED_STATE_CAMERA_FAIL);
         return 1;
     }
 
@@ -227,8 +251,19 @@ static int run_capture_loop(const config_t *config) {
 
     // Story 10.5: Initialize rolling buffer for pre-roll frames
     rolling_buffer_config_t buffer_cfg = rolling_buffer_config_defaults();
+#ifdef APIS_PLATFORM_ESP32
+    // ESP32 has limited PSRAM (~4MB free after camera + motion detection).
+    // Reduce pre-roll to 3 frames (~2.7MB) instead of default 20 (~18MB).
+    buffer_cfg.duration_seconds = 1.0f;
+    buffer_cfg.fps = 3;
+#endif
     rolling_buffer_status_t buffer_status = rolling_buffer_init(&buffer_cfg);
     if (buffer_status != ROLLING_BUFFER_OK) {
+#ifdef APIS_PLATFORM_ESP32
+        // Non-fatal on ESP32 — continue without pre-roll capability
+        LOG_WARN("Rolling buffer init failed: %s (continuing without pre-roll)",
+                 rolling_buffer_status_str(buffer_status));
+#else
         LOG_ERROR("Rolling buffer init failed: %s", rolling_buffer_status_str(buffer_status));
         event_logger_close();
         classifier_cleanup();
@@ -236,9 +271,11 @@ static int run_capture_loop(const config_t *config) {
         motion_cleanup();
         camera_close();
         return 1;
+#endif
+    } else {
+        LOG_INFO("Rolling buffer initialized (%.1f seconds pre-roll)",
+                 buffer_cfg.duration_seconds);
     }
-    LOG_INFO("Rolling buffer initialized (%.1f seconds pre-roll)",
-             buffer_cfg.duration_seconds);
 
     // Story 10.5: Initialize clip recorder
     clip_recorder_config_t clip_cfg = clip_recorder_config_defaults();
@@ -353,6 +390,12 @@ static int run_capture_loop(const config_t *config) {
 
     // Main loop
     while (g_running) {
+#ifdef APIS_PLATFORM_ESP32
+        // Yield to FreeRTOS scheduler so WiFi, DHCP, and other system tasks
+        // can run. Must use at least 1 tick (10ms at 100Hz tick rate).
+        // pdMS_TO_TICKS(1) rounds to 0 which is a no-op!
+        vTaskDelay(1);
+#endif
         status = camera_read(frame, 1000);  // 1 second timeout
 
         if (status == CAMERA_ERROR_READ_FAILED) {
@@ -369,6 +412,8 @@ static int run_capture_loop(const config_t *config) {
             consecutive_failures = 0;
 
             if (reconnect_camera() != CAMERA_OK) {
+                if (led_controller_is_initialized())
+                    led_controller_set_state(LED_STATE_CAMERA_FAIL);
                 break;
             }
             continue;
@@ -549,19 +594,188 @@ int main(int argc, char *argv[]) {
 
     LOG_INFO("APIS Edge starting...");
 
-    // Setup signal handlers
+    // Initialize LED controller first — provides visual feedback from boot
+    if (led_controller_init() == 0) {
+        led_controller_set_state(LED_STATE_BOOT);
+    }
+
+#if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
+    // Setup signal handlers (not available on ESP32 / FreeRTOS)
     // S8-L-06: signal() has implementation-defined behavior (System V vs BSD
-    // semantics). On our target platforms (glibc on Pi, irrelevant on ESP32),
-    // BSD semantics are used which keep the handler installed after invocation.
-    // TODO: Replace with sigaction() for fully portable behavior if other
-    // platforms are targeted in the future.
+    // semantics). On our target platforms (glibc on Pi), BSD semantics are used
+    // which keep the handler installed after invocation.
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
+#endif
 
-    // Run main capture loop
+#ifdef APIS_PLATFORM_ESP32
+    // In AP setup mode, don't start the heavy camera/detection pipeline.
+    // Just run the HTTP server and wait for the user to configure WiFi
+    // via the setup page. This keeps CPU free for WiFi client handling.
+    if (wifi_provision_get_mode() == WIFI_PROV_MODE_AP) {
+        LOG_INFO("Device in setup mode - waiting for WiFi configuration");
+
+        // Switch LED from BOOT to SETUP (pulsing cyan)
+        led_controller_clear_state(LED_STATE_BOOT);
+        led_controller_set_state(LED_STATE_SETUP);
+
+        char ap_ssid[32], ap_pass[32];
+        wifi_provision_get_ap_ssid(ap_ssid, sizeof(ap_ssid));
+        wifi_provision_get_ap_password(ap_pass, sizeof(ap_pass));
+        LOG_INFO("=== SETUP CREDENTIALS ===");
+        LOG_INFO("  WiFi Network: %s", ap_ssid);
+        LOG_INFO("  WiFi Password: %s", ap_pass);
+        LOG_INFO("  Setup URL: http://192.168.4.1/setup (auto-popup)");
+        LOG_INFO("=========================");
+
+        // Initialize config manager so needs_setup=true is set correctly
+        // (without this, config_manager_needs_setup() returns false and
+        // the /setup endpoint requires authentication)
+        config_manager_init(false);
+
+        // Start captive DNS server: intercepts all DNS queries and responds
+        // with our AP IP (192.168.4.1). This makes captive portal detection
+        // work on iOS, Android, Windows, and macOS — the setup page pops up
+        // automatically when a phone connects to our WiFi.
+        esp_netif_ip_info_t ip_info;
+        esp_netif_t *ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+        if (ap_netif && esp_netif_get_ip_info(ap_netif, &ip_info) == ESP_OK) {
+            if (captive_dns_start(ip_info.ip.addr) == 0) {
+                LOG_INFO("Captive DNS started — portal will auto-popup on connect");
+            } else {
+                LOG_WARN("Captive DNS failed — users must manually visit setup URL");
+            }
+        } else {
+            LOG_WARN("Could not get AP IP for captive DNS");
+        }
+
+        // Start HTTP server on port 80 for captive portal.
+        // Port 80 is required because OS captive portal probes (Apple, Google,
+        // Microsoft) always use port 80. Port 8080 would not be detected.
+        http_config_t http_cfg = http_server_default_config();
+        http_cfg.port = 80;
+        if (http_server_init(&http_cfg) == 0 && http_server_start(true) == 0) {
+            LOG_INFO("HTTP server started on port %d for setup (captive portal)",
+                     http_cfg.port);
+        } else {
+            LOG_ERROR("Failed to start HTTP server for setup");
+        }
+
+        // Idle loop - just yield to FreeRTOS so WiFi + HTTP + DNS can work
+        int heartbeat = 0;
+        while (g_running) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            heartbeat++;
+            // Log heartbeat every 10 seconds so serial shows device is alive
+            if (heartbeat % 10 == 0) {
+                wifi_sta_list_t sta_list;
+                if (esp_wifi_ap_get_sta_list(&sta_list) == ESP_OK) {
+                    LOG_INFO("Setup mode alive (%ds) — %d client(s) connected",
+                             heartbeat, sta_list.num);
+                } else {
+                    LOG_INFO("Setup mode alive (%ds)", heartbeat);
+                }
+            }
+        }
+
+        captive_dns_stop();
+        http_server_stop();
+        http_server_cleanup();
+        log_shutdown();
+        return 0;
+    }
+#endif
+
+#ifdef APIS_PLATFORM_ESP32
+    // In STA mode — WiFi connected, switch LED from BOOT to operational
+    led_controller_clear_state(LED_STATE_BOOT);
+
+    // Initialize config manager and start HTTP server
+    // so the device can be managed (status, arm/disarm, stream) over the network
+    config_manager_init(false);
+
+    http_config_t http_cfg = http_server_default_config();
+    if (http_server_init(&http_cfg) == 0 && http_server_start(true) == 0) {
+        LOG_INFO("HTTP server started on port %d", http_cfg.port);
+    } else {
+        LOG_WARN("HTTP server failed to start - device will run without web API");
+    }
+
+    // Server discovery chain (see onboarding_defaults.h for self-hoster docs):
+    //   1. Saved config → use if user configured a URL during setup
+    //   2. mDNS → auto-discover _hivewarden._tcp on the local network
+    //   3. Default URL → ONBOARDING_DEFAULT_URL (hivewarden.eu or self-hosted)
+    //   4. Fallback URL → ONBOARDING_FALLBACK_URL (optional backup)
+    {
+        // Initialize mDNS: set hostname and advertise this device
+        char ap_ssid[32];
+        wifi_provision_get_ap_ssid(ap_ssid, sizeof(ap_ssid));
+        const char *device_suffix = ap_ssid + strlen("HiveWarden-");
+        mdns_discovery_init(device_suffix, http_cfg.port);
+
+        // Check if server URL is already configured (step 1)
+        runtime_config_t cfg_snap;
+        config_manager_get_public(&cfg_snap);
+
+        if (strlen(cfg_snap.server.url) > 0) {
+            // User configured a URL during setup — use it
+            LOG_INFO("Server URL configured: %s", cfg_snap.server.url);
+        } else {
+            // No URL configured — try discovery chain
+            bool found = false;
+
+            // Step 2: mDNS auto-discovery (local network)
+            mdns_server_result_t server;
+            if (mdns_discovery_find_server(&server) == 0) {
+                char url[128];
+                snprintf(url, sizeof(url), "http://%s:%u", server.host, server.port);
+                config_manager_set_server(url, "");
+                LOG_INFO("Server found via mDNS: %s", url);
+                found = true;
+            }
+
+            // Step 3: Default URL from onboarding_defaults.h
+            if (!found && strlen(ONBOARDING_DEFAULT_URL) > 0) {
+                config_manager_set_server(ONBOARDING_DEFAULT_URL, "");
+                LOG_INFO("Using default server: %s", ONBOARDING_DEFAULT_URL);
+                found = true;
+            }
+
+            // Step 4: Fallback URL (optional, for self-hosters)
+            if (!found && strlen(ONBOARDING_FALLBACK_URL) > 0) {
+                config_manager_set_server(ONBOARDING_FALLBACK_URL, "");
+                LOG_INFO("Using fallback server: %s", ONBOARDING_FALLBACK_URL);
+                found = true;
+            }
+
+            if (!found) {
+                LOG_WARN("No server configured — device will run detection "
+                         "but cannot upload clips or send heartbeats");
+            }
+        }
+
+        // Check if device has an API key — if not, it's unclaimed
+        config_manager_get_public(&cfg_snap);
+        if (strlen(cfg_snap.server.api_key) == 0) {
+            led_controller_set_state(LED_STATE_UNCLAIMED);
+            LOG_INFO("Device unclaimed — LED shows amber heartbeat. "
+                     "Scan a QR code or configure API key to claim.");
+        } else {
+            // Device is claimed and ready — default to DISARMED
+            led_controller_set_state(LED_STATE_DISARMED);
+        }
+    }
+#endif
+
+    // Run main capture loop (only when WiFi is connected or on non-ESP32)
     int result = run_capture_loop(config);
 
-    // Cleanup - log final message before shutting down the logger
+    // Cleanup LED controller
+    if (led_controller_is_initialized()) {
+        led_controller_cleanup();
+    }
+
+    // Log final message before shutting down the logger
     LOG_INFO("APIS Edge stopped (exit code: %d)", result);
     log_shutdown();
 

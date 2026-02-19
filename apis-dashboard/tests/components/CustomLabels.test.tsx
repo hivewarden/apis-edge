@@ -8,7 +8,34 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
+
+// Explicit @ant-design/icons mock to override setup.ts Proxy mock.
+// The Proxy mock hangs during module resolution for transitive imports;
+// explicit named exports resolve instantly.
+vi.mock('@ant-design/icons', () => {
+  const S = () => null;
+  return {
+    __esModule: true,
+    default: {},
+    TagsOutlined: S,
+    PlusOutlined: S,
+    EditOutlined: S,
+    DeleteOutlined: S,
+    ArrowLeftOutlined: S,
+    FileSearchOutlined: S,
+    MedicineBoxOutlined: S,
+    CoffeeOutlined: S,
+    GiftOutlined: S,
+    HomeOutlined: S,
+    VideoCameraOutlined: S,
+    UserAddOutlined: S,
+    EnvironmentOutlined: S,
+    ClockCircleOutlined: S,
+  };
+});
+
 import { CustomLabels } from '../../src/pages/CustomLabels';
+import { useCustomLabels } from '../../src/hooks/useCustomLabels';
 
 // Mock the useCustomLabels hook
 vi.mock('../../src/hooks/useCustomLabels', () => ({
@@ -119,8 +146,7 @@ describe('CustomLabels Page', () => {
   });
 
   it('shows loading state', () => {
-    const { useCustomLabels } = require('../../src/hooks/useCustomLabels');
-    useCustomLabels.mockReturnValueOnce({
+    vi.mocked(useCustomLabels).mockReturnValueOnce({
       labelsByCategory: { feed: [], treatment: [], equipment: [], issue: [] },
       loading: true,
       createLabel: vi.fn(),

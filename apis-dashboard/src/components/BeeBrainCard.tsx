@@ -233,7 +233,7 @@ export function BeeBrainCard({ siteId }: BeeBrainCardProps) {
   }
 
   // Sort insights by severity for prioritized display
-  const sortedInsights = sortInsightsBySeverity(data.insights);
+  const sortedInsights = sortInsightsBySeverity(data.insights || []);
 
   return (
     <Card style={cardStyle}>

@@ -15,6 +15,14 @@ import {
   isAudioRecordingSupported,
 } from '../../src/services/whisperTranscription';
 
+// Mock apiClient (used by transcribeAudio via dynamic import)
+const mockApiClient = {
+  post: vi.fn(),
+};
+vi.mock('../../src/providers/apiClient', () => ({
+  apiClient: mockApiClient,
+}));
+
 // Mock MediaRecorder
 class MockMediaRecorder {
   state: 'inactive' | 'recording' | 'paused' = 'inactive';
@@ -64,15 +72,8 @@ class MockMediaStream {
 
 describe('whisperTranscription service', () => {
   let mockStream: MockMediaStream;
-  let originalMediaRecorder: typeof MediaRecorder;
-  let originalNavigator: Navigator;
-  let originalFetch: typeof fetch;
 
   beforeEach(() => {
-    // Store originals
-    originalMediaRecorder = global.MediaRecorder;
-    originalNavigator = global.navigator;
-    originalFetch = global.fetch;
 
     // Create mock stream
     mockStream = new MockMediaStream();
@@ -90,18 +91,9 @@ describe('whisperTranscription service', () => {
       language: 'en-US',
     });
 
-    // Mock fetch for transcribeAudio
-    vi.stubGlobal('fetch', vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ data: { text: 'transcribed text' } }),
-      } as Response)
-    ));
-
-    // Mock localStorage
-    vi.stubGlobal('localStorage', {
-      getItem: vi.fn(() => 'mock-auth-token'),
-      setItem: vi.fn(),
+    // Set up default apiClient.post mock for transcribeAudio
+    mockApiClient.post.mockResolvedValue({
+      data: { data: { text: 'transcribed text' } },
     });
   });
 
@@ -194,31 +186,16 @@ describe('whisperTranscription service', () => {
   });
 
   describe('transcribeAudio', () => {
-    it('should send audio to transcription endpoint', async () => {
+    it('should send audio to transcription endpoint via apiClient', async () => {
       const audioBlob = new Blob(['audio data'], { type: 'audio/webm' });
 
       await transcribeAudio(audioBlob);
 
-      expect(fetch).toHaveBeenCalledWith(
-        '/api/transcribe',
+      expect(mockApiClient.post).toHaveBeenCalledWith(
+        '/transcribe',
+        expect.any(FormData),
         expect.objectContaining({
-          method: 'POST',
-          body: expect.any(FormData),
-        })
-      );
-    });
-
-    it('should include auth token in headers', async () => {
-      const audioBlob = new Blob(['audio data'], { type: 'audio/webm' });
-
-      await transcribeAudio(audioBlob);
-
-      expect(fetch).toHaveBeenCalledWith(
-        '/api/transcribe',
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: 'Bearer mock-auth-token',
-          }),
+          headers: { 'Content-Type': 'multipart/form-data' },
         })
       );
     });
@@ -236,11 +213,9 @@ describe('whisperTranscription service', () => {
     });
 
     it('should throw error on 413 (file too large)', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: false,
-        status: 413,
-        json: () => Promise.resolve({ error: 'File too large' }),
-      } as Response);
+      mockApiClient.post.mockRejectedValueOnce({
+        response: { status: 413, data: { error: 'File too large' } },
+      });
 
       const audioBlob = new Blob(['audio data'], { type: 'audio/webm' });
 
@@ -250,11 +225,9 @@ describe('whisperTranscription service', () => {
     });
 
     it('should throw error on 429 (rate limit)', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: false,
-        status: 429,
-        json: () => Promise.resolve({ error: 'Rate limit exceeded' }),
-      } as Response);
+      mockApiClient.post.mockRejectedValueOnce({
+        response: { status: 429, data: { error: 'Rate limit exceeded' } },
+      });
 
       const audioBlob = new Blob(['audio data'], { type: 'audio/webm' });
 
@@ -264,11 +237,9 @@ describe('whisperTranscription service', () => {
     });
 
     it('should throw error on 401 (unauthorized)', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        json: () => Promise.resolve({ error: 'Unauthorized' }),
-      } as Response);
+      mockApiClient.post.mockRejectedValueOnce({
+        response: { status: 401, data: { error: 'Unauthorized' } },
+      });
 
       const audioBlob = new Blob(['audio data'], { type: 'audio/webm' });
 
@@ -278,11 +249,9 @@ describe('whisperTranscription service', () => {
     });
 
     it('should throw error on 503 (service unavailable)', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: false,
-        status: 503,
-        json: () => Promise.resolve({ error: 'Service unavailable' }),
-      } as Response);
+      mockApiClient.post.mockRejectedValueOnce({
+        response: { status: 503, data: { error: 'Service unavailable' } },
+      });
 
       const audioBlob = new Blob(['audio data'], { type: 'audio/webm' });
 
@@ -292,15 +261,13 @@ describe('whisperTranscription service', () => {
     });
 
     it('should handle response with alternative JSON structure', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            text: 'direct text',
-            language: 'en',
-            duration: 5.2,
-          }),
-      } as Response);
+      mockApiClient.post.mockResolvedValueOnce({
+        data: {
+          text: 'direct text',
+          language: 'en',
+          duration: 5.2,
+        },
+      });
 
       const audioBlob = new Blob(['audio data'], { type: 'audio/webm' });
       const result = await transcribeAudio(audioBlob);

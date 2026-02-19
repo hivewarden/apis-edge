@@ -14,6 +14,10 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_spiffs.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "wifi_provision.h"
+#include "led_controller.h"
 
 // Forward declaration of platform-agnostic main from src/main.c
 extern int main(int argc, char *argv[]);
@@ -108,8 +112,25 @@ void app_main(void) {
     // Step 2: Initialize SPIFFS (required for event database + clips)
     init_spiffs();
 
-    // Step 3: Call platform-agnostic APIS main
-    // This launches the full system: camera, detection, control loop
+    // Step 3: Initialize WiFi (STA or AP mode)
+    ESP_LOGI(TAG, "Initializing WiFi...");
+    if (wifi_provision_init() == 0) {
+        wifi_prov_mode_t mode = wifi_provision_get_mode();
+        if (mode == WIFI_PROV_MODE_AP) {
+            ESP_LOGW(TAG, "Running in AP mode - visit http://192.168.4.1:8080/setup");
+            // Set LED to boot pattern to indicate setup needed
+            if (led_controller_is_initialized()) {
+                led_controller_set_state(LED_STATE_BOOT);
+            }
+        } else {
+            ESP_LOGI(TAG, "WiFi connected in STA mode");
+        }
+    } else {
+        ESP_LOGE(TAG, "WiFi initialization failed - continuing without network");
+    }
+
+    // Step 4: Launch platform-agnostic APIS main
+    // This starts the full system: camera, detection, HTTP server, control loop
     ESP_LOGI(TAG, "Launching APIS main application...");
     char *argv[] = {"apis-edge"};
     int exit_code = main(1, argv);

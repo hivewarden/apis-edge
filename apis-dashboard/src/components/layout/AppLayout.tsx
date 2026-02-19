@@ -52,6 +52,12 @@ function MaterialIcon({ name, size = 22, style }: MaterialIconProps) {
  * - Sidebar border: border-r border-orange-100 (#ece8d6)
  */
 const sidebarMenuStyles = `
+  /* Sider children wrapper needs full height for flex layout */
+  .ant-layout-sider-children {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+  }
   /* Active menu item - bg-salomie rounded-full per DESIGN-KEY */
   .ant-menu-light .ant-menu-item-selected {
     background-color: #fcd483 !important;
@@ -80,6 +86,21 @@ const sidebarMenuStyles = `
     align-items: center !important;
     justify-content: center !important;
   }
+  /* Collapsed sidebar: center icons, hide labels */
+  .ant-layout-sider-collapsed .ant-menu-item {
+    margin: 4px 8px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    width: auto !important;
+  }
+  .ant-layout-sider-collapsed .ant-menu-title-content {
+    display: none !important;
+    width: 0 !important;
+    opacity: 0 !important;
+  }
 `;
 
 /** localStorage key for sidebar collapse state persistence */
@@ -88,8 +109,6 @@ const COLLAPSE_KEY = 'apis-sidebar-collapsed';
 /** Layout dimension constants per DESIGN-KEY */
 const SIDEBAR_WIDTH_EXPANDED = 240; // 240px per mockups
 const SIDEBAR_WIDTH_COLLAPSED = 80;
-const COLLAPSE_BUTTON_LEFT_COLLAPSED = 24;
-const COLLAPSE_BUTTON_LEFT_EXPANDED = 80;
 
 /**
  * AppLayout Component
@@ -195,13 +214,10 @@ export function AppLayout() {
   const userSection = (
     <div
       style={{
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
         padding: collapsed ? '16px 8px' : '16px 20px',
         borderTop: '1px solid #ece8d6', // border-[#ece8d6] per mockups
         background: '#ffffff',
+        flexShrink: 0,
       }}
     >
       {collapsed ? (
@@ -316,27 +332,38 @@ export function AppLayout() {
           theme="light"
           trigger={null}
           style={{
-            paddingBottom: collapsed ? 100 : 120,
             background: '#ffffff',
             borderRight: '1px solid #ece8d6', // border-[#ece8d6] per mockups
             boxShadow: '4px 0 24px -4px rgba(0,0,0,0.02)', // subtle shadow per mockups
           }}
         >
-          <Logo collapsed={collapsed} variant="light" />
-          {menuContent}
-          <Button
-            type="text"
-            icon={<MaterialIcon name={collapsed ? 'menu_open' : 'menu'} size={20} />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{
-              position: 'absolute',
-              bottom: collapsed ? 90 : 110,
-              left: collapsed ? COLLAPSE_BUTTON_LEFT_COLLAPSED : COLLAPSE_BUTTON_LEFT_EXPANDED,
-              color: colors.coconutCream,
-            }}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          />
-          {userSection}
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Logo collapsed={collapsed} variant="light" />
+            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+              {menuContent}
+            </div>
+            <div style={{ flexShrink: 0, textAlign: 'center', padding: '8px 0' }}>
+              <Tooltip title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
+                <Button
+                  type="text"
+                  icon={<MaterialIcon name={collapsed ? 'chevron_right' : 'chevron_left'} size={20} />}
+                  onClick={() => setCollapsed(!collapsed)}
+                  style={{
+                    color: '#8c7e72',
+                    border: '1px solid #ece8d6',
+                    borderRadius: '50%',
+                    width: 32,
+                    height: 32,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                />
+              </Tooltip>
+            </div>
+            {userSection}
+          </div>
         </Sider>
       )}
 

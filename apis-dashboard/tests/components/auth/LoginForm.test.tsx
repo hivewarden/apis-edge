@@ -40,12 +40,12 @@ describe('LoginForm Component', () => {
   describe('Rendering', () => {
     it('renders email input', () => {
       renderLoginForm();
-      expect(screen.getByPlaceholderText('Email')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('beekeeper@apis.com')).toBeInTheDocument();
     });
 
     it('renders password input', () => {
       renderLoginForm();
-      expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
     });
 
     it('renders Remember me checkbox', () => {
@@ -60,7 +60,7 @@ describe('LoginForm Component', () => {
 
     it('email input has autoFocus', () => {
       renderLoginForm();
-      const emailInput = screen.getByPlaceholderText('Email');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
       expect(emailInput).toHaveFocus();
     });
 
@@ -88,7 +88,7 @@ describe('LoginForm Component', () => {
       const user = userEvent.setup();
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
       await user.type(emailInput, 'invalid-email');
 
       const submitButton = screen.getByRole('button', { name: /sign in/i });
@@ -103,7 +103,7 @@ describe('LoginForm Component', () => {
       const user = userEvent.setup();
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
       await user.type(emailInput, 'test@example.com');
 
       const submitButton = screen.getByRole('button', { name: /sign in/i });
@@ -124,8 +124,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
       const rememberMeCheckbox = screen.getByRole('checkbox', { name: /remember me/i });
 
       await user.type(emailInput, 'test@example.com');
@@ -156,8 +156,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm(mockOnSuccess);
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'password123');
@@ -183,8 +183,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'wrongpassword');
@@ -208,8 +208,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'password123');
@@ -233,8 +233,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'password123');
@@ -255,8 +255,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'password123');
@@ -280,8 +280,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'wrongpassword');
@@ -313,8 +313,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'wrongpassword');

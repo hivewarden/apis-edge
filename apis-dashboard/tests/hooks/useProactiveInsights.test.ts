@@ -366,7 +366,7 @@ describe('useProactiveInsights', () => {
     consoleError.mockRestore();
   });
 
-  it('should handle dismiss API error without rolling back', async () => {
+  it('should rollback dismiss on API error', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     (apiClient.post as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error('Dismiss failed')
@@ -384,8 +384,8 @@ describe('useProactiveInsights', () => {
       await result.current.dismissInsight('insight-1');
     });
 
-    // Insight should still be removed (no rollback for UX)
-    expect(result.current.insights).toHaveLength(initialCount - 1);
+    // Insight should be restored (rollback on error)
+    expect(result.current.insights).toHaveLength(initialCount);
     expect(result.current.error?.message).toBe('Dismiss failed');
 
     consoleError.mockRestore();

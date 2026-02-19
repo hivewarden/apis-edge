@@ -194,9 +194,9 @@ function DashboardContent() {
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
+          gap: 10,
           background: '#ffffff',
-          padding: '6px 16px',
+          padding: '4px 14px',
           borderRadius: 9999,
           boxShadow: '0 4px 20px rgba(102, 38, 4, 0.05)',
           border: '1px solid #ece8d6',

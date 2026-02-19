@@ -15,14 +15,16 @@ import (
 
 // CalendarEvent represents an event on the calendar.
 type CalendarEvent struct {
-	ID        string         `json:"id"`
-	Date      string         `json:"date"`
-	Type      string         `json:"type"` // "treatment_past", "treatment_due", "reminder"
-	Title     string         `json:"title"`
-	HiveID    *string        `json:"hive_id,omitempty"`
-	HiveName  *string        `json:"hive_name,omitempty"`
-	ReminderID *string       `json:"reminder_id,omitempty"`
-	Metadata  map[string]any `json:"metadata,omitempty"`
+	ID         string         `json:"id"`
+	Date       string         `json:"date"`
+	Type       string         `json:"type"` // "treatment_past", "treatment_due", "reminder", "inspection_past"
+	Title      string         `json:"title"`
+	HiveID     *string        `json:"hive_id,omitempty"`
+	HiveName   *string        `json:"hive_name,omitempty"`
+	SiteID     *string        `json:"site_id,omitempty"`
+	SiteName   *string        `json:"site_name,omitempty"`
+	ReminderID *string        `json:"reminder_id,omitempty"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
 }
 
 // CalendarResponse represents the calendar API response.
@@ -142,17 +144,53 @@ func GetCalendar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse optional filter params
+	filterSiteID := r.URL.Query().Get("site_id")
+	filterHiveID := r.URL.Query().Get("hive_id")
+
 	// Get all hives with their names
-	hives, err := storage.ListHives(r.Context(), conn)
+	allHives, err := storage.ListHives(r.Context(), conn)
 	if err != nil {
 		log.Error().Err(err).Msg("handler: failed to list hives for calendar")
 		respondError(w, "Failed to load calendar", http.StatusInternalServerError)
 		return
 	}
 
+	// Build site name lookup (only if filtering is active, to enrich events)
+	siteNames := make(map[string]string)
+	if filterSiteID != "" || filterHiveID != "" {
+		sites, siteErr := storage.ListSites(r.Context(), conn)
+		if siteErr == nil {
+			for _, s := range sites {
+				siteNames[s.ID] = s.Name
+			}
+		}
+	}
+
+	// Filter hives based on query params
+	var hives []storage.Hive
+	if filterHiveID != "" {
+		for _, h := range allHives {
+			if h.ID == filterHiveID {
+				hives = append(hives, h)
+				break
+			}
+		}
+	} else if filterSiteID != "" {
+		for _, h := range allHives {
+			if h.SiteID == filterSiteID {
+				hives = append(hives, h)
+			}
+		}
+	} else {
+		hives = allHives
+	}
+
 	hiveNames := make(map[string]string)
+	hiveSiteIDs := make(map[string]string)
 	for _, h := range hives {
 		hiveNames[h.ID] = h.Name
+		hiveSiteIDs[h.ID] = h.SiteID
 	}
 
 	// Get treatment intervals for tenant
@@ -174,8 +212,11 @@ func GetCalendar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, t := range treatments {
-		hiveName := hiveNames[t.HiveID]
-		events = append(events, CalendarEvent{
+		hiveName, ok := hiveNames[t.HiveID]
+		if !ok {
+			continue // Skip treatments for filtered-out hives
+		}
+		event := CalendarEvent{
 			ID:       "treatment-" + t.ID,
 			Date:     t.TreatedAt.Format("2006-01-02"),
 			Type:     "treatment_past",
@@ -186,7 +227,56 @@ func GetCalendar(w http.ResponseWriter, r *http.Request) {
 				"treatment_id":   t.ID,
 				"treatment_type": t.TreatmentType,
 			},
-		})
+		}
+		if siteID, hasSite := hiveSiteIDs[t.HiveID]; hasSite {
+			event.SiteID = &siteID
+			if name, hasName := siteNames[siteID]; hasName {
+				event.SiteName = &name
+			}
+		}
+		events = append(events, event)
+	}
+
+	// 1b. Add past inspections
+	inspections, err := storage.ListInspectionsForDateRange(r.Context(), conn, tenantID, startDate, endDate)
+	if err != nil {
+		log.Error().Err(err).Msg("handler: failed to list inspections")
+		respondError(w, "Failed to load calendar", http.StatusInternalServerError)
+		return
+	}
+
+	for _, insp := range inspections {
+		hiveName, ok := hiveNames[insp.HiveID]
+		if !ok {
+			continue // Skip inspections for filtered-out hives
+		}
+		metadata := map[string]any{
+			"inspection_id": insp.ID,
+		}
+		if insp.BroodFrames != nil {
+			metadata["brood_frames"] = *insp.BroodFrames
+		}
+		if insp.HoneyLevel != nil {
+			metadata["honey_level"] = *insp.HoneyLevel
+		}
+		metadata["issues_count"] = len(insp.Issues)
+
+		event := CalendarEvent{
+			ID:       "inspection-" + insp.ID,
+			Date:     insp.InspectedAt.Format("2006-01-02"),
+			Type:     "inspection_past",
+			Title:    "Inspection - " + hiveName,
+			HiveID:   &insp.HiveID,
+			HiveName: &hiveName,
+			Metadata: metadata,
+		}
+		if siteID, hasSite := hiveSiteIDs[insp.HiveID]; hasSite {
+			event.SiteID = &siteID
+			if name, hasName := siteNames[siteID]; hasName {
+				event.SiteName = &name
+			}
+		}
+		events = append(events, event)
 	}
 
 	// 2. Compute treatment due dates for each hive
@@ -286,6 +376,13 @@ func GetCalendar(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// When filtering, skip reminders for hives not in the filtered set
+		if (filterSiteID != "" || filterHiveID != "") && rem.HiveID != nil {
+			if _, ok := hiveNames[*rem.HiveID]; !ok {
+				continue
+			}
+		}
+
 		var hiveName *string
 		if rem.HiveID != nil {
 			if name, ok := hiveNames[*rem.HiveID]; ok {
@@ -301,7 +398,7 @@ func GetCalendar(w http.ResponseWriter, r *http.Request) {
 				metadata = m
 			}
 		}
-		events = append(events, CalendarEvent{
+		event := CalendarEvent{
 			ID:         "reminder-" + rem.ID,
 			Date:       rem.DueAt.Format("2006-01-02"),
 			Type:       "reminder",
@@ -310,7 +407,16 @@ func GetCalendar(w http.ResponseWriter, r *http.Request) {
 			HiveName:   hiveName,
 			ReminderID: &reminderID,
 			Metadata:   metadata,
-		})
+		}
+		if rem.HiveID != nil {
+			if siteID, hasSite := hiveSiteIDs[*rem.HiveID]; hasSite {
+				event.SiteID = &siteID
+				if name, hasName := siteNames[siteID]; hasName {
+					event.SiteName = &name
+				}
+			}
+		}
+		events = append(events, event)
 	}
 
 	respondJSON(w, CalendarResponse{Data: events}, http.StatusOK)

@@ -99,8 +99,8 @@ describe('Login Page', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('Email')).toBeInTheDocument();
-        expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('beekeeper@apis.com')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
       });
     });
 
@@ -124,13 +124,13 @@ describe('Login Page', () => {
       });
     });
 
-    it('shows "Secure local authentication" footer', async () => {
+    it('shows local mode subtitle', async () => {
       await act(async () => {
         renderWithProviders(<Login />);
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Secure local authentication')).toBeInTheDocument();
+        expect(screen.getByText('Log in to manage your apiary locally.')).toBeInTheDocument();
       });
     });
 
@@ -180,8 +180,8 @@ describe('Login Page', () => {
       });
 
       await waitFor(() => {
-        expect(screen.queryByPlaceholderText('Email')).not.toBeInTheDocument();
-        expect(screen.queryByPlaceholderText('Password')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('beekeeper@apis.com')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('••••••••')).not.toBeInTheDocument();
       });
     });
 
@@ -199,7 +199,7 @@ describe('Login Page', () => {
       const button = screen.getByRole('button', { name: /sign in with sso/i });
       fireEvent.click(button);
 
-      expect(mockLoginWithReturnTo).toHaveBeenCalledWith(undefined);
+      expect(mockLoginWithReturnTo).toHaveBeenCalledWith('/');
     });
 
     it('passes returnTo from URL to loginWithReturnTo', async () => {
@@ -280,12 +280,20 @@ describe('Login Page', () => {
       });
     });
 
-    it('renders the APIS title', async () => {
+    it('renders the Hive Warden brand name', async () => {
       await act(async () => {
         renderWithProviders(<Login />);
       });
 
-      expect(screen.getByText('APIS')).toBeInTheDocument();
+      expect(screen.getByText('Hive Warden')).toBeInTheDocument();
+    });
+
+    it('renders the welcome title', async () => {
+      await act(async () => {
+        renderWithProviders(<Login />);
+      });
+
+      expect(screen.getByText('Welcome back')).toBeInTheDocument();
     });
 
     it('renders the subtitle', async () => {
@@ -293,23 +301,7 @@ describe('Login Page', () => {
         renderWithProviders(<Login />);
       });
 
-      expect(screen.getByText('Anti-Predator Interference System')).toBeInTheDocument();
-    });
-
-    it('renders the description', async () => {
-      await act(async () => {
-        renderWithProviders(<Login />);
-      });
-
-      expect(screen.getByText(/sign in to monitor your hives/i)).toBeInTheDocument();
-    });
-
-    it('renders the bee emoji', async () => {
-      await act(async () => {
-        renderWithProviders(<Login />);
-      });
-
-      expect(screen.getByRole('img', { name: 'Bee' })).toBeInTheDocument();
+      expect(screen.getByText('Log in to manage your apiary locally.')).toBeInTheDocument();
     });
   });
 });
@@ -346,7 +338,7 @@ describe('LoginForm Component', () => {
       const user = userEvent.setup();
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
       await user.type(emailInput, 'invalid-email');
 
       const submitButton = screen.getByRole('button', { name: /sign in/i });
@@ -361,7 +353,7 @@ describe('LoginForm Component', () => {
       const user = userEvent.setup();
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
       await user.type(emailInput, 'test@example.com');
 
       const submitButton = screen.getByRole('button', { name: /sign in/i });
@@ -382,8 +374,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
       const rememberMeCheckbox = screen.getByRole('checkbox', { name: /remember me/i });
 
       await user.type(emailInput, 'test@example.com');
@@ -413,8 +405,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'password123');
@@ -440,8 +432,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'wrongpassword');
@@ -465,8 +457,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'password123');
@@ -490,8 +482,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'password123');
@@ -512,8 +504,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'password123');
@@ -537,8 +529,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'wrongpassword');
@@ -570,8 +562,8 @@ describe('LoginForm Component', () => {
 
       renderLoginForm();
 
-      const emailInput = screen.getByPlaceholderText('Email');
-      const passwordInput = screen.getByPlaceholderText('Password');
+      const emailInput = screen.getByPlaceholderText('beekeeper@apis.com');
+      const passwordInput = screen.getByPlaceholderText('••••••••');
 
       await user.type(emailInput, 'test@example.com');
       await user.type(passwordInput, 'wrongpassword');

@@ -18,6 +18,12 @@ vi.mock('../../src/providers/apiClient', () => ({
   },
 }));
 
+// Mock lazy components
+vi.mock('../../src/components/lazy', () => ({
+  LazyLocationPickerMap: () => <div data-testid="mock-location-picker">Map Picker</div>,
+  MapSkeleton: () => <div data-testid="mock-map-skeleton">Loading map...</div>,
+}));
+
 // Mock navigate
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {

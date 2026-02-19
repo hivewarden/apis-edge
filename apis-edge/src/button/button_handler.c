@@ -217,12 +217,18 @@ static void update_led_for_mode(system_mode_t mode) {
         case SYSTEM_MODE_ARMED:
             led_controller_clear_state(LED_STATE_DISARMED);
             led_controller_clear_state(LED_STATE_ERROR);
+            led_controller_clear_state(LED_STATE_CAMERA_FAIL);
+            led_controller_clear_state(LED_STATE_SERVO_FAIL);
+            led_controller_clear_state(LED_STATE_LASER_FAIL);
             led_controller_set_state(LED_STATE_ARMED);
             break;
 
         case SYSTEM_MODE_DISARMED:
             led_controller_clear_state(LED_STATE_ARMED);
             led_controller_clear_state(LED_STATE_ERROR);
+            led_controller_clear_state(LED_STATE_CAMERA_FAIL);
+            led_controller_clear_state(LED_STATE_SERVO_FAIL);
+            led_controller_clear_state(LED_STATE_LASER_FAIL);
             led_controller_set_state(LED_STATE_DISARMED);
             break;
 

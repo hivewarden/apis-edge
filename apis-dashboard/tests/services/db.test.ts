@@ -20,6 +20,7 @@ describe('ApisDatabase', () => {
       db.units.clear(),
       db.metadata.clear(),
       db.sync_queue.clear(),
+      db.tasks.clear(),
     ]);
   });
 
@@ -33,6 +34,7 @@ describe('ApisDatabase', () => {
       db.units.clear(),
       db.metadata.clear(),
       db.sync_queue.clear(),
+      db.tasks.clear(),
     ]);
   });
 
@@ -52,8 +54,8 @@ describe('ApisDatabase', () => {
     });
 
     it('has correct table count', () => {
-      // 7 tables: sites, hives, inspections, detections, units, metadata, sync_queue
-      expect(db.tables.length).toBe(7);
+      // 8 tables: sites, hives, inspections, detections, units, metadata, sync_queue, tasks
+      expect(db.tables.length).toBe(8);
     });
   });
 

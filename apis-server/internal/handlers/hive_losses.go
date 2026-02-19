@@ -201,9 +201,12 @@ func CreateHiveLoss(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate discovered_at is not in the future
-	today := time.Now().Truncate(24 * time.Hour)
-	if discoveredAt.After(today) {
+	// Validate discovered_at is not in the future.
+	// Use end-of-day UTC to accommodate users in timezones ahead of UTC
+	// (e.g., CET user at 00:30 local time submits today's date which is
+	// tomorrow in UTC). Adding 24h gives a full day buffer.
+	endOfToday := time.Now().Truncate(24 * time.Hour).Add(24 * time.Hour)
+	if discoveredAt.After(endOfToday) {
 		respondError(w, "discovered_at cannot be in the future", http.StatusBadRequest)
 		return
 	}

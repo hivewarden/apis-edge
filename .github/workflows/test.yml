@@ -109,19 +109,260 @@ jobs:
           name: dashboard-${{ matrix.auth_mode }}-coverage
           fail_ci_if_error: true
 
-  # Status check that requires both modes to pass
+  # Go integration tests with PostgreSQL (RLS, CRUD handlers)
+  server-integration-tests:
+    name: Server Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: apis_test
+          POSTGRES_USER: apis
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://apis:testpassword@localhost:5432/apis_test?sslmode=disable
+      AUTH_MODE: local
+      JWT_SECRET: test-secret-at-least-32-characters-long-for-ci
+      SECRETS_SOURCE: env
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: apis-server/go.sum
+
+      - name: Download Go dependencies
+        run: go mod download
+        working-directory: apis-server
+
+      - name: Run integration tests
+        run: |
+          go test -v -race -count=1 ./tests/integration/... 2>&1 | tee integration-output.txt
+          exit ${PIPESTATUS[0]}
+        working-directory: apis-server
+
+      - name: Upload test output on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: integration-test-output
+          path: apis-server/integration-output.txt
+          retention-days: 7
+
+  # Playwright API contract tests (requires running server)
+  playwright-api-tests:
+    name: Playwright API Tests
+    runs-on: ubuntu-latest
+    needs: [server-tests]
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: apis_test
+          POSTGRES_USER: apis
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://apis:testpassword@localhost:5432/apis_test?sslmode=disable
+      AUTH_MODE: local
+      JWT_SECRET: test-secret-at-least-32-characters-long-for-ci
+      SECRETS_SOURCE: env
+      API_URL: http://localhost:3000
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: apis-server/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build and start server
+        run: |
+          cd apis-server
+          go mod download
+          go build -o ../apis-server-bin ./cmd/server
+          cd ..
+          ./apis-server-bin &
+          # Wait for server to be ready
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:3000/api/auth/config > /dev/null 2>&1; then
+              echo "Server ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Install Playwright dependencies
+        run: |
+          npm ci
+          npx playwright install chromium --with-deps
+
+      - name: Run API tests
+        run: npx playwright test --project=api
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-api-report
+          path: playwright-report/
+          retention-days: 7
+
+  # Playwright E2E browser tests (requires server + dashboard)
+  playwright-e2e-tests:
+    name: Playwright E2E Tests
+    runs-on: ubuntu-latest
+    needs: [server-tests, dashboard-tests]
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: apis_test
+          POSTGRES_USER: apis
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://apis:testpassword@localhost:5432/apis_test?sslmode=disable
+      AUTH_MODE: local
+      JWT_SECRET: test-secret-at-least-32-characters-long-for-ci
+      SECRETS_SOURCE: env
+      API_URL: http://localhost:3000
+      APP_URL: http://localhost:5173
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: apis-server/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build and start server
+        run: |
+          cd apis-server
+          go mod download
+          go build -o ../apis-server-bin ./cmd/server
+          cd ..
+          ./apis-server-bin &
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:3000/api/auth/config > /dev/null 2>&1; then
+              echo "Server ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Install dashboard and start dev server
+        run: |
+          cd apis-dashboard
+          npm ci
+          npm run dev &
+          cd ..
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:5173 > /dev/null 2>&1; then
+              echo "Dashboard ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Install Playwright
+        run: |
+          npm ci
+          npx playwright install chromium --with-deps
+
+      - name: Run E2E tests
+        run: npx playwright test --project=e2e
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-e2e-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # Status check that requires all jobs to pass
   ci-complete:
     name: CI Complete
     runs-on: ubuntu-latest
-    needs: [server-tests, dashboard-tests]
+    needs: [server-tests, dashboard-tests, server-integration-tests, playwright-api-tests, playwright-e2e-tests]
     if: always()
     steps:
       - name: Check all jobs passed
         run: |
+          echo "Job Results:"
+          echo "  Server Unit Tests: ${{ needs.server-tests.result }}"
+          echo "  Dashboard Tests: ${{ needs.dashboard-tests.result }}"
+          echo "  Integration Tests: ${{ needs.server-integration-tests.result }}"
+          echo "  Playwright API: ${{ needs.playwright-api-tests.result }}"
+          echo "  Playwright E2E: ${{ needs.playwright-e2e-tests.result }}"
+
+          # Unit tests and dashboard are required
           if [[ "${{ needs.server-tests.result }}" != "success" ]] || [[ "${{ needs.dashboard-tests.result }}" != "success" ]]; then
-            echo "One or more test jobs failed:"
-            echo "  Server Tests: ${{ needs.server-tests.result }}"
-            echo "  Dashboard Tests: ${{ needs.dashboard-tests.result }}"
+            echo "FAIL: Core tests failed"
             exit 1
           fi
-          echo "All tests passed in both auth modes!"
+
+          # Integration tests are required
+          if [[ "${{ needs.server-integration-tests.result }}" != "success" ]]; then
+            echo "FAIL: Integration tests failed"
+            exit 1
+          fi
+
+          # Playwright tests report but don't block (initially)
+          if [[ "${{ needs.playwright-api-tests.result }}" != "success" ]]; then
+            echo "WARNING: Playwright API tests failed (non-blocking)"
+          fi
+          if [[ "${{ needs.playwright-e2e-tests.result }}" != "success" ]]; then
+            echo "WARNING: Playwright E2E tests failed (non-blocking)"
+          fi
+
+          echo "CI Complete - all required checks passed!"

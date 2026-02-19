@@ -152,7 +152,7 @@ export function SetupWizard({ onSuccess }: SetupWizardProps) {
       setIsSubmitting(true);
       setError(null);
 
-      const values = form.getFieldsValue();
+      const values = form.getFieldsValue(true);
 
       // SECURITY (S4-M2): Client-side validation before submission
       if (!values.email || !values.password || !values.displayName) {

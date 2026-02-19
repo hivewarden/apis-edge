@@ -145,10 +145,12 @@ describe('InspectionEdit Page', () => {
     });
 
     it('navigates back on 404 error', async () => {
-      mockGet.mockRejectedValue({
+      const axiosError = new Error('Not found');
+      Object.assign(axiosError, {
         isAxiosError: true,
         response: { status: 404 },
       });
+      mockGet.mockRejectedValue(axiosError);
 
       renderWithRouter(<InspectionEdit />);
 
@@ -294,10 +296,12 @@ describe('InspectionEdit Page', () => {
     });
 
     it('shows error message when API returns 403', async () => {
-      mockPut.mockRejectedValue({
+      const axiosError = new Error('Forbidden');
+      Object.assign(axiosError, {
         isAxiosError: true,
         response: { status: 403 },
       });
+      mockPut.mockRejectedValue(axiosError);
 
       const user = userEvent.setup();
       renderWithRouter(<InspectionEdit />);

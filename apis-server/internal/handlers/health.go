@@ -144,9 +144,15 @@ func (h *HealthHandler) checkDatabase(ctx context.Context) string {
 // checkOIDCProvider verifies OIDC provider (Keycloak) connectivity by fetching
 // the OIDC discovery endpoint. Uses the same endpoint as auth middleware to
 // ensure consistency.
+// In local auth mode, OIDC is not used so this check is skipped.
 // SECURITY FIX (S3A-H2): Returns generic status strings only. Error details
 // are logged server-side but not exposed in the API response.
 func (h *HealthHandler) checkOIDCProvider(ctx context.Context) string {
+	// Skip OIDC check in local auth mode — Keycloak is not used
+	if config.AuthMode() == "local" {
+		return "ok"
+	}
+
 	if h.oidcIssuer == "" {
 		log.Warn().Msg("health: OIDC issuer not configured")
 		return "unhealthy"

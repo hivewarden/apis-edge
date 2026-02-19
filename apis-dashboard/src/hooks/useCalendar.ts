@@ -17,12 +17,22 @@ import dayjs from 'dayjs';
 export interface CalendarEvent {
   id: string;
   date: string;
-  type: 'treatment_past' | 'treatment_due' | 'reminder';
+  type: 'treatment_past' | 'treatment_due' | 'reminder' | 'inspection_past';
   title: string;
   hive_id?: string;
   hive_name?: string;
+  site_id?: string;
+  site_name?: string;
   reminder_id?: string;
   metadata?: Record<string, unknown>;
+}
+
+/**
+ * Optional filters for calendar event fetching.
+ */
+export interface CalendarFilters {
+  siteId?: string;
+  hiveId?: string;
 }
 
 /**
@@ -93,8 +103,8 @@ interface UseCalendarResult {
   endDate: dayjs.Dayjs;
   loading: boolean;
   error: Error | null;
-  /** Fetch events for a new date range */
-  fetchEvents: (start: dayjs.Dayjs, end: dayjs.Dayjs) => Promise<void>;
+  /** Fetch events for a new date range, with optional filters */
+  fetchEvents: (start: dayjs.Dayjs, end: dayjs.Dayjs, filters?: CalendarFilters) => Promise<void>;
   /** Create a new reminder */
   createReminder: (input: CreateReminderInput) => Promise<Reminder>;
   /** Update an existing reminder */
@@ -140,15 +150,21 @@ export function useCalendar(): UseCalendarResult {
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchEvents = useCallback(async (start: dayjs.Dayjs, end: dayjs.Dayjs) => {
+  const fetchEvents = useCallback(async (start: dayjs.Dayjs, end: dayjs.Dayjs, filters?: CalendarFilters) => {
     setLoading(true);
     setStartDate(start);
     setEndDate(end);
     try {
-      const startStr = start.format('YYYY-MM-DD');
-      const endStr = end.format('YYYY-MM-DD');
+      const params = new URLSearchParams();
+      params.set('start', start.format('YYYY-MM-DD'));
+      params.set('end', end.format('YYYY-MM-DD'));
+      if (filters?.hiveId) {
+        params.set('hive_id', filters.hiveId);
+      } else if (filters?.siteId) {
+        params.set('site_id', filters.siteId);
+      }
       const response = await apiClient.get<CalendarResponse>(
-        `/calendar?start=${startStr}&end=${endStr}`
+        `/calendar?${params.toString()}`
       );
       setEvents(response.data.data || []);
       setError(null);

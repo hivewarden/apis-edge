@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Typography,
@@ -14,6 +14,7 @@ import {
 import { apiClient } from '../providers/apiClient';
 import { TIMEZONES } from '../constants';
 import { colors, touchTargets } from '../theme/apisTheme';
+import { LazyLocationPickerMap, MapSkeleton } from '../components/lazy';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -48,6 +49,7 @@ interface CreateSiteForm {
  * Site Create Page
  *
  * Form for creating a new site with name, GPS coordinates, and timezone.
+ * Includes interactive map picker for location selection.
  *
  * Part of Epic 2, Story 2.1: Create and Manage Sites
  */
@@ -55,6 +57,8 @@ export function SiteCreate() {
   const navigate = useNavigate();
   const [form] = Form.useForm<CreateSiteForm>();
   const [submitting, setSubmitting] = useState(false);
+  const [mapLat, setMapLat] = useState<number | null>(null);
+  const [mapLng, setMapLng] = useState<number | null>(null);
 
   const handleSubmit = async (values: CreateSiteForm) => {
     try {
@@ -78,6 +82,27 @@ export function SiteCreate() {
   const handleBack = () => {
     navigate('/sites');
   };
+
+  // Map → form sync
+  const handleMapChange = useCallback(
+    (lat: number | null, lng: number | null) => {
+      setMapLat(lat);
+      setMapLng(lng);
+      form.setFieldsValue({
+        latitude: lat ?? undefined,
+        longitude: lng ?? undefined,
+      });
+    },
+    [form]
+  );
+
+  // Form → map sync
+  const handleCoordChange = useCallback(() => {
+    const lat = form.getFieldValue('latitude') as number | undefined;
+    const lng = form.getFieldValue('longitude') as number | undefined;
+    setMapLat(lat ?? null);
+    setMapLng(lng ?? null);
+  }, [form]);
 
   return (
     <div>
@@ -141,6 +166,7 @@ export function SiteCreate() {
                   style={{ width: '50%', height: touchTargets.inputHeight, borderRadius: '12px 0 0 12px' }}
                   step={0.0001}
                   precision={7}
+                  onChange={handleCoordChange}
                 />
               </Form.Item>
               <Form.Item
@@ -160,14 +186,26 @@ export function SiteCreate() {
                   style={{ width: '50%', height: touchTargets.inputHeight, borderRadius: '0 12px 12px 0' }}
                   step={0.0001}
                   precision={7}
+                  onChange={handleCoordChange}
                 />
               </Form.Item>
             </Space.Compact>
           </Form.Item>
-          <Form.Item style={{ marginBottom: 24 }}>
+          <Form.Item style={{ marginBottom: 16 }}>
             <span style={{ color: colors.brownBramble, opacity: 0.6, fontSize: 12 }}>
-              Optional. Used for weather data and location display.
+              Search an address or click the map to set location
             </span>
+          </Form.Item>
+
+          {/* Interactive map picker */}
+          <Form.Item style={{ marginBottom: 24 }}>
+            <Suspense fallback={<MapSkeleton />}>
+              <LazyLocationPickerMap
+                latitude={mapLat}
+                longitude={mapLng}
+                onChange={handleMapChange}
+              />
+            </Suspense>
           </Form.Item>
 
           <Form.Item

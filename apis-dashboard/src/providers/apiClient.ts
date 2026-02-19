@@ -178,8 +178,15 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // Don't show notifications for auth errors - Refine handles those
-    if (status !== 401 && status !== 403) {
+    // Don't show notifications for:
+    // - 401/403: Refine handles auth errors
+    // - 404: Components handle "not found" gracefully (e.g., no loss record for a new hive)
+    // - Cancelled requests: Navigation/unmount aborts in-flight requests
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
+
+    if (status !== 401 && status !== 403 && status !== 404) {
       // Extract error message from response or use default
       // SECURITY: Sanitize error message to prevent token exposure
       const rawMessage =

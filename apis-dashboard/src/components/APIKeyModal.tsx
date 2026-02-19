@@ -1,6 +1,7 @@
 import { Modal, Button, Alert, Input, Typography, Space, message } from 'antd';
-import { CopyOutlined, CheckOutlined } from '@ant-design/icons';
-import { useState } from 'react';
+import { CopyOutlined, CheckOutlined, DownloadOutlined } from '@ant-design/icons';
+import { useState, useRef, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { colors } from '../theme/apisTheme';
 
 const { Text } = Typography;
@@ -10,6 +11,7 @@ interface APIKeyModalProps {
   apiKey: string;
   onClose: () => void;
   isRegenerate?: boolean;
+  serverUrl?: string;
 }
 
 /**
@@ -20,8 +22,35 @@ interface APIKeyModalProps {
  *
  * Part of Epic 2, Story 2.2: Register APIS Units
  */
-export function APIKeyModal({ visible, apiKey, onClose, isRegenerate = false }: APIKeyModalProps) {
+export function APIKeyModal({ visible, apiKey, onClose, isRegenerate = false, serverUrl }: APIKeyModalProps) {
   const [copied, setCopied] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current || !serverUrl || !apiKey) return;
+
+    const payload = JSON.stringify({ s: serverUrl, k: apiKey });
+    QRCode.toCanvas(canvasRef.current, payload, {
+      width: 220,
+      margin: 2,
+      color: {
+        dark: colors.brownBramble,
+        light: '#ffffff',
+      },
+      errorCorrectionLevel: 'H',
+    }).catch((err: unknown) => {
+      console.error('QR generation error:', err);
+    });
+  }, [serverUrl, apiKey, visible]);
+
+  const handleDownloadQR = () => {
+    if (!canvasRef.current) return;
+    const url = canvasRef.current.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hivewarden-setup-qr.png`;
+    a.click();
+  };
 
   const handleCopy = async () => {
     try {
@@ -92,6 +121,37 @@ export function APIKeyModal({ visible, apiKey, onClose, isRegenerate = false }: 
         <Text type="secondary" style={{ fontSize: 12 }}>
           Use this key in the <code>X-API-Key</code> header when your unit communicates with the server.
         </Text>
+
+        {serverUrl && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            padding: 16,
+            backgroundColor: '#fff',
+            borderRadius: 8,
+            border: `1px solid ${colors.border}`,
+          }}>
+            <Text strong style={{ marginBottom: 12 }}>
+              Scan this QR code on the device setup page
+            </Text>
+            <canvas
+              ref={canvasRef}
+              style={{
+                border: `2px solid ${colors.seaBuckthorn}`,
+                borderRadius: 8,
+              }}
+            />
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={handleDownloadQR}
+              size="small"
+              style={{ marginTop: 12 }}
+            >
+              Download QR
+            </Button>
+          </div>
+        )}
       </Space>
     </Modal>
   );

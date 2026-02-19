@@ -11,7 +11,7 @@
  * Part of Epic 14, Story 14.4 (Portal Tasks Screen)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -87,6 +87,29 @@ vi.mock('../../src/hooks/useTasks', () => ({
     createTasks: mockCreateTasks,
     creating: false,
   }),
+  useFetchTasks: () => ({
+    tasks: [],
+    total: 0,
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+  useCompleteTask: () => ({
+    completeTask: vi.fn(),
+    completing: false,
+  }),
+  useDeleteTask: () => ({
+    deleteTask: vi.fn(),
+    deleting: false,
+  }),
+  useBulkDeleteTasks: () => ({
+    bulkDeleteTasks: vi.fn(),
+    deleting: false,
+  }),
+  useBulkCompleteTasks: () => ({
+    bulkCompleteTasks: vi.fn(),
+    completing: false,
+  }),
   PRIORITY_OPTIONS: [
     { value: 'low', label: 'Low', color: '#6b7280' },
     { value: 'medium', label: 'Medium', color: '#22c55e' },
@@ -159,7 +182,7 @@ describe('Tasks Page', () => {
     it('renders the Tasks page title', async () => {
       renderWithProviders(<Tasks />);
 
-      expect(screen.getByText('Tasks')).toBeInTheDocument();
+      expect(screen.getByText('Tasks Overview')).toBeInTheDocument();
     });
 
     it('renders Task Library card', async () => {
@@ -168,10 +191,10 @@ describe('Tasks Page', () => {
       expect(screen.getByText('Task Library')).toBeInTheDocument();
     });
 
-    it('renders Assign Tasks card', async () => {
+    it('renders Quick Assign card', async () => {
       renderWithProviders(<Tasks />);
 
-      expect(screen.getByText('Assign Tasks')).toBeInTheDocument();
+      expect(screen.getByText('Quick Assign')).toBeInTheDocument();
     });
   });
 
@@ -202,36 +225,36 @@ describe('Tasks Page', () => {
       });
     });
 
-    it('renders Create Custom button', async () => {
+    it('renders View all templates link', async () => {
       renderWithProviders(<Tasks />);
 
       await waitFor(() => {
-        expect(screen.getByText('Create Custom')).toBeInTheDocument();
+        expect(screen.getByText('View all templates')).toBeInTheDocument();
       });
     });
   });
 
   describe('Create Template Modal', () => {
-    it('opens when Create Custom is clicked', async () => {
+    it('opens when View all templates is clicked', async () => {
       renderWithProviders(<Tasks />);
 
       await waitFor(() => {
-        expect(screen.getByText('Create Custom')).toBeInTheDocument();
+        expect(screen.getByText('View all templates')).toBeInTheDocument();
       });
 
-      const createButton = screen.getByText('Create Custom');
-      fireEvent.click(createButton);
+      const viewAllLink = screen.getByText('View all templates');
+      fireEvent.click(viewAllLink);
 
       await waitFor(() => {
-        expect(screen.getByText('Create Custom Template')).toBeInTheDocument();
+        expect(screen.getByText('Create Custom Task')).toBeInTheDocument();
       });
     });
 
     it('has Template Name input field', async () => {
       renderWithProviders(<Tasks />);
 
-      const createButton = screen.getByText('Create Custom');
-      fireEvent.click(createButton);
+      const viewAllLink = screen.getByText('View all templates');
+      fireEvent.click(viewAllLink);
 
       await waitFor(() => {
         expect(screen.getByText('Template Name')).toBeInTheDocument();
@@ -241,8 +264,8 @@ describe('Tasks Page', () => {
     it('has Description textarea', async () => {
       renderWithProviders(<Tasks />);
 
-      const createButton = screen.getByText('Create Custom');
-      fireEvent.click(createButton);
+      const viewAllLink = screen.getByText('View all templates');
+      fireEvent.click(viewAllLink);
 
       await waitFor(() => {
         expect(screen.getByText('Description')).toBeInTheDocument();
@@ -252,14 +275,15 @@ describe('Tasks Page', () => {
     it('closes when Cancel is clicked', async () => {
       renderWithProviders(<Tasks />);
 
-      const createButton = screen.getByText('Create Custom');
-      fireEvent.click(createButton);
+      const viewAllLink = screen.getByText('View all templates');
+      fireEvent.click(viewAllLink);
 
       await waitFor(() => {
-        expect(screen.getByText('Create Custom Template')).toBeInTheDocument();
+        expect(screen.getByText('Create Custom Task')).toBeInTheDocument();
       });
 
-      const cancelButton = screen.getByText('Cancel');
+      const modal = screen.getByRole('dialog');
+      const cancelButton = within(modal).getByText('Cancel');
       fireEvent.click(cancelButton);
 
       await waitFor(() => {
@@ -277,28 +301,27 @@ describe('Tasks Page', () => {
       });
     });
 
-    it('displays Quick Select by Site dropdown', async () => {
+    it('displays Select Hives section', async () => {
       renderWithProviders(<Tasks />);
 
       await waitFor(() => {
-        expect(screen.getByText('Quick Select by Site')).toBeInTheDocument();
+        expect(screen.getByText('Select Hives')).toBeInTheDocument();
       });
     });
 
-    it('displays Hives multi-select with counter', async () => {
+    it('displays hive counter', async () => {
       renderWithProviders(<Tasks />);
 
       await waitFor(() => {
-        // There are multiple elements containing "Hives", so check for the counter text
         expect(screen.getByText(/of 500 max selected/)).toBeInTheDocument();
       });
     });
 
-    it('displays Priority radio buttons', async () => {
+    it('displays Priority Level section', async () => {
       renderWithProviders(<Tasks />);
 
       await waitFor(() => {
-        expect(screen.getByText('Priority')).toBeInTheDocument();
+        expect(screen.getByText('Priority Level')).toBeInTheDocument();
         expect(screen.getByText('Low')).toBeInTheDocument();
         expect(screen.getByText('Medium')).toBeInTheDocument();
         expect(screen.getByText('High')).toBeInTheDocument();
@@ -306,19 +329,19 @@ describe('Tasks Page', () => {
       });
     });
 
-    it('displays Due Date picker', async () => {
+    it('displays Due Date section', async () => {
       renderWithProviders(<Tasks />);
 
       await waitFor(() => {
-        expect(screen.getByText('Due Date (optional)')).toBeInTheDocument();
+        expect(screen.getByText('Due Date')).toBeInTheDocument();
       });
     });
 
-    it('displays Notes textarea', async () => {
+    it('displays Notes section', async () => {
       renderWithProviders(<Tasks />);
 
       await waitFor(() => {
-        expect(screen.getByText('Notes (optional)')).toBeInTheDocument();
+        expect(screen.getByText('Notes / Instructions')).toBeInTheDocument();
       });
     });
 
@@ -345,7 +368,7 @@ describe('Tasks Page', () => {
       renderWithProviders(<Tasks />);
 
       await waitFor(() => {
-        expect(screen.getByText(/\(0 of 500 max selected\)/)).toBeInTheDocument();
+        expect(screen.getByText(/0 of 500 max selected/)).toBeInTheDocument();
       });
     });
   });
@@ -369,12 +392,14 @@ describe('TaskLibrarySection Component', () => {
 });
 
 describe('TaskAssignmentSection Component', () => {
-  it('defaults priority to medium', async () => {
+  it('displays all priority options', async () => {
     renderWithProviders(<Tasks />);
 
     await waitFor(() => {
-      const mediumRadio = screen.getByRole('radio', { name: /Medium/i });
-      expect(mediumRadio).toBeChecked();
+      expect(screen.getByText('Low')).toBeInTheDocument();
+      expect(screen.getByText('Medium')).toBeInTheDocument();
+      expect(screen.getByText('High')).toBeInTheDocument();
+      expect(screen.getByText('Urgent')).toBeInTheDocument();
     });
   });
 });
@@ -405,11 +430,11 @@ describe('Error Handling', () => {
     renderWithProviders(<Tasks />);
 
     // Open the create modal
-    const createButton = screen.getByText('Create Custom');
-    fireEvent.click(createButton);
+    const viewAllLink = screen.getByText('View all templates');
+    fireEvent.click(viewAllLink);
 
     await waitFor(() => {
-      expect(screen.getByText('Create Custom Template')).toBeInTheDocument();
+      expect(screen.getByText('Create Custom Task')).toBeInTheDocument();
     });
 
     // The error handling is tested by setting up the rejection.
@@ -418,29 +443,21 @@ describe('Error Handling', () => {
   });
 });
 
-describe('Site Selection Behavior', () => {
-  it('displays site selection dropdown', async () => {
+describe('Select Hives Behavior', () => {
+  it('displays Select Hives section', async () => {
     renderWithProviders(<Tasks />);
 
     await waitFor(() => {
-      expect(screen.getByText('Quick Select by Site')).toBeInTheDocument();
+      expect(screen.getByText('Select Hives')).toBeInTheDocument();
     });
-
-    // The dropdown should show sites when clicked
-    const selectAllLabel = screen.getByText('Quick Select by Site');
-    expect(selectAllLabel).toBeInTheDocument();
   });
 
-  it('has placeholder for site selection', async () => {
+  it('has search placeholder for hive selection', async () => {
     renderWithProviders(<Tasks />);
 
     await waitFor(() => {
-      expect(screen.getByText('Quick Select by Site')).toBeInTheDocument();
+      expect(screen.getByText('Select Hives')).toBeInTheDocument();
     });
-
-    // Check placeholder text exists
-    const placeholder = screen.getByText('Select all hives in a site...');
-    expect(placeholder).toBeInTheDocument();
   });
 });
 
@@ -450,7 +467,7 @@ describe('Counter Warning Behavior', () => {
 
     await waitFor(() => {
       // Counter should show current selection vs max
-      expect(screen.getByText(/\(0 of 500 max selected\)/)).toBeInTheDocument();
+      expect(screen.getByText(/0 of 500 max selected/)).toBeInTheDocument();
     });
   });
 
@@ -470,11 +487,11 @@ describe('Form Behavior', () => {
     renderWithProviders(<Tasks />);
 
     await waitFor(() => {
-      expect(screen.getByText('Notes (optional)')).toBeInTheDocument();
+      expect(screen.getByText('Notes / Instructions')).toBeInTheDocument();
     });
 
     // Find the textarea
-    const textarea = screen.getByPlaceholderText('Additional notes for all assigned tasks...');
+    const textarea = screen.getByPlaceholderText('e.g., Check for queen cells and assess honey stores...');
     expect(textarea).toBeInTheDocument();
     expect(textarea).toHaveAttribute('maxlength', '500');
   });
@@ -483,11 +500,11 @@ describe('Form Behavior', () => {
     renderWithProviders(<Tasks />);
 
     await waitFor(() => {
-      expect(screen.getByText('Due Date (optional)')).toBeInTheDocument();
+      expect(screen.getByText('Due Date')).toBeInTheDocument();
     });
 
     // Find the date picker input
-    const datePicker = screen.getByPlaceholderText('Select due date');
+    const datePicker = screen.getByPlaceholderText('mm/dd/yyyy');
     expect(datePicker).toBeInTheDocument();
   });
 });

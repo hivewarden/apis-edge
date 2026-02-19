@@ -398,12 +398,43 @@ The auth config endpoint (`/api/auth/config`) uses a non-cryptographic hash for 
 - Clips: Device POSTs to server on detection
 - Live stream: Dashboard connects directly to device MJPEG (no proxy)
 
-## Device Discovery (Boot Sequence)
+## Device Onboarding
 
-1. Check saved config → use if exists
-2. Try mDNS: `apis-server.local`
-3. Try default: `apis.honeybeegood.be`
-4. No server → LED "needs setup", wait for serial config
+### Setup Flow (Captive Portal)
+
+On first boot (no WiFi credentials saved), the device enters AP mode:
+1. Device broadcasts `HiveWarden-XXXX` WiFi (WPA2, password on serial/label)
+2. Phone connects → captive portal auto-pops the setup page (port 80)
+3. User enters: WiFi SSID + password + API key (from dashboard)
+4. Server URL is **not needed** — baked into firmware via `onboarding_defaults.h`
+5. Device reboots, connects to WiFi, talks to server
+
+A DNS server on UDP port 53 intercepts all DNS queries to trigger the captive
+portal popup on iOS, Android, Windows, and macOS.
+
+### Server Discovery Chain (after WiFi connected)
+
+```
+1. Saved config     → User typed a URL or QR scanned one during setup
+2. mDNS discovery   → Query _hivewarden._tcp on local network (standalone)
+3. Default URL      → ONBOARDING_DEFAULT_URL ("https://hivewarden.eu")
+4. Fallback URL     → ONBOARDING_FALLBACK_URL (optional, for self-hosters)
+5. No server        → Runs detection locally, no uploads
+```
+
+### Self-Hosters
+
+Edit `apis-edge/include/onboarding_defaults.h` before building:
+```c
+#define ONBOARDING_DEFAULT_URL   "https://bees.myclub.be"
+#define ONBOARDING_FALLBACK_URL  "https://hivewarden.eu"  // optional backup
+```
+
+### mDNS
+
+- Go server (standalone mode): advertises `_hivewarden._tcp` via mDNS
+- ESP32: queries `_hivewarden._tcp` and advertises itself as an edge device
+- Service type: `_hivewarden._tcp`, TXT records: version, mode, path, auth
 
 ## Testing
 

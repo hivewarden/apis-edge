@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/mail"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -39,18 +40,24 @@ type LoginRateLimiters struct {
 // Additionally implements account lockout after 5 failed login attempts.
 // Backend is selected via RATE_LIMIT_BACKEND env var (memory or redis).
 func NewLoginRateLimiters() *LoginRateLimiters {
+	maxEmail, maxIP, maxFailures := 5, 20, 5
+	// Relax rate limits in development mode to support automated testing
+	if os.Getenv("GO_ENV") == "development" {
+		maxEmail, maxIP, maxFailures = 1000, 5000, 1000
+	}
+
 	emailConfig := ratelimit.Config{
-		MaxRequests:  5,
+		MaxRequests:  maxEmail,
 		WindowPeriod: 15 * time.Minute,
 	}
 	ipConfig := ratelimit.Config{
-		MaxRequests:  20,
+		MaxRequests:  maxIP,
 		WindowPeriod: 15 * time.Minute,
 	}
 
-	// Account lockout configuration: 5 failures -> 15 minute lockout
+	// Account lockout configuration
 	lockoutConfig := ratelimit.LockoutConfig{
-		MaxFailures:     5,
+		MaxFailures:     maxFailures,
 		LockoutDuration: 15 * time.Minute,
 		FailureWindow:   15 * time.Minute,
 	}

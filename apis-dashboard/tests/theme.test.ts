@@ -39,20 +39,20 @@ describe('apisTheme token configuration (AC1, AC2)', () => {
     expect(apisTheme.token?.colorPrimary).toBe('#f7a42d');
   });
 
-  it('sets colorBgContainer to Coconut Cream', () => {
-    expect(apisTheme.token?.colorBgContainer).toBe('#fbf9e7');
+  it('sets colorBgContainer to white (per mockups)', () => {
+    expect(apisTheme.token?.colorBgContainer).toBe('#ffffff');
   });
 
   it('sets colorText to Brown Bramble', () => {
     expect(apisTheme.token?.colorText).toBe('#662604');
   });
 
-  it('sets colorBgElevated to Salomie', () => {
-    expect(apisTheme.token?.colorBgElevated).toBe('#fcd483');
+  it('sets colorBgElevated to white (per mockups)', () => {
+    expect(apisTheme.token?.colorBgElevated).toBe('#ffffff');
   });
 
-  it('sets borderRadiusLG to 12px', () => {
-    expect(apisTheme.token?.borderRadiusLG).toBe(12);
+  it('sets borderRadiusLG to 16px', () => {
+    expect(apisTheme.token?.borderRadiusLG).toBe(16);
   });
 
   it('sets colorTextLightSolid to white for button text contrast', () => {
@@ -61,12 +61,12 @@ describe('apisTheme token configuration (AC1, AC2)', () => {
 });
 
 describe('Card component overrides (AC3)', () => {
-  it('sets Card borderRadiusLG to 12px', () => {
-    expect(apisTheme.components?.Card?.borderRadiusLG).toBe(12);
+  it('sets Card borderRadiusLG to 16px', () => {
+    expect(apisTheme.components?.Card?.borderRadiusLG).toBe(16);
   });
 
-  it('sets Card colorBgContainer to Salomie (#fcd483)', () => {
-    expect(apisTheme.components?.Card?.colorBgContainer).toBe('#fcd483');
+  it('sets Card colorBgContainer to white (#ffffff)', () => {
+    expect(apisTheme.components?.Card?.colorBgContainer).toBe('#ffffff');
   });
 
   it('configures Card shadow with brown tint', () => {
@@ -80,8 +80,8 @@ describe('Layout component overrides', () => {
     expect(apisTheme.components?.Layout?.bodyBg).toBe('#fbf9e7');
   });
 
-  it('sets Layout headerBg to Brown Bramble', () => {
-    expect(apisTheme.components?.Layout?.headerBg).toBe('#662604');
+  it('sets Layout headerBg to Coconut Cream', () => {
+    expect(apisTheme.components?.Layout?.headerBg).toBe('#fbf9e7');
   });
 });
 

@@ -231,7 +231,7 @@ describe('ProactiveInsightNotification', () => {
   });
 
   describe('Take Action Navigation', () => {
-    it('should navigate to hive detail for queen_aging rule', async () => {
+    it('should navigate to tasks page for queen_aging rule', async () => {
       const queenAgingInsight: ProactiveInsight = {
         ...mockInsight,
         rule_id: 'queen_aging',
@@ -243,10 +243,10 @@ describe('ProactiveInsightNotification', () => {
         fireEvent.click(actionBtn);
       });
 
-      expect(mockNavigate).toHaveBeenCalledWith('/hives/hive-1');
+      expect(mockNavigate).toHaveBeenCalledWith('/tasks');
     });
 
-    it('should navigate to hive detail for treatment_due rule', async () => {
+    it('should navigate to tasks page for treatment_due rule', async () => {
       renderComponent(); // Default insight is treatment_due
 
       const actionBtn = screen.getByRole('button', { name: /take action/i });
@@ -254,10 +254,10 @@ describe('ProactiveInsightNotification', () => {
         fireEvent.click(actionBtn);
       });
 
-      expect(mockNavigate).toHaveBeenCalledWith('/hives/hive-1');
+      expect(mockNavigate).toHaveBeenCalledWith('/tasks');
     });
 
-    it('should navigate to new inspection for inspection_overdue rule', async () => {
+    it('should navigate to tasks page for inspection_overdue rule', async () => {
       const inspectionInsight: ProactiveInsight = {
         ...mockInsight,
         rule_id: 'inspection_overdue',
@@ -269,10 +269,10 @@ describe('ProactiveInsightNotification', () => {
         fireEvent.click(actionBtn);
       });
 
-      expect(mockNavigate).toHaveBeenCalledWith('/hives/hive-1/inspections/new');
+      expect(mockNavigate).toHaveBeenCalledWith('/tasks');
     });
 
-    it('should navigate to clips for hornet_activity_spike rule', async () => {
+    it('should navigate to tasks page for hornet_activity_spike rule', async () => {
       const hornetInsight: ProactiveInsight = {
         ...mockInsight,
         hive_id: null,
@@ -286,10 +286,10 @@ describe('ProactiveInsightNotification', () => {
         fireEvent.click(actionBtn);
       });
 
-      expect(mockNavigate).toHaveBeenCalledWith('/clips');
+      expect(mockNavigate).toHaveBeenCalledWith('/tasks');
     });
 
-    it('should navigate to hives list when insight has no hive_id', async () => {
+    it('should navigate to tasks page when insight has no hive_id', async () => {
       const noHiveInsight: ProactiveInsight = {
         ...mockInsight,
         hive_id: null,
@@ -303,10 +303,10 @@ describe('ProactiveInsightNotification', () => {
         fireEvent.click(actionBtn);
       });
 
-      expect(mockNavigate).toHaveBeenCalledWith('/hives');
+      expect(mockNavigate).toHaveBeenCalledWith('/tasks');
     });
 
-    it('should fallback to hive detail for unknown rule_id with hive_id', async () => {
+    it('should navigate to tasks page for unknown rule_id', async () => {
       const unknownRuleInsight: ProactiveInsight = {
         ...mockInsight,
         rule_id: 'unknown_rule',
@@ -318,7 +318,7 @@ describe('ProactiveInsightNotification', () => {
         fireEvent.click(actionBtn);
       });
 
-      expect(mockNavigate).toHaveBeenCalledWith('/hives/hive-1');
+      expect(mockNavigate).toHaveBeenCalledWith('/tasks');
     });
   });
 

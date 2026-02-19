@@ -9,6 +9,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 
+// Mock CSS import
+vi.mock('../../src/styles/voice-input.css', () => ({}));
+
 // Mock the hooks and services BEFORE importing the component
 vi.mock('../../src/hooks/useSpeechRecognition', () => ({
   useSpeechRecognition: vi.fn(() => ({
@@ -76,11 +79,11 @@ describe('VoiceInputButton', () => {
       });
     });
 
-    it('should render with 64px minimum height for touch target', () => {
+    it('should render with 64px height for touch target', () => {
       renderWithProviders(<VoiceInputButton onTranscript={mockOnTranscript} />);
 
       const button = screen.getByRole('button', { name: /speak/i });
-      expect(button).toHaveStyle({ minHeight: '64px' });
+      expect(button).toHaveStyle({ height: '64px' });
     });
 
     it('should render keyboard button when showKeyboardButton is true', () => {
@@ -91,7 +94,8 @@ describe('VoiceInputButton', () => {
         />
       );
 
-      expect(screen.getByRole('button', { name: /keyboard/i })).toBeInTheDocument();
+      // Button text is "Type Instead"
+      expect(screen.getByRole('button', { name: /type instead/i })).toBeInTheDocument();
     });
 
     it('should not render keyboard button when showKeyboardButton is false', () => {
@@ -102,7 +106,7 @@ describe('VoiceInputButton', () => {
         />
       );
 
-      expect(screen.queryByRole('button', { name: /keyboard/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /type instead/i })).not.toBeInTheDocument();
     });
   });
 
@@ -127,7 +131,7 @@ describe('VoiceInputButton', () => {
   });
 
   describe('listening state', () => {
-    it('should show "Done" when listening', () => {
+    it('should show "Stop" when listening', () => {
       vi.mocked(useSpeechRecognition).mockReturnValue({
         isSupported: true,
         isListening: true,
@@ -141,7 +145,7 @@ describe('VoiceInputButton', () => {
 
       renderWithProviders(<VoiceInputButton onTranscript={mockOnTranscript} />);
 
-      expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /stop/i })).toBeInTheDocument();
     });
 
     it('should show interim transcript when available', () => {
@@ -198,7 +202,7 @@ describe('VoiceInputButton', () => {
 
       renderWithProviders(<VoiceInputButton onTranscript={mockOnTranscript} />);
 
-      fireEvent.click(screen.getByRole('button', { name: /done/i }));
+      fireEvent.click(screen.getByRole('button', { name: /stop/i }));
 
       expect(mockStop).toHaveBeenCalled();
     });
@@ -214,7 +218,7 @@ describe('VoiceInputButton', () => {
         />
       );
 
-      fireEvent.click(screen.getByRole('button', { name: /keyboard/i }));
+      fireEvent.click(screen.getByRole('button', { name: /type instead/i }));
 
       expect(mockKeyboardClick).toHaveBeenCalled();
     });
@@ -370,7 +374,7 @@ describe('VoiceInputButton', () => {
       });
     });
 
-    it('should call stopRecording and transcribeAudio when Done is clicked in Whisper mode', async () => {
+    it('should call stopRecording and transcribeAudio when Stop is clicked in Whisper mode', async () => {
       const mockAudioBlob = new Blob(['test'], { type: 'audio/webm' });
       vi.mocked(whisperService.stopRecording).mockResolvedValue(mockAudioBlob);
       vi.mocked(whisperService.transcribeAudio).mockResolvedValue({ text: 'whisper test result' });
@@ -389,13 +393,13 @@ describe('VoiceInputButton', () => {
         expect(whisperService.startRecording).toHaveBeenCalled();
       });
 
-      // Wait for Done button to appear
+      // Wait for Stop button to appear
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /stop/i })).toBeInTheDocument();
       });
 
-      // Stop recording (click Done)
-      fireEvent.click(screen.getByRole('button', { name: /done/i }));
+      // Stop recording (click Stop)
+      fireEvent.click(screen.getByRole('button', { name: /stop/i }));
 
       await waitFor(() => {
         expect(whisperService.stopRecording).toHaveBeenCalled();
@@ -422,11 +426,11 @@ describe('VoiceInputButton', () => {
       fireEvent.click(screen.getByRole('button', { name: /speak/i }));
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /stop/i })).toBeInTheDocument();
       });
 
-      // Stop recording (click Done)
-      fireEvent.click(screen.getByRole('button', { name: /done/i }));
+      // Stop recording (click Stop)
+      fireEvent.click(screen.getByRole('button', { name: /stop/i }));
 
       // Verify callback receives the transcribed text
       await waitFor(() => {
@@ -449,11 +453,11 @@ describe('VoiceInputButton', () => {
       fireEvent.click(screen.getByRole('button', { name: /speak/i }));
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /stop/i })).toBeInTheDocument();
       });
 
       // Stop recording
-      fireEvent.click(screen.getByRole('button', { name: /done/i }));
+      fireEvent.click(screen.getByRole('button', { name: /stop/i }));
 
       // Verify error is displayed
       await waitFor(() => {

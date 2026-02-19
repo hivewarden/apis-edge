@@ -231,6 +231,7 @@ export function UnitRegister() {
           apiKey={apiKey}
           onClose={handleKeyModalClose}
           isRegenerate={false}
+          serverUrl={window.location.origin}
         />
       )}
     </div>

@@ -25,6 +25,7 @@ import {
   CheckOutlined,
   ClockCircleOutlined,
   DeleteOutlined,
+  FileSearchOutlined,
   MedicineBoxOutlined,
   StopOutlined,
 } from '@ant-design/icons';
@@ -127,6 +128,7 @@ export function CalendarDayDetail({
   const renderEventCard = (event: CalendarEvent) => {
     const isLoading = actionLoading === event.id;
     const isPast = event.type === 'treatment_past';
+    const isInspection = event.type === 'inspection_past';
     const isDue = event.type === 'treatment_due';
     const isReminder = event.type === 'reminder';
 
@@ -142,7 +144,11 @@ export function CalendarDayDetail({
         <Space direction="vertical" style={{ width: '100%' }} size={8}>
           {/* Header with badge and title */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-            <Badge status={getBadgeStatus(event.type)} />
+            <Badge
+              {...(event.type === 'inspection_past'
+                ? { color: getBadgeColor(event.type) }
+                : { status: getBadgeStatus(event.type) })}
+            />
             <div style={{ flex: 1 }}>
               <Text strong style={{ display: 'block' }}>
                 {event.title}
@@ -167,8 +173,40 @@ export function CalendarDayDetail({
             </Text>
           )}
 
+          {/* Metadata info for inspections */}
+          {isInspection && event.metadata && (
+            <Space direction="vertical" size={2}>
+              {event.metadata.honey_level !== undefined && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Honey: {String(event.metadata.honey_level)}
+                </Text>
+              )}
+              {event.metadata.brood_frames !== undefined && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Brood frames: {String(event.metadata.brood_frames)}
+                </Text>
+              )}
+              {(event.metadata.issues_count as number) > 0 && (
+                <Text type="warning" style={{ fontSize: 12 }}>
+                  {String(event.metadata.issues_count)} issue{(event.metadata.issues_count as number) > 1 ? 's' : ''} noted
+                </Text>
+              )}
+            </Space>
+          )}
+
+          {/* Inspection view action */}
+          {isInspection && event.hive_id && (
+            <Button
+              size="small"
+              icon={<FileSearchOutlined />}
+              onClick={() => handleViewHive(event.hive_id!)}
+            >
+              View Hive
+            </Button>
+          )}
+
           {/* Actions - only for non-past events */}
-          {!isPast && (
+          {!isPast && !isInspection && (
             <Space wrap>
               <Button
                 size="small"
@@ -225,7 +263,7 @@ export function CalendarDayDetail({
           )}
 
           {/* Past treatment just shows as completed */}
-          {isPast && (
+          {isPast && !isInspection && (
             <Text type="success" style={{ fontSize: 12 }}>
               <CheckOutlined /> Completed
             </Text>

@@ -603,18 +603,22 @@ type DetectionSpikeData struct {
 // GetDetectionSpikeData retrieves detection data for spike analysis.
 // It returns the count of detections in the recent window (windowHours)
 // and the average daily detection count over the last 7 days.
-// Queries by hive using the unit_hives join table for accurate per-hive analysis.
+// Queries by hive using units at the same site for per-hive analysis.
 func GetDetectionSpikeData(ctx context.Context, conn *pgxpool.Conn, hiveID string, windowHours int) (*DetectionSpikeData, error) {
 	now := time.Now()
 	windowStart := now.Add(-time.Duration(windowHours) * time.Hour)
 	weekAgo := now.AddDate(0, 0, -7)
 
-	// Get recent count (last windowHours) for units associated with this hive
+	// Get recent count (last windowHours) for units at the same site as this hive
 	var recentCount int
 	err := conn.QueryRow(ctx,
 		`SELECT COUNT(*)
 		 FROM detections
-		 WHERE unit_id IN (SELECT unit_id FROM unit_hives WHERE hive_id = $1)
+		 WHERE unit_id IN (
+		   SELECT u.id FROM units u
+		   JOIN hives h ON u.site_id = h.site_id
+		   WHERE h.id = $1
+		 )
 		 AND detected_at >= $2`,
 		hiveID, windowStart,
 	).Scan(&recentCount)
@@ -627,7 +631,11 @@ func GetDetectionSpikeData(ctx context.Context, conn *pgxpool.Conn, hiveID strin
 	err = conn.QueryRow(ctx,
 		`SELECT COUNT(*)
 		 FROM detections
-		 WHERE unit_id IN (SELECT unit_id FROM unit_hives WHERE hive_id = $1)
+		 WHERE unit_id IN (
+		   SELECT u.id FROM units u
+		   JOIN hives h ON u.site_id = h.site_id
+		   WHERE h.id = $1
+		 )
 		 AND detected_at >= $2 AND detected_at < $3`,
 		hiveID, weekAgo, windowStart,
 	).Scan(&totalLastWeek)

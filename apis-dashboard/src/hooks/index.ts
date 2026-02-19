@@ -120,6 +120,7 @@ export {
 } from "./useCalendar";
 export type {
   CalendarEvent,
+  CalendarFilters,
   Reminder,
   ReminderType,
   CreateReminderInput,

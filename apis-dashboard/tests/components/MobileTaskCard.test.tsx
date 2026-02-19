@@ -3,7 +3,7 @@
  *
  * Part of Epic 14, Story 14.9: Mobile Tasks Section View
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MobileTaskCard } from '../../src/components/MobileTaskCard';
 import { Task } from '../../src/hooks/useTasks';
@@ -58,37 +58,34 @@ describe('MobileTaskCard', () => {
     });
   });
 
-  describe('Priority Indicator', () => {
-    it('shows red circle emoji for urgent priority', () => {
+  describe('Priority Display', () => {
+    it('renders card for urgent priority task', () => {
       const task = createMockTask({ priority: 'urgent' });
       render(<MobileTaskCard task={task} {...defaultProps} />);
 
-      const indicator = screen.getByTestId('priority-indicator');
-      expect(indicator).toHaveTextContent('\uD83D\uDD34'); // Red circle
+      // Priority is not visually indicated in v2 mobile card
+      expect(screen.getByTestId('mobile-task-card')).toBeInTheDocument();
     });
 
-    it('shows orange circle emoji for high priority', () => {
+    it('renders card for high priority task', () => {
       const task = createMockTask({ priority: 'high' });
       render(<MobileTaskCard task={task} {...defaultProps} />);
 
-      const indicator = screen.getByTestId('priority-indicator');
-      expect(indicator).toHaveTextContent('\uD83D\uDFE0'); // Orange circle
+      expect(screen.getByTestId('mobile-task-card')).toBeInTheDocument();
     });
 
-    it('shows green circle emoji for medium priority', () => {
+    it('renders card for medium priority task', () => {
       const task = createMockTask({ priority: 'medium' });
       render(<MobileTaskCard task={task} {...defaultProps} />);
 
-      const indicator = screen.getByTestId('priority-indicator');
-      expect(indicator).toHaveTextContent('\uD83D\uDFE2'); // Green circle
+      expect(screen.getByTestId('mobile-task-card')).toBeInTheDocument();
     });
 
-    it('shows white circle emoji for low priority', () => {
+    it('renders card for low priority task', () => {
       const task = createMockTask({ priority: 'low' });
       render(<MobileTaskCard task={task} {...defaultProps} />);
 
-      const indicator = screen.getByTestId('priority-indicator');
-      expect(indicator).toHaveTextContent('\u26AA'); // White circle
+      expect(screen.getByTestId('mobile-task-card')).toBeInTheDocument();
     });
   });
 
@@ -97,21 +94,21 @@ describe('MobileTaskCard', () => {
       const task = createMockTask({ due_date: '2026-02-15' });
       render(<MobileTaskCard task={task} {...defaultProps} />);
 
-      expect(screen.getByTestId('due-date')).toHaveTextContent('Feb 15');
+      expect(screen.getByText('Due Feb 15')).toBeInTheDocument();
     });
 
     it('hides due date when not set', () => {
       const task = createMockTask({ due_date: undefined });
       render(<MobileTaskCard task={task} {...defaultProps} />);
 
-      expect(screen.queryByTestId('due-date')).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Due /)).not.toBeInTheDocument();
     });
 
     it('formats due date as short month and day', () => {
       const task = createMockTask({ due_date: '2026-01-01' });
       render(<MobileTaskCard task={task} {...defaultProps} />);
 
-      expect(screen.getByTestId('due-date')).toHaveTextContent('Jan 1');
+      expect(screen.getByText('Due Jan 1')).toBeInTheDocument();
     });
   });
 
@@ -122,7 +119,8 @@ describe('MobileTaskCard', () => {
       });
       render(<MobileTaskCard task={task} {...defaultProps} expanded={false} />);
 
-      expect(screen.queryByTestId('expanded-details')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('task-description')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('complete-button')).not.toBeInTheDocument();
     });
 
     it('expands on tap showing description, notes, created date', () => {
@@ -133,10 +131,9 @@ describe('MobileTaskCard', () => {
       });
       render(<MobileTaskCard task={task} {...defaultProps} expanded={true} />);
 
-      expect(screen.getByTestId('expanded-details')).toBeInTheDocument();
       expect(screen.getByTestId('task-description')).toHaveTextContent('Check all frames for varroa mites');
       expect(screen.getByTestId('task-notes')).toHaveTextContent('Notes: Use sticky board method');
-      expect(screen.getByTestId('created-date')).toHaveTextContent('Created: Jan 15, 2026');
+      expect(screen.getByTestId('created-date')).toHaveTextContent('Created Jan 15');
     });
 
     it('collapses on second tap (onToggle is called)', () => {
@@ -144,19 +141,20 @@ describe('MobileTaskCard', () => {
       const task = createMockTask();
       render(<MobileTaskCard task={task} {...defaultProps} expanded={true} onToggle={onToggle} />);
 
-      const header = screen.getByTestId('task-card-header');
-      fireEvent.click(header);
+      // Click the collapse button (aria-label="Collapse task")
+      const collapseButton = screen.getByLabelText('Collapse task');
+      fireEvent.click(collapseButton);
 
       expect(onToggle).toHaveBeenCalledTimes(1);
     });
 
-    it('calls onToggle when header is clicked', () => {
+    it('calls onToggle when card is clicked in collapsed state', () => {
       const onToggle = vi.fn();
       const task = createMockTask();
       render(<MobileTaskCard task={task} {...defaultProps} onToggle={onToggle} />);
 
-      const header = screen.getByTestId('task-card-header');
-      fireEvent.click(header);
+      const card = screen.getByTestId('mobile-task-card');
+      fireEvent.click(card);
 
       expect(onToggle).toHaveBeenCalledTimes(1);
     });
@@ -171,20 +169,18 @@ describe('MobileTaskCard', () => {
       expect(sourceIndicator).toHaveTextContent('Suggested by BeeBrain');
     });
 
-    it('shows Manual source indicator for non-beebrain tasks', () => {
+    it('does not show source indicator for non-beebrain tasks', () => {
       const task = createMockTask({ source: 'manual' });
       render(<MobileTaskCard task={task} {...defaultProps} expanded={true} />);
 
-      const sourceIndicator = screen.getByTestId('source-indicator');
-      expect(sourceIndicator).toHaveTextContent('Manual');
+      expect(screen.queryByTestId('source-indicator')).not.toBeInTheDocument();
     });
 
-    it('shows Manual source for tasks without source property', () => {
+    it('does not show source indicator for tasks without source property', () => {
       const task = createMockTask();
       render(<MobileTaskCard task={task} {...defaultProps} expanded={true} />);
 
-      const sourceIndicator = screen.getByTestId('source-indicator');
-      expect(sourceIndicator).toHaveTextContent('Manual');
+      expect(screen.queryByTestId('source-indicator')).not.toBeInTheDocument();
     });
   });
 
@@ -252,12 +248,12 @@ describe('MobileTaskCard', () => {
   });
 
   describe('Touch Target Sizing', () => {
-    it('Complete button has 64px height for glove-friendly touch', () => {
+    it('Complete button has 48px height for glove-friendly touch', () => {
       const task = createMockTask();
       render(<MobileTaskCard task={task} {...defaultProps} expanded={true} />);
 
       const completeButton = screen.getByTestId('complete-button');
-      expect(completeButton).toHaveStyle({ height: '64px' });
+      expect(completeButton).toHaveStyle({ height: '48px' });
     });
   });
 

@@ -13,7 +13,13 @@
 #include "camera.h"
 #include "log.h"
 
+// Rename esp32-camera library's camera_status_t to avoid collision
+// with our HAL camera_status_t enum (defined in camera.h).
+// The esp32-camera library uses this internally for sensor status;
+// we never use it directly (we use esp_err_t return values instead).
+#define camera_status_t esp_cam_driver_status_t
 #include "esp_camera.h"
+#undef camera_status_t
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
 

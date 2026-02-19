@@ -67,13 +67,13 @@ func ListActivity(ctx context.Context, pool *pgxpool.Pool, filters *ActivityFilt
 				WHEN al.entity_type = 'treatments' THEN al.new_values->>'treatment_type'
 				WHEN al.entity_type = 'feedings' THEN al.new_values->>'feed_type'
 				WHEN al.entity_type = 'harvests' THEN NULL
-				WHEN al.entity_type = 'users' THEN COALESCE(u_entity.name, al.new_values->>'name')
+				WHEN al.entity_type = 'users' THEN COALESCE(u_entity.display_name, al.new_values->>'name')
 				WHEN al.entity_type = 'clips' THEN NULL
 				WHEN al.entity_type = 'sites' THEN COALESCE(s_entity.name, al.new_values->>'name')
 				ELSE NULL
 			END as entity_name,
 			al.user_id,
-			u.name as user_name,
+			u.display_name as user_name,
 			-- Hive info (either direct or from related entity)
 			CASE
 				WHEN al.entity_type = 'hives' THEN al.entity_id

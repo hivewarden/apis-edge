@@ -17,8 +17,26 @@ vi.mock('../../src/theme/apisTheme', () => ({
     brownBramble: '#5c3c10',
     goldTips: '#d4a012',
     goldenGrass: '#daa520',
+    textMuted: '#999',
   },
 }));
+
+// Mock getMilestoneIcon from useSeasonRecap hook
+vi.mock('../../src/hooks/useSeasonRecap', async () => {
+  const actual = await vi.importActual('../../src/hooks/useSeasonRecap');
+  return {
+    ...actual,
+    getMilestoneIcon: (type: string) => {
+      switch (type) {
+        case 'first_harvest': return 'trophy';
+        case 'new_hive': return 'plus-circle';
+        case 'queen_replaced': return 'crown';
+        case 'colony_loss': return 'warning';
+        default: return 'star';
+      }
+    },
+  };
+});
 
 const mockRecap: SeasonRecap = {
   id: 'recap-1',
@@ -49,16 +67,16 @@ describe('SeasonRecapCard', () => {
   it('renders the season year', () => {
     render(<SeasonRecapCard recap={mockRecap} />);
 
-    expect(screen.getByText(/Season Recap 2024/i)).toBeInTheDocument();
+    // Title format is "{year} Season Recap"
+    expect(screen.getByText('2024 Season Recap')).toBeInTheDocument();
   });
 
   it('displays total harvest stat', () => {
     render(<SeasonRecapCard recap={mockRecap} />);
 
-    // Uses Ant Design Statistic - value and suffix are separate
-    expect(screen.getByText('125.5')).toBeInTheDocument();
-    expect(screen.getByText('kg')).toBeInTheDocument();
-    expect(screen.getByText('Harvest')).toBeInTheDocument();
+    // Value is rendered as a single string "125.5 kg" and label is "Total Harvest"
+    expect(screen.getByText('125.5 kg')).toBeInTheDocument();
+    expect(screen.getByText('Total Harvest')).toBeInTheDocument();
   });
 
   it('displays hornets deterred count', () => {
@@ -75,6 +93,14 @@ describe('SeasonRecapCard', () => {
     expect(screen.getByText('Inspections')).toBeInTheDocument();
   });
 
+  it('displays milestones count stat', () => {
+    render(<SeasonRecapCard recap={mockRecap} />);
+
+    expect(screen.getByText('Milestones')).toBeInTheDocument();
+    // 1 milestone in mockRecap
+    expect(screen.getByText('1')).toBeInTheDocument();
+  });
+
   it('displays milestones when present', () => {
     render(<SeasonRecapCard recap={mockRecap} />);
 
@@ -85,9 +111,9 @@ describe('SeasonRecapCard', () => {
     render(<SeasonRecapCard recap={mockRecap} compact />);
 
     // Stats should still be visible
-    expect(screen.getByText('125.5')).toBeInTheDocument();
+    expect(screen.getByText('125.5 kg')).toBeInTheDocument();
     expect(screen.getByText('342')).toBeInTheDocument();
-    // Milestones should NOT be shown in compact mode
+    // Milestones details should NOT be shown in compact mode
     expect(screen.queryByText('First honey harvest of the season')).not.toBeInTheDocument();
   });
 
@@ -97,11 +123,13 @@ describe('SeasonRecapCard', () => {
       total_harvest_kg: 0,
       hornets_deterred: 0,
       inspections_count: 0,
+      milestones: [],
     };
 
     render(<SeasonRecapCard recap={emptyRecap} />);
 
-    // Should show zeros without crashing
+    // Should show zeros without crashing - "0 kg" for harvest, "0" for hornets/inspections/milestones
+    expect(screen.getByText('0 kg')).toBeInTheDocument();
     const zeros = screen.getAllByText('0');
     expect(zeros.length).toBeGreaterThanOrEqual(1);
   });
@@ -112,9 +140,9 @@ describe('SeasonRecapCard', () => {
     expect(screen.getByText('March 1 - September 30, 2024')).toBeInTheDocument();
   });
 
-  it('shows footer with APIS branding', () => {
+  it('shows footer with Hive Warden branding', () => {
     render(<SeasonRecapCard recap={mockRecap} />);
 
-    expect(screen.getByText(/Generated with APIS/i)).toBeInTheDocument();
+    expect(screen.getByText(/Generated with Hive Warden/i)).toBeInTheDocument();
   });
 });

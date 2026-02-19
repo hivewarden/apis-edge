@@ -118,29 +118,27 @@ export function QRCodeGenerator({
         backgroundColor: '#fff',
       }}
     >
-      {loading ? (
-        <Spin size="large" />
-      ) : (
-        <>
-          <canvas
-            ref={canvasRef}
-            data-testid="qr-canvas"
-            style={{
-              border: `2px solid ${colors.seaBuckthorn}`,
-              borderRadius: 8,
-            }}
-          />
-          <Space direction="vertical" align="center" style={{ marginTop: 16 }}>
-            <Title level={4} style={{ margin: 0, color: colors.brownBramble }}>
-              {hiveName}
-            </Title>
-            {siteName && (
-              <Text type="secondary" style={{ fontSize: 14 }}>
-                {siteName}
-              </Text>
-            )}
-          </Space>
-        </>
+      {loading && <Spin size="large" />}
+      <canvas
+        ref={canvasRef}
+        data-testid="qr-canvas"
+        style={{
+          display: loading ? 'none' : 'block',
+          border: `2px solid ${colors.seaBuckthorn}`,
+          borderRadius: 8,
+        }}
+      />
+      {!loading && (
+        <Space direction="vertical" align="center" style={{ marginTop: 16 }}>
+          <Title level={4} style={{ margin: 0, color: colors.brownBramble }}>
+            {hiveName}
+          </Title>
+          {siteName && (
+            <Text type="secondary" style={{ fontSize: 14 }}>
+              {siteName}
+            </Text>
+          )}
+        </Space>
       )}
     </div>
   );

@@ -47,6 +47,9 @@ describe('fetchAuthConfig', () => {
     mockSessionStorage.setItem.mockClear();
     mockSessionStorage.removeItem.mockClear();
 
+    // Ensure performance.timeOrigin is available for simpleHash in config.ts
+    vi.stubGlobal('performance', { ...performance, timeOrigin: 1234567890 });
+
     // Reset the module to clear internal cache
     vi.resetModules();
 
@@ -60,6 +63,7 @@ describe('fetchAuthConfig', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   describe('API fetching', () => {
@@ -177,7 +181,7 @@ describe('fetchAuthConfig', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
-    it('caches config in sessionStorage', async () => {
+    it('caches config in sessionStorage with integrity hash', async () => {
       const config: AuthConfigLocal = {
         mode: 'local',
         setup_required: false,
@@ -190,10 +194,16 @@ describe('fetchAuthConfig', () => {
 
       await fetchAuthConfig();
 
+      // Verify setItem was called with the key and a JSON string containing the config and hash
       expect(mockSessionStorage.setItem).toHaveBeenCalledWith(
         'apis_auth_config',
-        JSON.stringify(config)
+        expect.stringContaining('"config"')
       );
+
+      // Parse the stored value to verify structure
+      const storedValue = JSON.parse(mockSessionStorage.setItem.mock.calls[0][1]);
+      expect(storedValue.config).toEqual(config);
+      expect(storedValue.hash).toBeDefined();
     });
 
     it('uses sessionStorage cache when memory cache is empty', async () => {
@@ -202,9 +212,27 @@ describe('fetchAuthConfig', () => {
         setup_required: false,
       };
 
-      mockSessionStorage.getItem.mockReturnValue(JSON.stringify(config));
+      // First, fetch to populate sessionStorage with a properly hashed cache entry
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(config),
+      });
+      mockSessionStorage.getItem.mockReturnValue(null);
+      await fetchAuthConfig();
 
-      const result = await fetchAuthConfig();
+      // Capture what was stored (with hash)
+      const storedValue = mockSessionStorage.setItem.mock.calls[0][1];
+
+      // Clear memory cache and re-import the module
+      clearAuthConfigCache();
+      vi.resetModules();
+      const freshModule = await import('../../src/config');
+
+      // Set up sessionStorage to return the properly hashed value
+      mockSessionStorage.getItem.mockReturnValue(storedValue);
+      mockFetch.mockClear();
+
+      const result = await freshModule.fetchAuthConfig();
 
       expect(mockFetch).not.toHaveBeenCalled();
       expect(result).toEqual(config);
@@ -273,15 +301,32 @@ describe('fetchAuthConfig', () => {
       expect(result).toEqual(config);
     });
 
-    it('returns cached config from sessionStorage when memory is empty', () => {
+    it('returns cached config from sessionStorage when memory is empty', async () => {
       const config: AuthConfigLocal = {
         mode: 'local',
         setup_required: false,
       };
 
-      mockSessionStorage.getItem.mockReturnValue(JSON.stringify(config));
+      // First, fetch to get a properly hashed cache entry
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(config),
+      });
+      mockSessionStorage.getItem.mockReturnValue(null);
+      await fetchAuthConfig();
 
-      const result = getAuthConfigSync();
+      // Capture what was stored (with hash)
+      const storedValue = mockSessionStorage.setItem.mock.calls[0][1];
+
+      // Clear memory cache and re-import the module
+      clearAuthConfigCache();
+      vi.resetModules();
+      const freshModule = await import('../../src/config');
+
+      // Set up sessionStorage to return the properly hashed value
+      mockSessionStorage.getItem.mockReturnValue(storedValue);
+
+      const result = freshModule.getAuthConfigSync();
       expect(result).toEqual(config);
     });
   });

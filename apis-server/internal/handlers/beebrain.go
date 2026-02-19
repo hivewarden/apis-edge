@@ -59,6 +59,7 @@ type RefreshData struct {
 }
 
 // GetDashboard handles GET /api/beebrain/dashboard - returns tenant-wide analysis summary.
+// On cold-start (no insights have ever been created), auto-triggers initial analysis.
 func (h *BeeBrainHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {
 	if h.service == nil {
 		log.Error().Msg("handler: BeeBrain service is nil")
@@ -68,6 +69,32 @@ func (h *BeeBrainHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {
 
 	conn := storage.RequireConn(r.Context())
 	tenantID := middleware.GetTenantID(r.Context())
+
+	// Cold-start detection: if no insights have ever been created, run initial analysis
+	hasAny, err := storage.HasAnyInsights(r.Context(), conn, tenantID)
+	if err != nil {
+		log.Warn().Err(err).Str("tenant_id", tenantID).Msg("handler: failed to check insights existence")
+	}
+	if !hasAny {
+		// Check if there are hives to analyze
+		hives, hiveErr := storage.ListHives(r.Context(), conn)
+		if hiveErr == nil && len(hives) > 0 {
+			log.Info().Str("tenant_id", tenantID).Int("hive_count", len(hives)).Msg("beebrain: cold-start detected, running initial analysis")
+			freshResult, analysisErr := h.service.AnalyzeTenantWithPool(r.Context(), storage.DB, conn, tenantID)
+			if analysisErr == nil {
+				respondJSON(w, DashboardResponse{
+					Data: DashboardData{
+						Summary:      freshResult.Summary,
+						LastAnalysis: freshResult.LastAnalysis,
+						Insights:     freshResult.Insights,
+						AllGood:      freshResult.AllGood,
+					},
+				}, http.StatusOK)
+				return
+			}
+			log.Warn().Err(analysisErr).Str("tenant_id", tenantID).Msg("handler: cold-start analysis failed, falling back to empty state")
+		}
+	}
 
 	result, err := h.service.GetDashboardAnalysis(r.Context(), conn, tenantID)
 	if err != nil {

@@ -92,7 +92,7 @@ describe('SetupWizard Component', () => {
 
   describe('Step 1 - Form Validation', () => {
     it('shows error when display name is empty', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       renderSetupWizard();
 
       const nextButton = screen.getByRole('button', { name: /next/i });
@@ -104,7 +104,7 @@ describe('SetupWizard Component', () => {
     });
 
     it('shows error when display name is too short', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       renderSetupWizard();
 
       const displayNameInput = screen.getByPlaceholderText('Display Name');
@@ -119,7 +119,7 @@ describe('SetupWizard Component', () => {
     });
 
     it('shows error when email is empty', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       renderSetupWizard();
 
       const displayNameInput = screen.getByPlaceholderText('Display Name');
@@ -134,7 +134,7 @@ describe('SetupWizard Component', () => {
     });
 
     it('shows error when email format is invalid', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       renderSetupWizard();
 
       const displayNameInput = screen.getByPlaceholderText('Display Name');
@@ -152,7 +152,7 @@ describe('SetupWizard Component', () => {
     });
 
     it('shows error when password is empty', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       renderSetupWizard();
 
       const displayNameInput = screen.getByPlaceholderText('Display Name');
@@ -170,7 +170,7 @@ describe('SetupWizard Component', () => {
     });
 
     it('shows error when password is too short', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       renderSetupWizard();
 
       const displayNameInput = screen.getByPlaceholderText('Display Name');
@@ -190,7 +190,7 @@ describe('SetupWizard Component', () => {
     });
 
     it('shows error when passwords do not match', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       renderSetupWizard();
 
       const displayNameInput = screen.getByPlaceholderText('Display Name');
@@ -212,7 +212,7 @@ describe('SetupWizard Component', () => {
     });
 
     it('shows error when confirm password is empty', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       renderSetupWizard();
 
       const displayNameInput = screen.getByPlaceholderText('Display Name');
@@ -302,7 +302,7 @@ describe('SetupWizard Component', () => {
     // These tests verify the form structure supports submission.
 
     it('form has submit capability via Create Account button on step 2', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       renderSetupWizard();
 
       // Verify form fields exist

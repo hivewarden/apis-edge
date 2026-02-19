@@ -78,16 +78,20 @@ func TestUpgraderConfiguration(t *testing.T) {
 	assert.Equal(t, 1024, upgrader.ReadBufferSize)
 	assert.Equal(t, 1024*64, upgrader.WriteBufferSize) // 64KB for video frames
 
-	// TODO (S3A-L4): This test asserts CheckOrigin returns true for any origin.
-	// Verify that CORS_ALLOWED_ORIGINS env var behavior is correctly tested:
-	// - With CORS_ALLOWED_ORIGINS unset, only localhost origins should be allowed
-	// - Use t.Setenv to ensure clean test environment
+	// Without CORS_ALLOWED_ORIGINS, only localhost dev origins are allowed
+	t.Setenv("CORS_ALLOWED_ORIGINS", "")
+
 	req := httptest.NewRequest("GET", "/ws/stream/123", nil)
 	req.Header.Set("Origin", "https://example.com")
-	assert.True(t, upgrader.CheckOrigin(req))
+	assert.False(t, upgrader.CheckOrigin(req), "non-localhost origin should be rejected by default")
 
 	req.Header.Set("Origin", "http://localhost:5173")
-	assert.True(t, upgrader.CheckOrigin(req))
+	assert.True(t, upgrader.CheckOrigin(req), "localhost:5173 should be allowed by default")
+
+	// With CORS_ALLOWED_ORIGINS set, configured origins are allowed
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://example.com,https://app.test.com")
+	req.Header.Set("Origin", "https://example.com")
+	assert.True(t, upgrader.CheckOrigin(req), "configured origin should be allowed")
 }
 
 // TestReadMJPEGFrameStartMarker tests JPEG start marker detection

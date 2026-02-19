@@ -46,7 +46,19 @@
 #define BOOT_BREATHE_PERIOD_MS  2000    // 2 second breathing cycle
 #define OFFLINE_BLINK_PERIOD_MS 4000    // Blink every 4 seconds
 #define OFFLINE_BLINK_DURATION  100     // 100ms flash
-#define AUTH_FAIL_BLINK_MS      500     // COMM-001-6: Fast red/orange blink (2Hz)
+#define AUTH_FAIL_BLINK_MS      500     // Fast red/orange blink (2Hz)
+
+// Onboarding states
+#define SETUP_PULSE_PERIOD_MS   3000    // Slow cyan pulse for AP/captive portal
+#define WIFI_BLINK_PERIOD_MS    400     // Fast blink while connecting (2.5Hz)
+#define UNCLAIMED_HEARTBEAT_MS  2000    // Heartbeat pattern (blink-blink-pause)
+#define DISARMED_GAP_PERIOD_MS  5000    // Mostly-on cycle with brief off-gap
+#define DISARMED_GAP_DURATION   200     // 200ms off-gap to distinguish from ARMED
+
+// Hardware error states (distinct blink counts for identification)
+#define HW_DOUBLE_BLINK_MS      1000    // Camera: double blink per second
+#define HW_TRIPLE_BLINK_MS      1250    // Servo: triple blink per 1.25s
+#define HW_QUAD_BLINK_MS        1500    // Laser: quad blink per 1.5s
 
 // ============================================================================
 // Global State
@@ -55,8 +67,7 @@
 static volatile bool g_initialized = false;
 static volatile bool g_running = false;
 // Bitmask of active states. Uses uint32_t so maximum 32 states supported.
-// Current LED_STATE_COUNT is 7, well within this limit.
-// If states exceed 32 in future, change to uint64_t and update shift operations.
+// Current LED_STATE_COUNT is 14, well within this limit.
 static volatile uint32_t g_active_states = 0;
 static volatile uint64_t g_detection_flash_end = 0;  // Timestamp when detection flash ends
 static volatile uint64_t g_pattern_start_time = 0;
@@ -80,15 +91,21 @@ static led_color_t g_current_color = {0, 0, 0};
 
 const char *led_state_name(led_state_t state) {
     switch (state) {
-        case LED_STATE_OFF:         return "OFF";
-        case LED_STATE_BOOT:        return "BOOT";
-        case LED_STATE_DISARMED:    return "DISARMED";
-        case LED_STATE_ARMED:       return "ARMED";
-        case LED_STATE_OFFLINE:     return "OFFLINE";
-        case LED_STATE_AUTH_FAILED: return "AUTH_FAILED";  // COMM-001-6
-        case LED_STATE_DETECTION:   return "DETECTION";
-        case LED_STATE_ERROR:       return "ERROR";
-        default:                    return "UNKNOWN";
+        case LED_STATE_OFF:             return "OFF";
+        case LED_STATE_BOOT:            return "BOOT";
+        case LED_STATE_SETUP:           return "SETUP";
+        case LED_STATE_WIFI_CONNECTING: return "WIFI_CONNECTING";
+        case LED_STATE_UNCLAIMED:       return "UNCLAIMED";
+        case LED_STATE_DISARMED:        return "DISARMED";
+        case LED_STATE_ARMED:           return "ARMED";
+        case LED_STATE_OFFLINE:         return "OFFLINE";
+        case LED_STATE_AUTH_FAILED:     return "AUTH_FAILED";
+        case LED_STATE_DETECTION:       return "DETECTION";
+        case LED_STATE_CAMERA_FAIL:     return "CAMERA_FAIL";
+        case LED_STATE_SERVO_FAIL:      return "SERVO_FAIL";
+        case LED_STATE_LASER_FAIL:      return "LASER_FAIL";
+        case LED_STATE_ERROR:           return "ERROR";
+        default:                        return "UNKNOWN";
     }
 }
 
@@ -166,29 +183,38 @@ static void gpio_cleanup(void) {
 // ============================================================================
 
 static led_state_t get_highest_priority_state(void) {
-    // Check detection flash first (time-limited)
+    // Check detection flash first (time-limited, auto-clears)
     uint64_t now = get_time_ms();
     if (g_detection_flash_end > now) {
         return LED_STATE_DETECTION;
     }
 
     // Check states from highest to lowest priority
-    if (g_active_states & (1 << LED_STATE_ERROR))       return LED_STATE_ERROR;
-    if (g_active_states & (1 << LED_STATE_DETECTION))   return LED_STATE_DETECTION;
-    if (g_active_states & (1 << LED_STATE_AUTH_FAILED)) return LED_STATE_AUTH_FAILED;  // COMM-001-6
-    if (g_active_states & (1 << LED_STATE_OFFLINE))     return LED_STATE_OFFLINE;
-    if (g_active_states & (1 << LED_STATE_ARMED))       return LED_STATE_ARMED;
-    if (g_active_states & (1 << LED_STATE_DISARMED))    return LED_STATE_DISARMED;
-    if (g_active_states & (1 << LED_STATE_BOOT))        return LED_STATE_BOOT;
+    if (g_active_states & (1 << LED_STATE_ERROR))           return LED_STATE_ERROR;
+    if (g_active_states & (1 << LED_STATE_LASER_FAIL))      return LED_STATE_LASER_FAIL;
+    if (g_active_states & (1 << LED_STATE_SERVO_FAIL))      return LED_STATE_SERVO_FAIL;
+    if (g_active_states & (1 << LED_STATE_CAMERA_FAIL))     return LED_STATE_CAMERA_FAIL;
+    if (g_active_states & (1 << LED_STATE_DETECTION))       return LED_STATE_DETECTION;
+    if (g_active_states & (1 << LED_STATE_AUTH_FAILED))     return LED_STATE_AUTH_FAILED;
+    if (g_active_states & (1 << LED_STATE_OFFLINE))         return LED_STATE_OFFLINE;
+    if (g_active_states & (1 << LED_STATE_ARMED))           return LED_STATE_ARMED;
+    if (g_active_states & (1 << LED_STATE_DISARMED))        return LED_STATE_DISARMED;
+    if (g_active_states & (1 << LED_STATE_UNCLAIMED))       return LED_STATE_UNCLAIMED;
+    if (g_active_states & (1 << LED_STATE_WIFI_CONNECTING)) return LED_STATE_WIFI_CONNECTING;
+    if (g_active_states & (1 << LED_STATE_SETUP))           return LED_STATE_SETUP;
+    if (g_active_states & (1 << LED_STATE_BOOT))            return LED_STATE_BOOT;
 
     return LED_STATE_OFF;
 }
 
 static led_color_t get_base_color(void) {
-    // Get the base color for the current armed/disarmed state
-    if (g_active_states & (1 << LED_STATE_ARMED))    return LED_COLOR_GREEN;
-    if (g_active_states & (1 << LED_STATE_DISARMED)) return LED_COLOR_YELLOW;
-    if (g_active_states & (1 << LED_STATE_BOOT))     return LED_COLOR_BLUE;
+    // Get the underlying color when an overlay state (OFFLINE) blinks
+    if (g_active_states & (1 << LED_STATE_ARMED))           return LED_COLOR_GREEN;
+    if (g_active_states & (1 << LED_STATE_DISARMED))        return LED_COLOR_YELLOW;
+    if (g_active_states & (1 << LED_STATE_UNCLAIMED))       return LED_COLOR_ORANGE;
+    if (g_active_states & (1 << LED_STATE_WIFI_CONNECTING)) return LED_COLOR_BLUE;
+    if (g_active_states & (1 << LED_STATE_SETUP))           return LED_COLOR_CYAN;
+    if (g_active_states & (1 << LED_STATE_BOOT))            return LED_COLOR_BLUE;
     return LED_COLOR_OFF;
 }
 
@@ -203,30 +229,70 @@ static led_color_t calculate_current_color(void) {
             return LED_COLOR_OFF;
 
         case LED_STATE_BOOT: {
-            // Breathing blue effect
+            // Breathing blue — slow fade in/out over 2 seconds
             uint32_t cycle_pos = elapsed % BOOT_BREATHE_PERIOD_MS;
             uint32_t half_period = BOOT_BREATHE_PERIOD_MS / 2;
             uint8_t brightness;
 
             if (cycle_pos < half_period) {
-                // Fade in
                 brightness = (uint8_t)((cycle_pos * 255) / half_period);
             } else {
-                // Fade out
                 brightness = (uint8_t)(((BOOT_BREATHE_PERIOD_MS - cycle_pos) * 255) / half_period);
             }
 
             return (led_color_t){0, 0, brightness};
         }
 
-        case LED_STATE_DISARMED:
+        case LED_STATE_SETUP: {
+            // Pulsing cyan — slower than boot (3s cycle), signals "connect to me"
+            uint32_t cycle_pos = elapsed % SETUP_PULSE_PERIOD_MS;
+            uint32_t half = SETUP_PULSE_PERIOD_MS / 2;
+            uint8_t brightness;
+
+            if (cycle_pos < half) {
+                brightness = (uint8_t)((cycle_pos * 255) / half);
+            } else {
+                brightness = (uint8_t)(((SETUP_PULSE_PERIOD_MS - cycle_pos) * 255) / half);
+            }
+
+            return (led_color_t){0, brightness, brightness};  // cyan
+        }
+
+        case LED_STATE_WIFI_CONNECTING: {
+            // Fast blue blink (2.5Hz) — "I'm trying to connect"
+            uint32_t cycle_pos = elapsed % WIFI_BLINK_PERIOD_MS;
+            if (cycle_pos < (WIFI_BLINK_PERIOD_MS / 2)) {
+                return LED_COLOR_BLUE;
+            }
+            return LED_COLOR_OFF;
+        }
+
+        case LED_STATE_UNCLAIMED: {
+            // Amber heartbeat — two quick blinks then pause
+            // blink(150ms) gap(150ms) blink(150ms) pause(1550ms) = 2000ms
+            uint32_t cycle_pos = elapsed % UNCLAIMED_HEARTBEAT_MS;
+            if (cycle_pos < 150) return LED_COLOR_ORANGE;
+            if (cycle_pos < 300) return LED_COLOR_OFF;
+            if (cycle_pos < 450) return LED_COLOR_ORANGE;
+            return LED_COLOR_OFF;
+        }
+
+        case LED_STATE_DISARMED: {
+            // Yellow with brief off-gap every 5 seconds
+            // Distinguishes from ARMED (solid) on single-LED boards
+            uint32_t cycle_pos = elapsed % DISARMED_GAP_PERIOD_MS;
+            if (cycle_pos >= (DISARMED_GAP_PERIOD_MS - DISARMED_GAP_DURATION)) {
+                return LED_COLOR_OFF;
+            }
             return LED_COLOR_YELLOW;
+        }
 
         case LED_STATE_ARMED:
+            // Solid green — all systems go
             return LED_COLOR_GREEN;
 
         case LED_STATE_OFFLINE: {
-            // Show base color with occasional orange blink
+            // Show base color with occasional orange flash
             uint32_t cycle_pos = elapsed % OFFLINE_BLINK_PERIOD_MS;
             if (cycle_pos < OFFLINE_BLINK_DURATION) {
                 return LED_COLOR_ORANGE;
@@ -235,8 +301,7 @@ static led_color_t calculate_current_color(void) {
         }
 
         case LED_STATE_AUTH_FAILED: {
-            // COMM-001-6: Fast red/orange blink to alert user of auth failure
-            // Alternates between red and orange at 2Hz (500ms period)
+            // Fast red/orange alternation at 2Hz — auth problem
             uint32_t cycle_pos = elapsed % AUTH_FAIL_BLINK_MS;
             if (cycle_pos < (AUTH_FAIL_BLINK_MS / 2)) {
                 return LED_COLOR_RED;
@@ -245,10 +310,39 @@ static led_color_t calculate_current_color(void) {
         }
 
         case LED_STATE_DETECTION:
+            // Bright white flash — hornet detected
             return LED_COLOR_WHITE;
 
+        case LED_STATE_CAMERA_FAIL: {
+            // Double red blink per second: on(100) off(100) on(100) off(700)
+            uint32_t p = elapsed % HW_DOUBLE_BLINK_MS;
+            if (p < 100 || (p >= 200 && p < 300)) {
+                return LED_COLOR_RED;
+            }
+            return LED_COLOR_OFF;
+        }
+
+        case LED_STATE_SERVO_FAIL: {
+            // Triple red blink per 1.25s: on(80) off(80) x3 then pause
+            uint32_t p = elapsed % HW_TRIPLE_BLINK_MS;
+            if (p < 80 || (p >= 160 && p < 240) || (p >= 320 && p < 400)) {
+                return LED_COLOR_RED;
+            }
+            return LED_COLOR_OFF;
+        }
+
+        case LED_STATE_LASER_FAIL: {
+            // Quad red blink per 1.5s: on(60) off(60) x4 then pause
+            uint32_t p = elapsed % HW_QUAD_BLINK_MS;
+            if (p < 60 || (p >= 120 && p < 180) ||
+                (p >= 240 && p < 300) || (p >= 360 && p < 420)) {
+                return LED_COLOR_RED;
+            }
+            return LED_COLOR_OFF;
+        }
+
         case LED_STATE_ERROR: {
-            // Blinking red at 1Hz
+            // Red blink at 1Hz — something is seriously wrong
             uint32_t cycle_pos = elapsed % ERROR_BLINK_PERIOD_MS;
             if (cycle_pos < (ERROR_BLINK_PERIOD_MS / 2)) {
                 return LED_COLOR_RED;
@@ -437,6 +531,45 @@ void led_controller_cleanup(void) {
     g_active_states = 0;
     g_initialized = false;
     LOG_INFO("LED controller cleanup complete");
+}
+
+int led_controller_active_summary(char *buf, int buf_len) {
+    if (!buf || buf_len < 1) return 0;
+    buf[0] = '\0';
+
+    if (!g_initialized) {
+        snprintf(buf, (size_t)buf_len, "NOT_INITIALIZED");
+        return 0;
+    }
+
+    LED_LOCK();
+    uint32_t states = g_active_states;
+    LED_UNLOCK();
+
+    int count = 0;
+    int offset = 0;
+
+    for (int i = 1; i < LED_STATE_COUNT; i++) {
+        if (states & (1 << i)) {
+            const char *name = led_state_name((led_state_t)i);
+            int written;
+            if (count > 0) {
+                written = snprintf(buf + offset, (size_t)(buf_len - offset), ",%s", name);
+            } else {
+                written = snprintf(buf + offset, (size_t)(buf_len - offset), "%s", name);
+            }
+            if (written > 0 && offset + written < buf_len) {
+                offset += written;
+            }
+            count++;
+        }
+    }
+
+    if (count == 0) {
+        snprintf(buf, (size_t)buf_len, "OFF");
+    }
+
+    return count;
 }
 
 bool led_controller_is_initialized(void) {

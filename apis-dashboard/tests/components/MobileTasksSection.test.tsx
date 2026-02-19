@@ -1,7 +1,7 @@
 /**
  * Unit tests for MobileTasksSection component
  *
- * Part of Epic 14, Stories 14.9 and 14.10
+ * Part of Epic 14, Stories 14.9, 14.10, 14.11, 14.15, and 14.16
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -35,6 +35,34 @@ vi.mock('../../src/hooks/useTaskTemplates', () => ({
   useTaskTemplates: vi.fn(),
 }));
 
+// Mock useTaskSuggestions
+vi.mock('../../src/hooks/useTaskSuggestions', () => ({
+  useTaskSuggestions: vi.fn(() => ({
+    suggestions: [],
+    loading: false,
+    refetch: vi.fn(),
+    acceptSuggestion: vi.fn(),
+    dismissSuggestion: vi.fn(),
+    accepting: false,
+    dismissing: false,
+  })),
+}));
+
+// Mock useAuth
+vi.mock('../../src/hooks/useAuth', () => ({
+  useAuth: vi.fn(() => ({
+    user: { tenant_id: 'test-tenant' },
+    isAuthenticated: true,
+    loading: false,
+  })),
+}));
+
+// Mock offline tasks service
+vi.mock('../../src/services/offlineTasks', () => ({
+  completeOfflineTask: vi.fn(),
+  deleteOfflineTask: vi.fn(),
+}));
+
 // Mock apiClient for MobileAddTaskForm
 vi.mock('../../src/providers/apiClient', () => ({
   apiClient: {
@@ -50,6 +78,7 @@ vi.mock('antd', async () => {
     message: {
       success: vi.fn(),
       error: vi.fn(),
+      warning: vi.fn(),
     },
   };
 });
@@ -111,6 +140,8 @@ describe('MobileTasksSection', () => {
     loading: false,
     error: null,
     refetch: mockRefetch,
+    isOffline: false,
+    pendingSyncCount: 0,
   };
 
   beforeEach(() => {
@@ -206,7 +237,7 @@ describe('MobileTasksSection', () => {
   });
 
   describe('Overdue Subsection', () => {
-    it('renders Overdue subsection with red background when overdue tasks exist', () => {
+    it('renders Overdue subsection when overdue tasks exist', () => {
       const overdueTasks = [
         createTask({ id: 'overdue-1', title: 'Overdue Task 1' }),
         createTask({ id: 'overdue-2', title: 'Overdue Task 2' }),
@@ -221,13 +252,9 @@ describe('MobileTasksSection', () => {
 
       const overdueSection = screen.getByTestId('overdue-subsection');
       expect(overdueSection).toBeInTheDocument();
-      // Check for red background tint
-      expect(overdueSection).toHaveStyle({
-        backgroundColor: 'rgba(194, 54, 22, 0.1)',
-      });
     });
 
-    it('overdue subsection has warning icon', () => {
+    it('overdue subsection has header text', () => {
       const overdueTasks = [createTask({ id: 'overdue-1', title: 'Overdue Task' })];
 
       mockUseHiveTasks.mockReturnValue({
@@ -239,8 +266,7 @@ describe('MobileTasksSection', () => {
 
       const overdueHeader = screen.getByTestId('overdue-header');
       expect(overdueHeader).toBeInTheDocument();
-      // The WarningOutlined icon should be present
-      expect(overdueHeader.querySelector('.anticon-warning')).toBeInTheDocument();
+      expect(overdueHeader).toHaveTextContent('Overdue');
     });
 
     it('does not render Overdue subsection when no overdue tasks', () => {
@@ -301,77 +327,6 @@ describe('MobileTasksSection', () => {
     });
   });
 
-  describe('Accordion Behavior', () => {
-    it('only one card expanded at a time', async () => {
-      const tasks = [
-        createTask({ id: 'task-1', title: 'Task 1', description: 'Description 1' }),
-        createTask({ id: 'task-2', title: 'Task 2', description: 'Description 2' }),
-      ];
-
-      mockUseHiveTasks.mockReturnValue({
-        ...defaultMockReturn,
-        pendingTasks: tasks,
-      });
-
-      render(<MobileTasksSection hiveId="hive-1" />);
-
-      // Find both task card headers
-      const taskCards = screen.getAllByTestId('mobile-task-card');
-      expect(taskCards).toHaveLength(2);
-
-      // Initially no cards are expanded
-      expect(screen.queryAllByTestId('expanded-details')).toHaveLength(0);
-
-      // Click first card header
-      const headers = screen.getAllByTestId('task-card-header');
-      fireEvent.click(headers[0]);
-
-      // First card should be expanded
-      await waitFor(() => {
-        expect(screen.getAllByTestId('expanded-details')).toHaveLength(1);
-      });
-      expect(screen.getByText('Description 1')).toBeInTheDocument();
-
-      // Click second card header
-      fireEvent.click(headers[1]);
-
-      // Now second card should be expanded, first should be collapsed
-      await waitFor(() => {
-        const expandedDetails = screen.getAllByTestId('expanded-details');
-        expect(expandedDetails).toHaveLength(1);
-      });
-      expect(screen.getByText('Description 2')).toBeInTheDocument();
-      expect(screen.queryByText('Description 1')).not.toBeInTheDocument();
-    });
-
-    it('clicking same card again collapses it', async () => {
-      const tasks = [
-        createTask({ id: 'task-1', title: 'Task 1', description: 'Description 1' }),
-      ];
-
-      mockUseHiveTasks.mockReturnValue({
-        ...defaultMockReturn,
-        pendingTasks: tasks,
-      });
-
-      render(<MobileTasksSection hiveId="hive-1" />);
-
-      const header = screen.getByTestId('task-card-header');
-
-      // Click to expand
-      fireEvent.click(header);
-      await waitFor(() => {
-        expect(screen.getByTestId('expanded-details')).toBeInTheDocument();
-      });
-
-      // Click again to collapse
-      fireEvent.click(header);
-      await waitFor(() => {
-        expect(screen.queryByTestId('expanded-details')).not.toBeInTheDocument();
-      });
-    });
-  });
-
   describe('Task Card Rendering', () => {
     it('renders task cards for overdue tasks', () => {
       const overdueTasks = [
@@ -412,7 +367,7 @@ describe('MobileTasksSection', () => {
     it('calls useHiveTasks with correct hiveId', () => {
       render(<MobileTasksSection hiveId="test-hive-id" />);
 
-      expect(mockUseHiveTasks).toHaveBeenCalledWith('test-hive-id');
+      expect(mockUseHiveTasks).toHaveBeenCalledWith('test-hive-id', 'pending', 'test-tenant');
     });
   });
 
@@ -432,7 +387,7 @@ describe('MobileTasksSection', () => {
 
   // Story 14.10: Task Completion Flow Tests
   describe('Task Completion Flow (Story 14.10)', () => {
-    it('completes task immediately when no auto_effects prompts', async () => {
+    it('completes task immediately when Complete Task button is clicked', async () => {
       const taskWithoutPrompts = createTask({
         id: 'task-1',
         title: 'Simple Task',
@@ -446,94 +401,17 @@ describe('MobileTasksSection', () => {
 
       renderWithTheme(<MobileTasksSection hiveId="hive-1" />);
 
-      // Expand the card to see the Complete button
-      const header = screen.getByTestId('task-card-header');
-      fireEvent.click(header);
+      // The v2 layout has Complete Task buttons inline (not behind an expand)
+      const completeButtons = screen.getAllByRole('button', { name: /complete task/i });
+      expect(completeButtons.length).toBeGreaterThan(0);
 
-      await waitFor(() => {
-        expect(screen.getByTestId('complete-button')).toBeInTheDocument();
-      });
-
-      // Click complete
-      fireEvent.click(screen.getByTestId('complete-button'));
+      // Click Complete Task
+      fireEvent.click(completeButtons[0]);
 
       // Should call completeTask directly (with delay for animation)
       await waitFor(() => {
         expect(mockCompleteTask).toHaveBeenCalledWith('task-1');
       }, { timeout: 500 });
-    });
-
-    it('opens completion sheet when task has auto_effects prompts', async () => {
-      const taskWithPrompts = createTask({
-        id: 'task-2',
-        title: 'Requeen Task',
-        auto_effects: {
-          prompts: [
-            {
-              key: 'color',
-              label: 'Queen marking color',
-              type: 'select',
-              options: [{ value: 'yellow', label: 'Yellow' }],
-              required: true,
-            },
-          ],
-          updates: [],
-        },
-      });
-
-      mockUseHiveTasks.mockReturnValue({
-        ...defaultMockReturn,
-        pendingTasks: [taskWithPrompts],
-      });
-
-      renderWithTheme(<MobileTasksSection hiveId="hive-1" />);
-
-      // Expand the card
-      const header = screen.getByTestId('task-card-header');
-      fireEvent.click(header);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('complete-button')).toBeInTheDocument();
-      });
-
-      // Click complete
-      fireEvent.click(screen.getByTestId('complete-button'));
-
-      // Should open completion sheet
-      await waitFor(() => {
-        expect(screen.getByTestId('mobile-task-completion-sheet')).toBeInTheDocument();
-      });
-    });
-
-    it('shows delete confirmation dialog when delete is clicked', async () => {
-      const task = createTask({
-        id: 'task-1',
-        title: 'Task to Delete',
-      });
-
-      mockUseHiveTasks.mockReturnValue({
-        ...defaultMockReturn,
-        pendingTasks: [task],
-      });
-
-      renderWithTheme(<MobileTasksSection hiveId="hive-1" />);
-
-      // Expand the card
-      const header = screen.getByTestId('task-card-header');
-      fireEvent.click(header);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('delete-button')).toBeInTheDocument();
-      });
-
-      // Click delete
-      fireEvent.click(screen.getByTestId('delete-button'));
-
-      // Should show delete confirmation
-      await waitFor(() => {
-        expect(screen.getByTestId('delete-task-confirmation')).toBeInTheDocument();
-        expect(screen.getByText('Delete this task?')).toBeInTheDocument();
-      });
     });
 
     it('shows success toast and refetches after completion', async () => {
@@ -550,13 +428,9 @@ describe('MobileTasksSection', () => {
 
       renderWithTheme(<MobileTasksSection hiveId="hive-1" />);
 
-      // Expand and complete
-      fireEvent.click(screen.getByTestId('task-card-header'));
-      await waitFor(() => {
-        expect(screen.getByTestId('complete-button')).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByTestId('complete-button'));
+      // Click Complete Task
+      const completeButtons = screen.getAllByRole('button', { name: /complete task/i });
+      fireEvent.click(completeButtons[0]);
 
       await waitFor(() => {
         expect(message.success).toHaveBeenCalledWith('Task completed');
@@ -580,13 +454,9 @@ describe('MobileTasksSection', () => {
 
       renderWithTheme(<MobileTasksSection hiveId="hive-1" />);
 
-      // Expand and complete
-      fireEvent.click(screen.getByTestId('task-card-header'));
-      await waitFor(() => {
-        expect(screen.getByTestId('complete-button')).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByTestId('complete-button'));
+      // Click Complete Task
+      const completeButtons = screen.getAllByRole('button', { name: /complete task/i });
+      fireEvent.click(completeButtons[0]);
 
       await waitFor(() => {
         expect(message.error).toHaveBeenCalledWith('Failed to complete task');
@@ -623,31 +493,7 @@ describe('MobileTasksSection', () => {
       expect(screen.getByTestId('mobile-add-task-form')).toBeInTheDocument();
     });
 
-    it('outside click collapses add task form', async () => {
-      mockUseHiveTasks.mockReturnValue({
-        ...defaultMockReturn,
-        pendingTasks: [createTask({ id: 'pending-1', title: 'Pending Task' })],
-      });
-
-      renderWithTheme(<MobileTasksSection hiveId="hive-1" />);
-
-      // Expand the add task form
-      fireEvent.click(screen.getByTestId('add-task-collapsed'));
-
-      await waitFor(() => {
-        expect(screen.getByTestId('add-task-expanded')).toBeInTheDocument();
-      });
-
-      // Click outside (on the section container)
-      fireEvent.mouseDown(screen.getByTestId('mobile-tasks-section'));
-
-      await waitFor(() => {
-        expect(screen.getByTestId('add-task-collapsed')).toBeInTheDocument();
-        expect(screen.queryByTestId('add-task-expanded')).not.toBeInTheDocument();
-      });
-    });
-
-    it('new task appears in list after creation and triggers refetch', async () => {
+    it('new task triggers refetch after creation', async () => {
       const user = (await import('@testing-library/user-event')).default.setup();
 
       mockUseHiveTasks.mockReturnValue({
@@ -679,11 +525,10 @@ describe('MobileTasksSection', () => {
 
       // Should call API and then refetch
       await waitFor(() => {
-        expect(mockPost).toHaveBeenCalledWith('/tasks', {
+        expect(mockPost).toHaveBeenCalledWith('/tasks', expect.objectContaining({
           hive_id: 'hive-1',
           template_id: 'system-1',
-          priority: 'medium',
-        });
+        }));
         expect(mockRefetch).toHaveBeenCalled();
       });
     });

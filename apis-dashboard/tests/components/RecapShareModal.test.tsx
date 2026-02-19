@@ -122,6 +122,11 @@ describe('RecapShareModal', () => {
   it('loads and displays recap text in text tab', async () => {
     render(<RecapShareModal open={true} onClose={() => {}} recap={mockRecap} />);
 
+    // Text tab is active by default but handleTabChange is only called on change.
+    // Switch to another tab first, then back to text to trigger text loading.
+    fireEvent.click(screen.getByText('Download Image'));
+    fireEvent.click(screen.getByText('Copy Text'));
+
     await waitFor(() => {
       expect(screen.getByText(/APIS Season Recap 2024/)).toBeInTheDocument();
     });
@@ -129,6 +134,10 @@ describe('RecapShareModal', () => {
 
   it('copies text to clipboard when copy button is clicked', async () => {
     render(<RecapShareModal open={true} onClose={() => {}} recap={mockRecap} />);
+
+    // Switch tabs to trigger text loading
+    fireEvent.click(screen.getByText('Download Image'));
+    fireEvent.click(screen.getByText('Copy Text'));
 
     // Wait for text to load
     await waitFor(() => {

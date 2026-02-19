@@ -79,11 +79,11 @@ describe('Login', () => {
     });
   });
 
-  it('renders the APIS title', async () => {
+  it('renders the Hive Warden brand name', async () => {
     await act(async () => {
       renderWithProviders(<Login />);
     });
-    expect(screen.getByText('APIS')).toBeInTheDocument();
+    expect(screen.getByText('Hive Warden')).toBeInTheDocument();
   });
 
   it('renders the login button in Keycloak mode', async () => {
@@ -100,17 +100,17 @@ describe('Login', () => {
     await act(async () => {
       renderWithProviders(<Login />);
     });
-    expect(screen.getByText('Anti-Predator Interference System')).toBeInTheDocument();
+    expect(screen.getByText('Secure authentication via your identity provider.')).toBeInTheDocument();
   });
 
-  it('renders description text', async () => {
+  it('renders the SSO title', async () => {
     await act(async () => {
       renderWithProviders(<Login />);
     });
-    expect(screen.getByText(/sign in to monitor your hives/i)).toBeInTheDocument();
+    expect(screen.getByText('Sign in to Hive Warden')).toBeInTheDocument();
   });
 
-  it('renders local auth attribution in local mode', async () => {
+  it('renders local mode subtitle in local mode', async () => {
     mockFetchAuthConfig.mockResolvedValue({
       mode: 'local',
       setup_required: false,
@@ -121,7 +121,7 @@ describe('Login', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/secure local authentication/i)).toBeInTheDocument();
+      expect(screen.getByText('Log in to manage your apiary locally.')).toBeInTheDocument();
     });
   });
 });

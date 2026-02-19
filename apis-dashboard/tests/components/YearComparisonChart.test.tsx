@@ -17,6 +17,7 @@ vi.mock('../../src/theme/apisTheme', () => ({
     brownBramble: '#5c3c10',
     goldTips: '#d4a012',
     goldenGrass: '#daa520',
+    textMuted: '#999',
   },
 }));
 
@@ -53,7 +54,9 @@ describe('YearComparisonChart', () => {
     );
 
     expect(screen.getByText('125.5 kg')).toBeInTheDocument();
-    expect(screen.getByText('2024')).toBeInTheDocument();
+    // "2024" appears in both harvest and hornets columns
+    const currentYearLabels = screen.getAllByText('2024');
+    expect(currentYearLabels.length).toBeGreaterThanOrEqual(1);
   });
 
   it('displays previous year harvest', () => {
@@ -67,7 +70,9 @@ describe('YearComparisonChart', () => {
     );
 
     expect(screen.getByText('100.0 kg')).toBeInTheDocument();
-    expect(screen.getByText('2023')).toBeInTheDocument();
+    // "2023" appears in both harvest and hornets columns
+    const previousYearLabels = screen.getAllByText('2023');
+    expect(previousYearLabels.length).toBeGreaterThanOrEqual(1);
   });
 
   it('displays current year hornets', () => {

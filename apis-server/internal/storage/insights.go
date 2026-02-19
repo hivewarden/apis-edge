@@ -204,6 +204,21 @@ func SnoozeInsight(ctx context.Context, conn *pgxpool.Conn, id string, until tim
 	return nil
 }
 
+// DismissActiveInsightsForHive marks all active (non-dismissed) insights
+// for a specific hive as dismissed. Called before a single-hive analysis to prevent duplicates.
+func DismissActiveInsightsForHive(ctx context.Context, conn *pgxpool.Conn, tenantID, hiveID string) (int64, error) {
+	result, err := conn.Exec(ctx,
+		`UPDATE insights SET dismissed_at = NOW()
+		 WHERE tenant_id = $1
+		   AND hive_id = $2
+		   AND dismissed_at IS NULL`,
+		tenantID, hiveID)
+	if err != nil {
+		return 0, fmt.Errorf("storage: failed to dismiss active insights for hive: %w", err)
+	}
+	return result.RowsAffected(), nil
+}
+
 // DismissAllActiveInsights marks all active (non-dismissed, non-snoozed) insights
 // for a tenant as dismissed. Called before a fresh analysis to prevent duplicates.
 func DismissAllActiveInsights(ctx context.Context, conn *pgxpool.Conn, tenantID string) (int64, error) {
@@ -216,6 +231,19 @@ func DismissAllActiveInsights(ctx context.Context, conn *pgxpool.Conn, tenantID 
 		return 0, fmt.Errorf("storage: failed to dismiss active insights: %w", err)
 	}
 	return result.RowsAffected(), nil
+}
+
+// HasAnyInsights checks if any insights have ever been created for a tenant (including dismissed).
+// Used to detect cold-start condition where no analysis has ever run.
+func HasAnyInsights(ctx context.Context, conn *pgxpool.Conn, tenantID string) (bool, error) {
+	var exists bool
+	err := conn.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM insights WHERE tenant_id = $1 LIMIT 1)`,
+		tenantID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("storage: failed to check insights existence: %w", err)
+	}
+	return exists, nil
 }
 
 // DeleteOldInsights removes insights older than the specified number of days.

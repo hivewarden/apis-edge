@@ -9,15 +9,15 @@ CONFIG_ESP32_CAMERA_ENABLED=y
 CONFIG_CAMERA_FB_IN_PSRAM=y
 
 # ============================================================================
-# PSRAM Configuration (8MB on XIAO ESP32-S3 Sense)
+# PSRAM Configuration (8MB Octal on XIAO ESP32-S3 Sense)
 # ============================================================================
-# CRITICAL: XIAO has 8MB PSRAM (not 4MB like ESP32-CAM)
-# This is required for camera frame buffers
-CONFIG_ESP32_SPIRAM_SUPPORT=y
+# CRITICAL: XIAO has 8MB octal PSRAM - required for camera frame buffers
+# ESP32-S3 uses CONFIG_SPIRAM (not CONFIG_ESP32_SPIRAM_SUPPORT)
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_BOOT_INIT=y
 CONFIG_SPIRAM_USE_MALLOC=y
-CONFIG_SPIRAM_TYPE_AUTO=y
-CONFIG_SPIRAM_SIZE=8388608
 CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384
 CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768
 
@@ -40,15 +40,22 @@ CONFIG_SPIFFS_MAX_PARTITIONS=3
 # Task Configuration
 # ============================================================================
 # Camera processing requires larger stack
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
-CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
+# System event task needs enough stack for WiFi event handler + LOG_INFO formatting
+# Default (2304) causes stack overflow; 4096 gives safe headroom
+CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4096
+# Motion detection takes ~5s per frame at VGA; 30s allows 3 frames of headroom
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=30
 
 # ============================================================================
-# WiFi Configuration (for future server communication)
+# WiFi Configuration (ESP32-S3 / ESP-IDF v5.1.2)
 # ============================================================================
-CONFIG_ESP32_WIFI_ENABLED=y
-CONFIG_ESP32_WIFI_STATIC_RX_BUFFER_NUM=10
-CONFIG_ESP32_WIFI_DYNAMIC_RX_BUFFER_NUM=32
+# Use CONFIG_ESP_WIFI_* names (not deprecated CONFIG_ESP32_WIFI_*)
+CONFIG_ESP_WIFI_ENABLED=y
+CONFIG_ESP_WIFI_SOFTAP_SUPPORT=y
+CONFIG_ESP_WIFI_NVS_ENABLED=y
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=10
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
 
 # ============================================================================
 # Performance Optimization
@@ -65,8 +72,9 @@ CONFIG_LOG_TIMESTAMP_SOURCE_RTOS=y
 # ============================================================================
 # Serial Console Configuration
 # ============================================================================
-CONFIG_ESP_CONSOLE_UART_DEFAULT=y
-CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
+# XIAO ESP32-S3 uses USB-Serial/JTAG for console (not UART)
+# Only set ONE console type — both set causes conflicts
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 
 # ============================================================================
 # Flash Size Configuration (XIAO ESP32-S3 has 8MB)
@@ -75,11 +83,6 @@ CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
 CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
 
-# ============================================================================
-# Additional ESP32-S3 Specific
-# ============================================================================
-# Enable USB support for future OTA updates
-CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
-
-# Limit for security
-CONFIG_WEB_SECURITY_ONLY_HTTPS=y
+# HTTP allowed for AP mode setup page (192.168.4.1:8080/setup)
+# HTTPS is enforced at the application level for server communication
+# CONFIG_WEB_SECURITY_ONLY_HTTPS=y

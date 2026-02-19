@@ -158,7 +158,7 @@ describe('Setup Page', () => {
       renderSetup();
 
       await waitFor(() => {
-        expect(screen.getByText('Welcome to APIS')).toBeInTheDocument();
+        expect(screen.getByText('Welcome to Hive Warden')).toBeInTheDocument();
       });
     });
 
@@ -171,7 +171,7 @@ describe('Setup Page', () => {
       renderSetup();
 
       await waitFor(() => {
-        expect(screen.getByText(/Anti-Predator Interference System/i)).toBeInTheDocument();
+        expect(screen.getByText(/set up your beehive protection system/i)).toBeInTheDocument();
       });
     });
 

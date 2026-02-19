@@ -18,26 +18,48 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => (
   <MemoryRouter>{children}</MemoryRouter>
 );
 
-// Mock IntersectionObserver
-let intersectionCallback: IntersectionObserverCallback | null = null;
+// Mock child components that make API calls
+vi.mock('../../src/components/InspectionHistory', () => ({
+  InspectionHistory: () => <div data-testid="inspection-history">Inspection History Mock</div>,
+}));
 
-class MockIntersectionObserver implements IntersectionObserver {
-  readonly root: Element | Document | null = null;
-  readonly rootMargin: string = '';
-  readonly thresholds: readonly number[] = [];
+vi.mock('../../src/components/HiveBeeBrainCard', () => ({
+  HiveBeeBrainCard: () => <div data-testid="beebrain-card">BeeBrain Card Mock</div>,
+}));
 
-  constructor(callback: IntersectionObserverCallback) {
-    intersectionCallback = callback;
-  }
+vi.mock('../../src/components/ActivityFeedCard', () => ({
+  ActivityFeedCard: () => <div data-testid="activity-feed">Activity Feed Mock</div>,
+}));
 
-  observe = vi.fn();
-  unobserve = vi.fn();
-  disconnect = vi.fn();
-  takeRecords = vi.fn(() => []);
-}
+// Mock MobileTasksSection to avoid deep hook dependencies
+vi.mock('../../src/components/MobileTasksSection', () => ({
+  MobileTasksSection: ({ hiveId }: { hiveId: string }) => (
+    <div data-testid="mobile-tasks-section">Tasks for {hiveId}</div>
+  ),
+}));
 
-// Mock window.scrollTo
+// Mock scrollTo
 const mockScrollTo = vi.fn();
+
+// Track the scrollToSection mock
+const mockScrollToSection = vi.fn((sectionId: string) => {
+  if (sectionId === 'status-section') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  const element = document.getElementById(sectionId);
+  if (element) {
+    window.scrollTo({ top: 100, behavior: 'smooth' });
+  }
+});
+
+// Mock useActiveSection hook
+vi.mock('../../src/hooks/useActiveSection', () => ({
+  useActiveSection: vi.fn(() => ({
+    activeSection: 'status-section',
+    scrollToSection: mockScrollToSection,
+  })),
+}));
 
 describe('HiveDetailMobile with BottomAnchorNav', () => {
   const mockHive: HiveDetailMobileHive = {
@@ -74,21 +96,12 @@ describe('HiveDetailMobile with BottomAnchorNav', () => {
   };
 
   beforeEach(() => {
-    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
-    vi.stubGlobal('scrollTo', mockScrollTo);
     Object.defineProperty(window, 'scrollTo', { value: mockScrollTo, writable: true });
     Object.defineProperty(window, 'pageYOffset', { value: 0, writable: true });
-
-    // Note: We don't create mock section elements here because the HiveDetailMobile
-    // component renders its own sections with the correct IDs. Creating duplicate
-    // elements would result in invalid HTML and unreliable tests.
-    // The IntersectionObserver mock handles observation without needing pre-existing elements.
   });
 
   afterEach(() => {
     vi.clearAllMocks();
-    intersectionCallback = null;
-    vi.unstubAllGlobals();
   });
 
   describe('BottomAnchorNav rendering', () => {
@@ -159,27 +172,24 @@ describe('HiveDetailMobile with BottomAnchorNav', () => {
   });
 
   describe('navigation integration', () => {
-    it('should scroll to correct section when nav button is clicked', () => {
+    it('should call scrollToSection when nav button is clicked', () => {
       render(<HiveDetailMobile {...defaultProps} />, { wrapper: TestWrapper });
 
       // Click the Tasks button
       fireEvent.click(screen.getByText('Tasks (5)'));
 
-      // Should have called scrollTo
-      expect(mockScrollTo).toHaveBeenCalled();
+      // Should have called scrollToSection
+      expect(mockScrollToSection).toHaveBeenCalledWith('tasks-section');
     });
 
-    it('should scroll to top when Status button is clicked', () => {
+    it('should call scrollToSection with status-section when Status button is clicked', () => {
       render(<HiveDetailMobile {...defaultProps} />, { wrapper: TestWrapper });
 
       // Click Status button
       fireEvent.click(screen.getByText('Status'));
 
-      // Should scroll to top
-      expect(mockScrollTo).toHaveBeenCalledWith({
-        top: 0,
-        behavior: 'smooth',
-      });
+      // Should scroll to status section
+      expect(mockScrollToSection).toHaveBeenCalledWith('status-section');
     });
   });
 

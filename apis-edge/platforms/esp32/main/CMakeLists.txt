@@ -6,6 +6,9 @@
 get_filename_component(APIS_EDGE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../.. ABSOLUTE)
 
 set(APIS_SOURCES
+    # ESP32 entry point (app_main)
+    "${CMAKE_CURRENT_LIST_DIR}/main.c"
+
     # Core initialization and configuration
     "${APIS_EDGE_DIR}/src/main.c"
     "${APIS_EDGE_DIR}/src/config.c"
@@ -18,8 +21,8 @@ set(APIS_SOURCES
     "${APIS_EDGE_DIR}/src/detection/classifier.c"
 
     # Storage and logging
-    "${APIS_EDGE_DIR}/src/storage/event_logger.c"
-    "${APIS_EDGE_DIR}/src/storage/schema.c"
+    # event_logger and schema use SQLite (not available on ESP32) - use stub
+    "${APIS_EDGE_DIR}/hal/esp32/event_logger_stub.c"
     "${APIS_EDGE_DIR}/src/storage/rolling_buffer.c"
     "${APIS_EDGE_DIR}/src/storage/clip_recorder.c"
     "${APIS_EDGE_DIR}/src/storage/storage_manager.c"
@@ -29,6 +32,8 @@ set(APIS_SOURCES
     "${APIS_EDGE_DIR}/src/upload/clip_uploader.c"
     "${APIS_EDGE_DIR}/src/http/http_server.c"
     "${APIS_EDGE_DIR}/src/http/http_utils.c"
+    "${APIS_EDGE_DIR}/src/http/http_rate_limit.c"
+    "${APIS_EDGE_DIR}/src/tls/tls_client.c"
 
     # Physical controls
     "${APIS_EDGE_DIR}/src/button/button_handler.c"
@@ -39,9 +44,17 @@ set(APIS_SOURCES
     "${APIS_EDGE_DIR}/src/laser/targeting.c"
     "${APIS_EDGE_DIR}/src/safety/safety_layer.c"
 
+    # WiFi provisioning (ESP32 only)
+    "${APIS_EDGE_DIR}/src/wifi/wifi_provision.c"
+
+    # Captive portal DNS server (ESP32 only, AP mode)
+    "${APIS_EDGE_DIR}/src/dns/captive_dns.c"
+
+    # mDNS service discovery (ESP32 only, STA mode)
+    "${APIS_EDGE_DIR}/src/mdns/mdns_discovery.c"
+
     # Hardware abstraction layer (ESP32 specific)
-    # NOTE: camera_esp32.c requires esp_camera library which is handled separately
-    # "${APIS_EDGE_DIR}/hal/esp32/camera_esp32.c"
+    "${APIS_EDGE_DIR}/hal/esp32/camera_esp32.c"
     # "${APIS_EDGE_DIR}/hal/storage/esp32/sqlite_esp32.c"
 
     # Third-party libraries
@@ -60,9 +73,15 @@ idf_component_register(
         nvs_flash
         spiffs
         esp_wifi
+        esp_netif
+        esp_event
         esp_http_client
         esp_timer
+        esp_psram
+        esp-tls
         vfs
+        espressif__esp32-camera
+        espressif__mdns
 )
 
 # Compiler flags for APIS code
@@ -73,4 +92,5 @@ target_compile_options(${COMPONENT_LIB} PRIVATE
     -Wno-unused-parameter
     -Wno-unused-variable
     -Wno-format-truncation
+    -Wno-maybe-uninitialized
 )

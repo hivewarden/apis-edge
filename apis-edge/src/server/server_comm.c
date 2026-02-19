@@ -8,11 +8,19 @@
 // Enable strptime and timegm on POSIX systems
 // Note: _GNU_SOURCE enables timegm; _XOPEN_SOURCE enables strptime
 // _DARWIN_C_SOURCE enables timegm on macOS
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+#ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 700
+#endif
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
+#endif
 #ifdef __APPLE__
+#ifndef _DARWIN_C_SOURCE
 #define _DARWIN_C_SOURCE
+#endif
 #endif
 
 #include "server_comm.h"
@@ -45,6 +53,38 @@
 #endif
 
 #include "cJSON.h"
+
+// ESP32 lwIP may not provide gai_strerror; provide a fallback
+#ifdef APIS_PLATFORM_ESP32
+#ifndef gai_strerror
+static inline const char *apis_gai_strerror(int errcode) {
+    (void)errcode;
+    return "DNS resolution failed";
+}
+#define gai_strerror apis_gai_strerror
+#endif
+#endif
+
+// ESP32 newlib doesn't provide timegm; implement a portable version
+#ifdef APIS_PLATFORM_ESP32
+static time_t apis_timegm(struct tm *tm) {
+    // Set TZ to UTC, call mktime, restore TZ
+    // This is the standard portable timegm implementation
+    time_t ret;
+    char *tz = getenv("TZ");
+    setenv("TZ", "UTC0", 1);
+    tzset();
+    ret = mktime(tm);
+    if (tz) {
+        setenv("TZ", tz, 1);
+    } else {
+        unsetenv("TZ");
+    }
+    tzset();
+    return ret;
+}
+#define timegm apis_timegm
+#endif
 
 // ============================================================================
 // Constants

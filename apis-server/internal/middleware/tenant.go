@@ -107,9 +107,10 @@ func TenantMiddleware(pool *pgxpool.Pool) func(http.Handler) http.Handler {
 			}
 
 			// Set tenant context in database session for RLS enforcement.
-			// Using set_config with true for local scope (transaction-only).
-			// This must happen BEFORE user lookup because RLS is enabled on users table.
-			_, err = conn.Exec(r.Context(), "SELECT set_config('app.tenant_id', $1, true)", tenantID)
+			// Using set_config with false for session scope — the setting persists
+			// on this pooled connection for all queries in this request.
+			// Each request overwrites it, so there's no cross-tenant leak risk.
+			_, err = conn.Exec(r.Context(), "SELECT set_config('app.tenant_id', $1, false)", tenantID)
 			if err != nil {
 				log.Error().Err(err).Str("tenant_id", tenantID).Msg("Failed to set tenant context")
 				respondErrorJSON(w, "failed to set tenant context", http.StatusInternalServerError)

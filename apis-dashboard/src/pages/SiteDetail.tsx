@@ -201,7 +201,7 @@ export function SiteDetail() {
           <Descriptions.Item label="Name">{site.name}</Descriptions.Item>
           <Descriptions.Item label="Timezone">{site.timezone}</Descriptions.Item>
           <Descriptions.Item label="Location" span={2}>
-            {site.latitude !== null && site.longitude !== null ? (
+            {site.latitude != null && site.longitude != null ? (
               <Space>
                 <EnvironmentOutlined />
                 <Text>{site.latitude.toFixed(6)}, {site.longitude.toFixed(6)}</Text>
@@ -220,7 +220,7 @@ export function SiteDetail() {
       </Card>
 
       {/* Map view - shows location if coordinates are set */}
-      {site.latitude !== null && site.longitude !== null && (
+      {site.latitude != null && site.longitude != null && (
         <Card title="Location Map" style={{ marginTop: 16 }}>
           <SiteMapView
             latitude={site.latitude}

@@ -11,13 +11,21 @@ import { ConfigProvider } from 'antd';
 import { BrowserRouter } from 'react-router-dom';
 import { apisTheme } from '../../src/theme/apisTheme';
 
-// Mock apiClient
+// Mock apiClient (still needed by InspectionDetailModal)
 const mockGet = vi.fn();
 vi.mock('../../src/providers/apiClient', () => ({
   apiClient: {
     get: (...args: unknown[]) => mockGet(...args),
     delete: vi.fn(),
   },
+}));
+
+// Mock the hooks used by InspectionHistory
+const mockUseInspectionsList = vi.fn();
+const mockUseHiveActivity = vi.fn();
+vi.mock('../../src/hooks', () => ({
+  useInspectionsList: (...args: unknown[]) => mockUseInspectionsList(...args),
+  useHiveActivity: (...args: unknown[]) => mockUseHiveActivity(...args),
 }));
 
 // Mock the db/dexie for offline inspections
@@ -94,13 +102,37 @@ describe('InspectionHistory Component', () => {
     hiveName: 'Test Hive',
   };
 
+  const mockExportInspections = vi.fn().mockResolvedValue(undefined);
+  const mockSetPage = vi.fn();
+  const mockSetPageSize = vi.fn();
+  const mockSetSortOrder = vi.fn();
+  const mockRefetch = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGet.mockResolvedValue({
-      data: {
-        data: mockInspections,
-        meta: { total: 2 },
-      },
+    // Default: loaded state with inspections
+    mockUseInspectionsList.mockReturnValue({
+      inspections: mockInspections,
+      total: 2,
+      page: 1,
+      pageSize: 10,
+      sortOrder: 'desc',
+      loading: false,
+      error: null,
+      setPage: mockSetPage,
+      setPageSize: mockSetPageSize,
+      setSortOrder: mockSetSortOrder,
+      exportInspections: mockExportInspections,
+      exporting: false,
+      refetch: mockRefetch,
+    });
+    // Default: no activity entries
+    mockUseHiveActivity.mockReturnValue({
+      data: [],
+      total: 0,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
     });
   });
 
@@ -110,7 +142,21 @@ describe('InspectionHistory Component', () => {
 
   describe('Table Rendering', () => {
     it('renders loading state initially', () => {
-      mockGet.mockImplementation(() => new Promise(() => {})); // Never resolves
+      mockUseInspectionsList.mockReturnValue({
+        inspections: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        sortOrder: 'desc',
+        loading: true,
+        error: null,
+        setPage: mockSetPage,
+        setPageSize: mockSetPageSize,
+        setSortOrder: mockSetSortOrder,
+        exportInspections: mockExportInspections,
+        exporting: false,
+        refetch: mockRefetch,
+      });
       renderWithProviders(<InspectionHistory {...defaultProps} />);
 
       expect(document.querySelector('.ant-spin')).toBeInTheDocument();
@@ -129,9 +175,9 @@ describe('InspectionHistory Component', () => {
       renderWithProviders(<InspectionHistory {...defaultProps} />);
 
       await waitFor(() => {
-        // CheckCircle for queen seen = true, CloseCircle for queen seen = false
-        const checkCircles = document.querySelectorAll('[aria-label="check-circle"]');
-        const closeCircles = document.querySelectorAll('[aria-label="close-circle"]');
+        // Mocked icons use className "anticon anticon-check-circle" / "anticon anticon-close-circle"
+        const checkCircles = document.querySelectorAll('.anticon-check-circle');
+        const closeCircles = document.querySelectorAll('.anticon-close-circle');
         expect(checkCircles.length + closeCircles.length).toBeGreaterThan(0);
       });
     });
@@ -160,7 +206,12 @@ describe('InspectionHistory Component', () => {
       await waitFor(() => {
         // One inspection has issues, one doesn't
         expect(screen.getByText('None')).toBeInTheDocument();
-        expect(screen.getByText('1')).toBeInTheDocument();
+        // Use getAllByText since '1' also appears in pagination
+        const matches = screen.getAllByText('1');
+        expect(matches.length).toBeGreaterThanOrEqual(1);
+        // Verify at least one match is inside a warning Tag (issue count)
+        const inTag = matches.some(el => el.closest('.ant-tag-warning'));
+        expect(inTag).toBe(true);
       });
     });
   });
@@ -174,20 +225,10 @@ describe('InspectionHistory Component', () => {
       });
     });
 
-    it('calls API with correct pagination params', async () => {
+    it('passes hiveId to useInspectionsList hook', async () => {
       renderWithProviders(<InspectionHistory {...defaultProps} />);
 
-      await waitFor(() => {
-        expect(mockGet).toHaveBeenCalledWith(
-          expect.stringContaining('/hives/hive-1/inspections')
-        );
-        expect(mockGet).toHaveBeenCalledWith(
-          expect.stringContaining('limit=10')
-        );
-        expect(mockGet).toHaveBeenCalledWith(
-          expect.stringContaining('offset=0')
-        );
-      });
+      expect(mockUseInspectionsList).toHaveBeenCalledWith('hive-1');
     });
   });
 
@@ -195,11 +236,8 @@ describe('InspectionHistory Component', () => {
     it('defaults to descending sort (newest first)', async () => {
       renderWithProviders(<InspectionHistory {...defaultProps} />);
 
-      await waitFor(() => {
-        expect(mockGet).toHaveBeenCalledWith(
-          expect.stringContaining('sort=desc')
-        );
-      });
+      // The hook is called with hiveId, and hook defaults to 'desc'
+      expect(mockUseInspectionsList).toHaveBeenCalledWith('hive-1');
     });
 
     it('sorts table columns are marked as sortable', async () => {
@@ -223,11 +261,20 @@ describe('InspectionHistory Component', () => {
     });
 
     it('disables export button when no inspections', async () => {
-      mockGet.mockResolvedValue({
-        data: {
-          data: [],
-          meta: { total: 0 },
-        },
+      mockUseInspectionsList.mockReturnValue({
+        inspections: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        sortOrder: 'desc',
+        loading: false,
+        error: null,
+        setPage: mockSetPage,
+        setPageSize: mockSetPageSize,
+        setSortOrder: mockSetSortOrder,
+        exportInspections: mockExportInspections,
+        exporting: false,
+        refetch: mockRefetch,
       });
 
       renderWithProviders(<InspectionHistory {...defaultProps} />);
@@ -238,26 +285,7 @@ describe('InspectionHistory Component', () => {
       });
     });
 
-    it('calls export endpoint when clicked', async () => {
-      // Mock blob response for export
-      mockGet.mockImplementation((url: string) => {
-        if (url.includes('/export')) {
-          return Promise.resolve({ data: new Blob(['csv,data']) });
-        }
-        return Promise.resolve({
-          data: {
-            data: mockInspections,
-            meta: { total: 2 },
-          },
-        });
-      });
-
-      // Mock URL.createObjectURL and related methods
-      const createObjectURL = vi.fn(() => 'blob:test');
-      const revokeObjectURL = vi.fn();
-      global.URL.createObjectURL = createObjectURL;
-      global.URL.revokeObjectURL = revokeObjectURL;
-
+    it('calls exportInspections when export button is clicked', async () => {
       renderWithProviders(<InspectionHistory {...defaultProps} />);
 
       await waitFor(() => {
@@ -267,10 +295,7 @@ describe('InspectionHistory Component', () => {
       fireEvent.click(screen.getByText('Export CSV'));
 
       await waitFor(() => {
-        expect(mockGet).toHaveBeenCalledWith(
-          '/hives/hive-1/inspections/export',
-          expect.any(Object)
-        );
+        expect(mockExportInspections).toHaveBeenCalledWith('Test Hive');
       });
     });
   });
@@ -280,20 +305,25 @@ describe('InspectionHistory Component', () => {
       renderWithProviders(<InspectionHistory {...defaultProps} />);
 
       await waitFor(() => {
-        const viewButtons = document.querySelectorAll('[aria-label="eye"]');
+        // Mocked icons use data-testid="icon-EyeOutlined"
+        const viewButtons = document.querySelectorAll('[data-testid="icon-EyeOutlined"]');
         expect(viewButtons.length).toBe(2);
       });
     });
 
     it('opens detail modal when view button is clicked', async () => {
+      // InspectionDetailModal fetches full inspection on open
+      mockGet.mockResolvedValue({ data: { data: mockInspections[0] } });
+
       renderWithProviders(<InspectionHistory {...defaultProps} />);
 
       await waitFor(() => {
         expect(screen.getByText('Jan 25, 2026')).toBeInTheDocument();
       });
 
-      const viewButtons = document.querySelectorAll('[aria-label="eye"]');
-      fireEvent.click(viewButtons[0]);
+      // Mocked icons use data-testid="icon-EyeOutlined"; click the parent button
+      const viewButtons = document.querySelectorAll('[data-testid="icon-EyeOutlined"]');
+      fireEvent.click(viewButtons[0].closest('button')!);
 
       // Modal should open - check for modal content
       await waitFor(() => {
@@ -304,11 +334,26 @@ describe('InspectionHistory Component', () => {
   });
 
   describe('Error Handling', () => {
-    it('shows error message on API failure', async () => {
-      mockGet.mockRejectedValue(new Error('API Error'));
+    it('sets error state on API failure', async () => {
+      mockUseInspectionsList.mockReturnValue({
+        inspections: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        sortOrder: 'desc',
+        loading: false,
+        error: new Error('API Error'),
+        setPage: mockSetPage,
+        setPageSize: mockSetPageSize,
+        setSortOrder: mockSetSortOrder,
+        exportInspections: mockExportInspections,
+        exporting: false,
+        refetch: mockRefetch,
+      });
 
       renderWithProviders(<InspectionHistory {...defaultProps} />);
 
+      // The component calls message.error() which renders a toast
       await waitFor(() => {
         expect(screen.getByText('Failed to load inspections')).toBeInTheDocument();
       });

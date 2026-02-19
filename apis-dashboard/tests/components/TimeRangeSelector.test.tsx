@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ReactNode } from 'react';
 import { TimeRangeSelector } from '../../src/components/TimeRangeSelector';
@@ -30,20 +30,19 @@ describe('TimeRangeSelector', () => {
       expect(screen.getByText('All Time')).toBeInTheDocument();
     });
 
-    it('renders calendar icon', () => {
-      renderWithProviders(<TimeRangeSelector />);
-
-      // Ant Design CalendarOutlined icon should be present
-      const icon = document.querySelector('.anticon-calendar');
-      expect(icon).toBeInTheDocument();
-    });
-
     it('renders Segmented control', () => {
       renderWithProviders(<TimeRangeSelector />);
 
       // Ant Design Segmented component
       const segmented = document.querySelector('.ant-segmented');
       expect(segmented).toBeInTheDocument();
+    });
+
+    it('renders navigation arrows', () => {
+      renderWithProviders(<TimeRangeSelector />);
+
+      expect(screen.getByLabelText('Previous period')).toBeInTheDocument();
+      expect(screen.getByLabelText('Next period')).toBeInTheDocument();
     });
   });
 
@@ -53,9 +52,10 @@ describe('TimeRangeSelector', () => {
         initialEntries: ['/?range=day'],
       });
 
-      // DatePicker should be visible
+      // DatePicker is always in the DOM; when Day is selected it has opacity 1 and width 160
       const datePicker = document.querySelector('.ant-picker');
       expect(datePicker).toBeInTheDocument();
+      expect(datePicker).toHaveStyle({ opacity: '1' });
     });
 
     it('hides DatePicker when Week is selected', () => {
@@ -63,9 +63,10 @@ describe('TimeRangeSelector', () => {
         initialEntries: ['/?range=week'],
       });
 
-      // DatePicker should not be visible
+      // DatePicker is still in the DOM but with opacity 0 and width 0
       const datePicker = document.querySelector('.ant-picker');
-      expect(datePicker).not.toBeInTheDocument();
+      expect(datePicker).toBeInTheDocument();
+      expect(datePicker).toHaveStyle({ opacity: '0', width: '0' });
     });
 
     it('hides DatePicker when Month is selected', () => {
@@ -74,7 +75,8 @@ describe('TimeRangeSelector', () => {
       });
 
       const datePicker = document.querySelector('.ant-picker');
-      expect(datePicker).not.toBeInTheDocument();
+      expect(datePicker).toBeInTheDocument();
+      expect(datePicker).toHaveStyle({ opacity: '0', width: '0' });
     });
 
     it('hides DatePicker when Season is selected', () => {
@@ -83,7 +85,8 @@ describe('TimeRangeSelector', () => {
       });
 
       const datePicker = document.querySelector('.ant-picker');
-      expect(datePicker).not.toBeInTheDocument();
+      expect(datePicker).toBeInTheDocument();
+      expect(datePicker).toHaveStyle({ opacity: '0', width: '0' });
     });
 
     it('hides DatePicker when Year is selected', () => {
@@ -92,7 +95,8 @@ describe('TimeRangeSelector', () => {
       });
 
       const datePicker = document.querySelector('.ant-picker');
-      expect(datePicker).not.toBeInTheDocument();
+      expect(datePicker).toBeInTheDocument();
+      expect(datePicker).toHaveStyle({ opacity: '0', width: '0' });
     });
 
     it('hides DatePicker when All Time is selected', () => {
@@ -101,7 +105,8 @@ describe('TimeRangeSelector', () => {
       });
 
       const datePicker = document.querySelector('.ant-picker');
-      expect(datePicker).not.toBeInTheDocument();
+      expect(datePicker).toBeInTheDocument();
+      expect(datePicker).toHaveStyle({ opacity: '0', width: '0' });
     });
   });
 
@@ -138,20 +143,24 @@ describe('TimeRangeSelector', () => {
   });
 
   describe('styling', () => {
-    it('uses large size for Segmented', () => {
+    it('uses middle size for Segmented', () => {
       renderWithProviders(<TimeRangeSelector />);
 
+      // Source uses size="middle" so it should have ant-segmented-middle class (or no lg class)
       const segmented = document.querySelector('.ant-segmented');
-      expect(segmented).toHaveClass('ant-segmented-lg');
+      expect(segmented).toBeInTheDocument();
+      expect(segmented).not.toHaveClass('ant-segmented-lg');
     });
 
-    it('uses large size for DatePicker', () => {
+    it('uses middle size for DatePicker', () => {
       renderWithProviders(<TimeRangeSelector />, {
         initialEntries: ['/?range=day'],
       });
 
+      // Source uses size="middle" so it should not have the large class
       const datePicker = document.querySelector('.ant-picker');
-      expect(datePicker).toHaveClass('ant-picker-large');
+      expect(datePicker).toBeInTheDocument();
+      expect(datePicker).not.toHaveClass('ant-picker-large');
     });
   });
 });

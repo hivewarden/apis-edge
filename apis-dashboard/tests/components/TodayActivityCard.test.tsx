@@ -7,9 +7,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { TodayActivityCard } from '../../src/components/TodayActivityCard';
 import type { DetectionStats } from '../../src/hooks/useDetectionStats';
-import { TimeRangeProvider } from '../../src/context';
+import { TimeRangeProvider } from '../../src/context/TimeRangeContext';
 
 // Mock the useDetectionStats hook
 vi.mock('../../src/hooks/useDetectionStats', () => ({
@@ -24,7 +25,11 @@ const mockUseDetectionStats = useDetectionStats as ReturnType<typeof vi.fn>;
  * Wrapper component with TimeRangeProvider context.
  */
 function Wrapper({ children }: { children: React.ReactNode }) {
-  return <TimeRangeProvider>{children}</TimeRangeProvider>;
+  return (
+    <MemoryRouter>
+      <TimeRangeProvider>{children}</TimeRangeProvider>
+    </MemoryRouter>
+  );
 }
 
 /**
@@ -134,7 +139,7 @@ describe('TodayActivityCard', () => {
   });
 
   describe('Zero detections state (AC #2)', () => {
-    it('shows "All quiet" with green styling when zero detections', () => {
+    it('shows zero count and quiet message when zero detections', () => {
       mockUseDetectionStats.mockReturnValue(
         createMockHookResult({
           stats: mockZeroStats,
@@ -147,11 +152,11 @@ describe('TodayActivityCard', () => {
         </Wrapper>
       );
 
-      expect(screen.getByText('All quiet')).toBeInTheDocument();
+      expect(screen.getByText('0')).toBeInTheDocument();
       expect(screen.getByText(/No hornets detected today/)).toBeInTheDocument();
     });
 
-    it('shows checkmark icon in zero detection state', () => {
+    it('shows check_circle material icon in zero detection state', () => {
       mockUseDetectionStats.mockReturnValue(
         createMockHookResult({
           stats: mockZeroStats,
@@ -164,9 +169,10 @@ describe('TodayActivityCard', () => {
         </Wrapper>
       );
 
-      // CheckCircleFilled icon should be present
-      const checkIcon = document.querySelector('.anticon-check-circle');
-      expect(checkIcon).toBeInTheDocument();
+      // Material Symbols check_circle icon should be present
+      const icons = document.querySelectorAll('.material-symbols-outlined');
+      const checkIcon = Array.from(icons).find(el => el.textContent === 'check_circle');
+      expect(checkIcon).toBeTruthy();
     });
   });
 
@@ -185,7 +191,7 @@ describe('TodayActivityCard', () => {
       );
 
       expect(screen.getByText('12')).toBeInTheDocument();
-      expect(screen.getByText('hornets deterred')).toBeInTheDocument();
+      expect(screen.getByText('detections')).toBeInTheDocument();
     });
 
     it('shows "Today\'s Activity" header', () => {
@@ -217,7 +223,8 @@ describe('TodayActivityCard', () => {
         </Wrapper>
       );
 
-      expect(screen.getByText(/Last detection:/)).toBeInTheDocument();
+      // Source renders "Last: {relativeTime}" using material symbol "schedule"
+      expect(screen.getByText(/Last:/)).toBeInTheDocument();
     });
 
     it('shows laser activation stats with percentage', () => {
@@ -233,12 +240,11 @@ describe('TodayActivityCard', () => {
         </Wrapper>
       );
 
-      // 10 of 12 = 83%
-      expect(screen.getByText(/10 of 12 deterred with laser/)).toBeInTheDocument();
-      expect(screen.getByText(/83%/)).toBeInTheDocument();
+      // 10 of 12 = 83% Laser Success
+      expect(screen.getByText(/83% Laser Success/)).toBeInTheDocument();
     });
 
-    it('uses singular "hornet" for count of 1', () => {
+    it('uses "detections" label for any count', () => {
       const singleDetection: DetectionStats = {
         ...mockDetectionStats,
         total_detections: 1,
@@ -257,7 +263,7 @@ describe('TodayActivityCard', () => {
         </Wrapper>
       );
 
-      expect(screen.getByText('hornet deterred')).toBeInTheDocument();
+      expect(screen.getByText('detections')).toBeInTheDocument();
     });
   });
 
@@ -294,7 +300,7 @@ describe('TodayActivityCard', () => {
       );
 
       const card = document.querySelector('.ant-card');
-      expect(card).toHaveAttribute('aria-label', "Today's Activity: All quiet, no hornets detected");
+      expect(card).toHaveAttribute('aria-label', "Today's Activity: 0 hornets deterred");
       expect(card).toHaveAttribute('role', 'region');
     });
   });
@@ -347,8 +353,8 @@ describe('TodayActivityCard', () => {
 
       expect(mockUseDetectionStats).toHaveBeenCalledWith(
         'my-site-123',
-        expect.any(String),
-        expect.anything()
+        'day',
+        null
       );
     });
   });

@@ -1,17 +1,126 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NestEstimatorCard } from '../../src/components/NestEstimatorCard';
-import { apiClient } from '../../src/providers/apiClient';
 
-// Mock the apiClient
+// Mock ALL modules to prevent module resolution chain from hanging
+
+// Explicit @ant-design/icons mock to override setup.ts Proxy mock.
+// The Proxy mock hangs during module resolution for transitive imports;
+// explicit named exports resolve instantly.
+vi.mock('@ant-design/icons', () => {
+  const S = () => null;
+  return {
+    __esModule: true,
+    default: {},
+    ReloadOutlined: S,
+    AimOutlined: S,
+    EnvironmentOutlined: S,
+    RadarChartOutlined: S,
+    InfoCircleOutlined: S,
+    PlusOutlined: S,
+    MinusOutlined: S,
+    FileSearchOutlined: S,
+    MedicineBoxOutlined: S,
+    CoffeeOutlined: S,
+    GiftOutlined: S,
+    HomeOutlined: S,
+    EditOutlined: S,
+    DeleteOutlined: S,
+    VideoCameraOutlined: S,
+    UserAddOutlined: S,
+    ClockCircleOutlined: S,
+  };
+});
+
+// Mock the hooks barrel and direct module to avoid importing all hooks
+const mockRefetch = vi.fn();
+const mockUseNestEstimate = vi.fn();
+vi.mock('../../src/hooks/useNestEstimate', () => ({
+  useNestEstimate: (...args: unknown[]) => mockUseNestEstimate(...args),
+  default: (...args: unknown[]) => mockUseNestEstimate(...args),
+}));
+vi.mock('../../src/hooks', () => ({
+  useNestEstimate: (...args: unknown[]) => mockUseNestEstimate(...args),
+}));
+
+// Mock apiClient to prevent its import chain
 vi.mock('../../src/providers/apiClient', () => ({
-  apiClient: {
-    get: vi.fn(),
+  apiClient: { get: vi.fn() },
+}));
+
+// Mock heavy transitive deps that hooks barrel imports pull in
+vi.mock('@refinedev/core', () => ({
+  useIsAuthenticated: vi.fn(() => ({ data: { authenticated: false }, isLoading: false })),
+  useGetIdentity: vi.fn(() => ({ data: null, isLoading: false })),
+  useLogout: vi.fn(() => ({ mutateAsync: vi.fn() })),
+  useLogin: vi.fn(() => ({ mutateAsync: vi.fn() })),
+}));
+vi.mock('../../src/providers/keycloakAuthProvider', () => ({
+  keycloakAuthProvider: {},
+  keycloakUserManager: { signinRedirect: vi.fn(), signoutRedirect: vi.fn() },
+  userManager: { getUser: vi.fn(), removeUser: vi.fn(), signinRedirect: vi.fn(), signinSilent: vi.fn() },
+  loginWithReturnTo: vi.fn(),
+}));
+vi.mock('oidc-client-ts', () => ({
+  UserManager: vi.fn(),
+  InMemoryWebStorage: vi.fn(),
+  WebStorageStateStore: vi.fn(),
+}));
+vi.mock('dexie-react-hooks', () => ({
+  useLiveQuery: vi.fn(() => []),
+}));
+vi.mock('../../src/services/db', () => ({
+  db: {
+    clips: { toArray: vi.fn(() => []) },
+    inspections: { toArray: vi.fn(() => []) },
+    pendingInspections: { toArray: vi.fn(() => []) },
+    syncQueue: { toArray: vi.fn(() => []) },
+    detections: { toArray: vi.fn(() => []) },
+    hives: { toArray: vi.fn(() => []) },
+    sites: { toArray: vi.fn(() => []) },
+    tasks: { toArray: vi.fn(() => []) },
   },
 }));
 
-// Mock Leaflet components to avoid DOM manipulation issues in tests
+// Mock config to prevent its import chain
+vi.mock('../../src/config', () => ({
+  API_URL: 'http://localhost:3000/api',
+  DEV_MODE: false,
+  getAuthConfigSync: vi.fn(() => null),
+  fetchAuthConfig: vi.fn(),
+  clearAuthConfigCache: vi.fn(),
+  KEYCLOAK_AUTHORITY: '',
+  KEYCLOAK_CLIENT_ID: '',
+}));
+
+// Mock theme
+vi.mock('../../src/theme/apisTheme', () => ({
+  colors: {
+    seaBuckthorn: '#f7a42d',
+    coconutCream: '#fbf9e7',
+    brownBramble: '#662604',
+    salomie: '#fcd483',
+    success: '#52c41a',
+    error: '#ff4d4f',
+    border: '#d9d9d9',
+    shadowMd: '0 2px 8px rgba(0,0,0,0.15)',
+    shadowLg: '0 4px 16px rgba(0,0,0,0.15)',
+  },
+}));
+
+// Mock Leaflet and its assets
+vi.mock('leaflet', () => ({
+  default: {
+    icon: vi.fn(() => ({})),
+    Marker: { prototype: { options: {} } },
+  },
+}));
+vi.mock('leaflet/dist/leaflet.css', () => ({}));
+vi.mock('leaflet/dist/images/marker-shadow.png', () => ({
+  default: 'mock-marker-shadow.png',
+}));
+
+// Mock react-leaflet components
 vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="map-container">{children}</div>
@@ -26,25 +135,35 @@ vi.mock('react-leaflet', () => ({
   Popup: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="map-popup">{children}</div>
   ),
+  useMap: vi.fn(() => ({
+    setView: vi.fn(), fitBounds: vi.fn(), getZoom: vi.fn(() => 10), setZoom: vi.fn(),
+    zoomIn: vi.fn(), zoomOut: vi.fn(),
+  })),
 }));
 
-// Mock Leaflet itself
-vi.mock('leaflet', () => ({
-  default: {
-    icon: vi.fn(() => ({})),
-    Marker: {
-      prototype: {
-        options: {},
-      },
-    },
-  },
+// Mock virtual:pwa-register used by some hooks
+vi.mock('virtual:pwa-register', () => ({
+  registerSW: vi.fn(() => vi.fn()),
 }));
+
+// Mock sanitizeError used by useAuth
+vi.mock('../../src/utils/sanitizeError', () => ({
+  sanitizeError: vi.fn((e: unknown) => e),
+}));
+
+// Import the component under test
+import { NestEstimatorCard } from '../../src/components/NestEstimatorCard';
 
 describe('NestEstimatorCard', () => {
-  const mockApiClient = vi.mocked(apiClient);
-
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: no estimate, not loading, no error
+    mockUseNestEstimate.mockReturnValue({
+      estimate: null,
+      loading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
   });
 
   afterEach(() => {
@@ -59,10 +178,10 @@ describe('NestEstimatorCard', () => {
       expect(screen.getByText('Choose a site to view nest location estimates')).toBeInTheDocument();
     });
 
-    it('does not fetch nest estimate', () => {
+    it('calls useNestEstimate with null siteId', () => {
       render(<NestEstimatorCard siteId={null} latitude={null} longitude={null} />);
 
-      expect(mockApiClient.get).not.toHaveBeenCalled();
+      expect(mockUseNestEstimate).toHaveBeenCalledWith(null);
     });
   });
 
@@ -79,365 +198,245 @@ describe('NestEstimatorCard', () => {
 
       expect(screen.getByText('GPS Required')).toBeInTheDocument();
     });
-
-    it('does not fetch nest estimate', () => {
-      render(<NestEstimatorCard siteId="site-1" latitude={null} longitude={null} />);
-
-      expect(mockApiClient.get).not.toHaveBeenCalled();
-    });
   });
 
   describe('when loading estimate', () => {
-    it('shows skeleton loading state initially', async () => {
-      // Make the API call hang indefinitely
-      mockApiClient.get.mockImplementation(() => new Promise(() => {}));
+    it('shows skeleton loading state initially', () => {
+      mockUseNestEstimate.mockReturnValue({
+        estimate: null,
+        loading: true,
+        error: null,
+        refetch: mockRefetch,
+      });
 
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      // Should show skeleton while loading
       expect(document.querySelector('.ant-skeleton')).toBeInTheDocument();
     });
   });
 
   describe('when API returns an error', () => {
-    it('renders error state with retry button', async () => {
-      mockApiClient.get.mockRejectedValue(new Error('Network error'));
+    it('renders error state with retry button', () => {
+      mockUseNestEstimate.mockReturnValue({
+        estimate: null,
+        loading: false,
+        error: new Error('Network error'),
+        refetch: mockRefetch,
+      });
 
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Error Loading')).toBeInTheDocument();
-      });
-
-      expect(screen.getByText('Failed to load nest estimate')).toBeInTheDocument();
+      expect(screen.getByText('Error Loading')).toBeInTheDocument();
+      expect(screen.getByText('Network error')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
     });
 
-    it('retries fetching when retry button is clicked', async () => {
+    it('calls refetch when retry button is clicked', async () => {
       const user = userEvent.setup();
-      mockApiClient.get
-        .mockRejectedValueOnce(new Error('Network error'))
-        .mockResolvedValueOnce({
-          data: {
-            data: {
-              estimated_radius_m: 350,
-              observation_count: 42,
-              confidence: 'medium',
-              avg_visit_interval_minutes: 12.5,
-            },
-          },
-        });
+      mockUseNestEstimate.mockReturnValue({
+        estimate: null,
+        loading: false,
+        error: new Error('Network error'),
+        refetch: mockRefetch,
+      });
 
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Error Loading')).toBeInTheDocument();
-      });
 
       const retryButton = screen.getByRole('button', { name: /retry/i });
       await user.click(retryButton);
 
-      await waitFor(() => {
-        expect(screen.getByText('350m')).toBeInTheDocument();
-      });
-
-      expect(mockApiClient.get).toHaveBeenCalledTimes(2);
+      expect(mockRefetch).toHaveBeenCalled();
     });
   });
 
   describe('when estimate is available (sufficient data)', () => {
-    const mockEstimateResponse = {
-      data: {
-        data: {
-          estimated_radius_m: 350,
-          observation_count: 42,
-          confidence: 'medium',
-          avg_visit_interval_minutes: 12.5,
-          calculation_method: 'visit_interval',
-        },
-      },
+    const mockEstimate = {
+      estimated_radius_m: 350,
+      observation_count: 42,
+      confidence: 'medium',
+      avg_visit_interval_minutes: 12.5,
+      calculation_method: 'visit_interval',
     };
 
     beforeEach(() => {
-      mockApiClient.get.mockResolvedValue(mockEstimateResponse);
+      mockUseNestEstimate.mockReturnValue({
+        estimate: mockEstimate,
+        loading: false,
+        error: null,
+        refetch: mockRefetch,
+      });
     });
 
-    it('renders the map with site marker', async () => {
+    it('renders the map with site marker', () => {
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      await waitFor(() => {
-        expect(screen.getByTestId('map-container')).toBeInTheDocument();
-      });
-
+      expect(screen.getByTestId('map-container')).toBeInTheDocument();
       expect(screen.getByTestId('map-marker')).toBeInTheDocument();
     });
 
-    it('displays the estimated radius', async () => {
+    it('displays the estimated radius', () => {
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      await waitFor(() => {
-        expect(screen.getByText('350m')).toBeInTheDocument();
-      });
-
-      expect(screen.getByText('radius')).toBeInTheDocument();
+      // Both floating info panel and bottom info panel render "350m" and "radius"
+      const radiusTexts = screen.getAllByText('350m');
+      expect(radiusTexts.length).toBeGreaterThanOrEqual(1);
+      const radiusLabels = screen.getAllByText('radius');
+      expect(radiusLabels.length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('Nest likely within this area')).toBeInTheDocument();
     });
 
-    it('displays the confidence badge', async () => {
+    it('displays the confidence badge', () => {
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      await waitFor(() => {
-        expect(screen.getByText('MEDIUM CONFIDENCE')).toBeInTheDocument();
-      });
+      expect(screen.getByText('MEDIUM CONFIDENCE')).toBeInTheDocument();
     });
 
-    it('displays the observation count', async () => {
+    it('displays the observation count', () => {
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      await waitFor(() => {
-        expect(screen.getByText('42')).toBeInTheDocument();
-      });
-
+      expect(screen.getByText('42')).toBeInTheDocument();
       expect(screen.getByText('Observations')).toBeInTheDocument();
     });
 
-    it('displays the average interval', async () => {
+    it('displays the average interval', () => {
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      await waitFor(() => {
-        expect(screen.getByText('12.5 min')).toBeInTheDocument();
-      });
+      expect(screen.getByText('12.5 min')).toBeInTheDocument();
     });
 
-    it('renders the radius circle on the map', async () => {
+    it('renders the radius circle on the map', () => {
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      await waitFor(() => {
-        // There should be multiple circles (outer glow, main, inner reference)
-        const circles = screen.getAllByTestId('map-circle');
-        expect(circles.length).toBeGreaterThan(0);
-      });
+      const circles = screen.getAllByTestId('map-circle');
+      expect(circles.length).toBeGreaterThan(0);
     });
 
-    it('displays high confidence correctly', async () => {
-      mockApiClient.get.mockResolvedValueOnce({
-        data: {
-          data: {
-            estimated_radius_m: 400,
-            observation_count: 100,
-            confidence: 'high',
-            avg_visit_interval_minutes: 15,
-          },
-        },
+    it('displays high confidence correctly', () => {
+      mockUseNestEstimate.mockReturnValue({
+        estimate: { estimated_radius_m: 400, observation_count: 100, confidence: 'high', avg_visit_interval_minutes: 15 },
+        loading: false, error: null, refetch: mockRefetch,
       });
 
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      await waitFor(() => {
-        expect(screen.getByText('HIGH CONFIDENCE')).toBeInTheDocument();
-      });
+      expect(screen.getByText('HIGH CONFIDENCE')).toBeInTheDocument();
     });
 
-    it('displays low confidence correctly', async () => {
-      mockApiClient.get.mockResolvedValueOnce({
-        data: {
-          data: {
-            estimated_radius_m: 200,
-            observation_count: 25,
-            confidence: 'low',
-            avg_visit_interval_minutes: 8,
-          },
-        },
+    it('displays low confidence correctly', () => {
+      mockUseNestEstimate.mockReturnValue({
+        estimate: { estimated_radius_m: 200, observation_count: 25, confidence: 'low', avg_visit_interval_minutes: 8 },
+        loading: false, error: null, refetch: mockRefetch,
       });
 
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      await waitFor(() => {
-        expect(screen.getByText('LOW CONFIDENCE')).toBeInTheDocument();
-      });
+      expect(screen.getByText('LOW CONFIDENCE')).toBeInTheDocument();
     });
   });
 
   describe('when insufficient data (progress state)', () => {
-    const mockInsufficientResponse = {
-      data: {
-        data: {
-          estimated_radius_m: null,
-          observation_count: 12,
-          confidence: null,
-          min_observations_required: 20,
-          message: 'Need more observations to estimate nest location',
-        },
-      },
-    };
-
     beforeEach(() => {
-      mockApiClient.get.mockResolvedValue(mockInsufficientResponse);
-    });
-
-    it('displays the progress message', async () => {
-      render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Need more observations to estimate nest location')).toBeInTheDocument();
+      mockUseNestEstimate.mockReturnValue({
+        estimate: {
+          estimated_radius_m: null, observation_count: 12, confidence: null,
+          min_observations_required: 20, message: 'Need more observations to estimate nest location',
+        },
+        loading: false, error: null, refetch: mockRefetch,
       });
     });
 
-    it('displays the progress bar', async () => {
+    it('displays the progress message', () => {
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
-
-      await waitFor(() => {
-        expect(document.querySelector('.ant-progress')).toBeInTheDocument();
-      });
+      expect(screen.getByText('Need more observations to estimate nest location')).toBeInTheDocument();
     });
 
-    it('displays current vs required observation count', async () => {
+    it('displays the progress bar', () => {
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
-
-      await waitFor(() => {
-        expect(screen.getByText('12 / 20')).toBeInTheDocument();
-      });
+      expect(document.querySelector('.ant-progress')).toBeInTheDocument();
     });
 
-    it('displays how many more observations needed', async () => {
+    it('displays current vs required observation count', () => {
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Need 8 more observations')).toBeInTheDocument();
-      });
+      expect(screen.getByText('12 / 20')).toBeInTheDocument();
     });
 
-    it('still shows the map', async () => {
+    it('displays how many more observations needed', () => {
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
+      expect(screen.getByText('Need 8 more observations')).toBeInTheDocument();
+    });
 
-      await waitFor(() => {
-        expect(screen.getByTestId('map-container')).toBeInTheDocument();
-      });
+    it('still shows the map', () => {
+      render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
+      expect(screen.getByTestId('map-container')).toBeInTheDocument();
     });
   });
 
   describe('refresh functionality', () => {
-    it('has a refresh button', async () => {
-      mockApiClient.get.mockResolvedValue({
-        data: {
-          data: {
-            estimated_radius_m: 350,
-            observation_count: 42,
-            confidence: 'medium',
-          },
-        },
+    it('has a refresh button', () => {
+      mockUseNestEstimate.mockReturnValue({
+        estimate: { estimated_radius_m: 350, observation_count: 42, confidence: 'medium' },
+        loading: false, error: null, refetch: mockRefetch,
       });
 
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      await waitFor(() => {
-        expect(screen.getByText('350m')).toBeInTheDocument();
-      });
-
-      // Find the reload button by its icon
-      const reloadButton = document.querySelector('.anticon-reload')?.closest('button');
-      expect(reloadButton).toBeInTheDocument();
+      // The reload button is rendered as ant-btn-text variant in the header
+      const textButton = document.querySelector('.ant-btn-variant-text');
+      expect(textButton).toBeInTheDocument();
     });
 
-    it('fetches new data when refresh is clicked', async () => {
+    it('calls refetch when refresh button is clicked', async () => {
       const user = userEvent.setup();
-      mockApiClient.get.mockResolvedValue({
-        data: {
-          data: {
-            estimated_radius_m: 350,
-            observation_count: 42,
-            confidence: 'medium',
-          },
-        },
+      mockUseNestEstimate.mockReturnValue({
+        estimate: { estimated_radius_m: 350, observation_count: 42, confidence: 'medium' },
+        loading: false, error: null, refetch: mockRefetch,
       });
 
       render(<NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />);
 
-      await waitFor(() => {
-        expect(screen.getByText('350m')).toBeInTheDocument();
-      });
-
-      expect(mockApiClient.get).toHaveBeenCalledTimes(1);
-
-      const reloadButton = document.querySelector('.anticon-reload')?.closest('button');
-      if (reloadButton) {
-        await user.click(reloadButton);
+      // The reload button is the text-variant button in the header
+      const textButton = document.querySelector('.ant-btn-variant-text');
+      if (textButton) {
+        await user.click(textButton);
       }
 
-      await waitFor(() => {
-        expect(mockApiClient.get).toHaveBeenCalledTimes(2);
-      });
+      expect(mockRefetch).toHaveBeenCalled();
     });
   });
 
-  describe('API integration', () => {
-    it('calls the correct API endpoint with site ID', async () => {
-      mockApiClient.get.mockResolvedValue({
-        data: {
-          data: {
-            estimated_radius_m: null,
-            observation_count: 5,
-            min_observations_required: 20,
-          },
-        },
-      });
-
+  describe('hook integration', () => {
+    it('passes the correct siteId to useNestEstimate', () => {
       render(<NestEstimatorCard siteId="my-site-123" latitude={50.0} longitude={10.0} />);
-
-      await waitFor(() => {
-        expect(mockApiClient.get).toHaveBeenCalledWith('/sites/my-site-123/nest-estimate');
-      });
+      expect(mockUseNestEstimate).toHaveBeenCalledWith('my-site-123');
     });
 
-    it('refetches when siteId changes', async () => {
-      mockApiClient.get.mockResolvedValue({
-        data: {
-          data: {
-            estimated_radius_m: null,
-            observation_count: 5,
-            min_observations_required: 20,
-          },
-        },
-      });
-
+    it('passes updated siteId when siteId changes', () => {
       const { rerender } = render(
         <NestEstimatorCard siteId="site-1" latitude={50.0} longitude={10.0} />
       );
-
-      await waitFor(() => {
-        expect(mockApiClient.get).toHaveBeenCalledWith('/sites/site-1/nest-estimate');
-      });
+      expect(mockUseNestEstimate).toHaveBeenCalledWith('site-1');
 
       rerender(<NestEstimatorCard siteId="site-2" latitude={50.0} longitude={10.0} />);
-
-      await waitFor(() => {
-        expect(mockApiClient.get).toHaveBeenCalledWith('/sites/site-2/nest-estimate');
-      });
+      expect(mockUseNestEstimate).toHaveBeenCalledWith('site-2');
     });
   });
 
   describe('accessibility', () => {
-    it('has accessible popup content', async () => {
-      mockApiClient.get.mockResolvedValue({
-        data: {
-          data: {
-            estimated_radius_m: 350,
-            observation_count: 42,
-            confidence: 'medium',
-          },
-        },
+    it('has accessible popup content', () => {
+      mockUseNestEstimate.mockReturnValue({
+        estimate: { estimated_radius_m: 350, observation_count: 42, confidence: 'medium' },
+        loading: false, error: null, refetch: mockRefetch,
       });
 
       render(<NestEstimatorCard siteId="site-1" latitude={50.12345} longitude={10.67890} />);
 
-      await waitFor(() => {
-        expect(screen.getByTestId('map-popup')).toBeInTheDocument();
-      });
-
-      // Check that popup has accessible structure
-      const popup = screen.getByTestId('map-popup');
-      expect(popup.querySelector('[role="region"]')).toBeInTheDocument();
-      expect(popup.querySelector('h3')).toHaveTextContent('Your Site');
+      // Multiple map-popup elements exist (Marker popup + Circle popup)
+      const popups = screen.getAllByTestId('map-popup');
+      expect(popups.length).toBeGreaterThanOrEqual(1);
+      // The site Marker popup (first one) has the accessible region
+      const sitePopup = popups[0];
+      expect(sitePopup.querySelector('[role="region"]')).toBeInTheDocument();
+      expect(sitePopup.querySelector('h3')).toHaveTextContent('Your Site');
     });
   });
 });

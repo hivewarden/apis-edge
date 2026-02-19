@@ -12,9 +12,21 @@ import type { LocalLoginParams, AuthUser } from '../../src/types/auth';
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock API_URL
+// Mock API_URL and clearAuthConfigCache
 vi.mock('../../src/config', () => ({
   API_URL: 'http://localhost:3000/api',
+  clearAuthConfigCache: vi.fn(),
+}));
+
+// Mock CSRF utility
+vi.mock('../../src/utils/csrf', () => ({
+  getCsrfToken: vi.fn(() => null),
+  CSRF_HEADER_NAME: 'X-CSRF-Token',
+}));
+
+// Mock authCleanup
+vi.mock('../../src/services/authCleanup', () => ({
+  cleanupAllAuthData: vi.fn(() => Promise.resolve()),
 }));
 
 describe('localAuthProvider', () => {
@@ -262,6 +274,7 @@ describe('localAuthProvider', () => {
         name: 'Test User',
         email: 'test@example.com',
         avatar: undefined,
+        tenant_id: 'tenant-123',
       });
     });
 

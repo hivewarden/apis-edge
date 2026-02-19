@@ -199,7 +199,7 @@ describe('TaskCompletionModal', () => {
       expect(screen.getByText('Number of frames to add')).toBeInTheDocument();
     });
 
-    it('marks required prompts with asterisk', () => {
+    it('marks required prompts with required indicator', () => {
       renderWithProviders(
         <TaskCompletionModal
           open={true}
@@ -209,8 +209,8 @@ describe('TaskCompletionModal', () => {
         />
       );
 
-      // Required field should have asterisk
-      const requiredLabels = screen.getAllByText('*');
+      // Required field should have ant-form-item-required class (asterisk is via CSS ::before)
+      const requiredLabels = document.querySelectorAll('.ant-form-item-required');
       expect(requiredLabels.length).toBeGreaterThan(0);
     });
   });
@@ -262,7 +262,7 @@ describe('TaskCompletionModal', () => {
         />
       );
 
-      expect(screen.getByText('This will update:')).toBeInTheDocument();
+      expect(screen.getByText('Preview Update')).toBeInTheDocument();
     });
 
     it('lists update actions in preview', () => {

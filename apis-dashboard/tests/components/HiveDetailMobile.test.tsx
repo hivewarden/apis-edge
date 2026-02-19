@@ -20,6 +20,26 @@ vi.mock('../../src/components/ActivityFeedCard', () => ({
   ActivityFeedCard: () => <div data-testid="activity-feed">Activity Feed Mock</div>,
 }));
 
+// Mock MobileTasksSection to avoid its deep hook dependencies
+vi.mock('../../src/components/MobileTasksSection', () => ({
+  MobileTasksSection: ({ hiveId }: { hiveId: string }) => (
+    <div data-testid="mobile-tasks-section">Tasks for {hiveId}</div>
+  ),
+}));
+
+// Mock BottomAnchorNav
+vi.mock('../../src/components/BottomAnchorNav', () => ({
+  BottomAnchorNav: () => <nav aria-label="Section navigation">Nav Mock</nav>,
+}));
+
+// Mock useActiveSection hook
+vi.mock('../../src/hooks/useActiveSection', () => ({
+  useActiveSection: vi.fn(() => ({
+    activeSection: 'status-section',
+    scrollToSection: vi.fn(),
+  })),
+}));
+
 // Mock scrollIntoView
 const mockScrollIntoView = vi.fn();
 window.HTMLElement.prototype.scrollIntoView = mockScrollIntoView;
@@ -65,7 +85,7 @@ describe('HiveDetailMobile', () => {
       // Status section
       expect(document.getElementById('status-section')).toBeInTheDocument();
 
-      // Tasks section header
+      // Tasks section header - SectionHeader renders "TASKS (3)" via displayText
       expect(screen.getByText('TASKS (3)')).toBeInTheDocument();
       expect(document.getElementById('tasks-section')).toBeInTheDocument();
 
@@ -138,23 +158,6 @@ describe('HiveDetailMobile', () => {
       const inspectSection = document.getElementById('inspect-section');
       expect(inspectSection).toBeInTheDocument();
       expect(inspectSection?.tagName.toLowerCase()).toBe('section');
-    });
-  });
-
-  describe('task summary scroll', () => {
-    it('task summary card click scrolls to tasks section', () => {
-      render(<HiveDetailMobile hive={mockHive} {...mockHandlers} />);
-
-      // Find the task summary card by its text and click it
-      // The card contains "Tasks: X open - Y overdue" format
-      const tasksLabel = screen.getByText('Tasks:');
-      // Click on the parent card
-      const card = tasksLabel.closest('.ant-card');
-      if (card) {
-        fireEvent.click(card);
-      }
-
-      expect(mockScrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth' });
     });
   });
 
@@ -290,11 +293,12 @@ describe('HiveDetailMobile', () => {
     });
   });
 
-  describe('tasks section placeholder', () => {
-    it('shows placeholder message for Story 14.9', () => {
+  describe('tasks section with MobileTasksSection', () => {
+    it('renders MobileTasksSection with hive id', () => {
       render(<HiveDetailMobile hive={mockHive} {...mockHandlers} />);
 
-      expect(screen.getByText('Tasks will appear here')).toBeInTheDocument();
+      expect(screen.getByTestId('mobile-tasks-section')).toBeInTheDocument();
+      expect(screen.getByText('Tasks for hive-1')).toBeInTheDocument();
     });
   });
 

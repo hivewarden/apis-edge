@@ -138,6 +138,7 @@ services:
       # WARNING: DISABLE_AUTH bypasses ALL authentication - NEVER use in production
       - DISABLE_AUTH=${DISABLE_AUTH:-false}
       - I_UNDERSTAND_AUTH_DISABLED=${I_UNDERSTAND_AUTH_DISABLED:-}
+      - ADMIN_RESET_PASSWORD=${ADMIN_RESET_PASSWORD:-}
       - GO_ENV=${GO_ENV:-development}
       # =========================================================================
       # DATABASE (Both Modes)

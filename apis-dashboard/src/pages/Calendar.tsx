@@ -10,7 +10,7 @@
  *
  * Part of Epic 6, Story 6.6 (Treatment Calendar & Reminders)
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Calendar as AntCalendar,
   Badge,
@@ -20,15 +20,19 @@ import {
   Spin,
   Empty,
   FloatButton,
+  Select,
 } from 'antd';
 import type { CalendarProps } from 'antd';
 import { PlusOutlined, CalendarOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
+import { useSearchParams } from 'react-router-dom';
 import { colors } from '../theme/apisTheme';
-import { useCalendar, type CalendarEvent } from '../hooks/useCalendar';
+import { useCalendar, type CalendarEvent, type CalendarFilters } from '../hooks/useCalendar';
+import { useSites } from '../hooks/useSites';
+import { useHivesList } from '../hooks/useHivesList';
 import { CalendarDayDetail } from '../components/CalendarDayDetail';
 import { ReminderFormModal } from '../components/ReminderFormModal';
-import { getBadgeStatus, truncateText } from '../utils';
+import { getBadgeStatus, getBadgeColor, truncateText } from '../utils';
 
 const { Title, Text } = Typography;
 
@@ -38,6 +42,8 @@ const { Title, Text } = Typography;
 export function Calendar() {
   const {
     events,
+    startDate,
+    endDate,
     loading,
     fetchEvents,
     createReminder,
@@ -48,6 +54,74 @@ export function Calendar() {
     deleteReminder,
     creating,
   } = useCalendar();
+
+  // Site/hive filter state (persisted in URL params)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(
+    searchParams.get('site_id')
+  );
+  const [selectedHiveId, setSelectedHiveId] = useState<string | null>(
+    searchParams.get('hive_id')
+  );
+
+  const { sites, loading: sitesLoading } = useSites();
+  const { hives: filteredHives, loading: hivesLoading } = useHivesList(
+    selectedSiteId,
+    { activeOnly: true }
+  );
+
+  // Build current filters object
+  const currentFilters: CalendarFilters = useMemo(() => {
+    const f: CalendarFilters = {};
+    if (selectedHiveId) f.hiveId = selectedHiveId;
+    else if (selectedSiteId) f.siteId = selectedSiteId;
+    return f;
+  }, [selectedSiteId, selectedHiveId]);
+
+  const handleSiteChange = useCallback(
+    (value: string | undefined) => {
+      const siteId = value || null;
+      setSelectedSiteId(siteId);
+      setSelectedHiveId(null);
+      // Update URL params
+      const next = new URLSearchParams(searchParams);
+      if (siteId) {
+        next.set('site_id', siteId);
+      } else {
+        next.delete('site_id');
+      }
+      next.delete('hive_id');
+      setSearchParams(next, { replace: true });
+      // Refetch with new filters
+      const filters: CalendarFilters = siteId ? { siteId } : {};
+      fetchEvents(startDate, endDate, filters);
+    },
+    [searchParams, setSearchParams, fetchEvents, startDate, endDate]
+  );
+
+  const handleHiveChange = useCallback(
+    (value: string | undefined) => {
+      const hiveId = value || null;
+      setSelectedHiveId(hiveId);
+      // Update URL params
+      const next = new URLSearchParams(searchParams);
+      if (hiveId) {
+        next.set('hive_id', hiveId);
+      } else {
+        next.delete('hive_id');
+      }
+      setSearchParams(next, { replace: true });
+      // Refetch with new filters
+      const filters: CalendarFilters = {};
+      if (hiveId) {
+        filters.hiveId = hiveId;
+      } else if (selectedSiteId) {
+        filters.siteId = selectedSiteId;
+      }
+      fetchEvents(startDate, endDate, filters);
+    },
+    [searchParams, setSearchParams, fetchEvents, startDate, endDate, selectedSiteId]
+  );
 
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -71,11 +145,11 @@ export function Calendar() {
     return eventsByDate[dateStr] || [];
   };
 
-  // Handle month/year panel change
+  // Handle month/year panel change - pass current filters
   const handlePanelChange: CalendarProps<Dayjs>['onPanelChange'] = (date) => {
     const start = date.startOf('month');
     const end = date.endOf('month');
-    fetchEvents(start, end);
+    fetchEvents(start, end, currentFilters);
   };
 
   // Handle date cell click - only open drawer if there are events
@@ -100,7 +174,9 @@ export function Calendar() {
         {dayEvents.slice(0, 3).map((event) => (
           <li key={event.id} style={{ marginBottom: 2 }}>
             <Badge
-              status={getBadgeStatus(event.type)}
+              {...(event.type === 'inspection_past'
+                ? { color: getBadgeColor(event.type) }
+                : { status: getBadgeStatus(event.type) })}
               text={
                 <Text
                   style={{
@@ -202,6 +278,10 @@ export function Calendar() {
             <Text>Past Treatment</Text>
           </Space>
           <Space>
+            <Badge color="#722ed1" />
+            <Text>Inspection</Text>
+          </Space>
+          <Space>
             <Badge status="warning" />
             <Text>Treatment Due</Text>
           </Space>
@@ -209,6 +289,31 @@ export function Calendar() {
             <Badge status="processing" />
             <Text>Reminder</Text>
           </Space>
+        </Space>
+      </Card>
+
+      {/* Site / Hive Filters */}
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <Space wrap>
+          <Select
+            placeholder="All sites"
+            allowClear
+            options={sites.map((s) => ({ value: s.id, label: s.name }))}
+            value={selectedSiteId ?? undefined}
+            onChange={handleSiteChange}
+            style={{ minWidth: 180 }}
+            loading={sitesLoading}
+          />
+          <Select
+            placeholder="All hives"
+            allowClear
+            disabled={!selectedSiteId}
+            options={filteredHives.map((h) => ({ value: h.id, label: h.name }))}
+            value={selectedHiveId ?? undefined}
+            onChange={handleHiveChange}
+            style={{ minWidth: 180 }}
+            loading={hivesLoading}
+          />
         </Space>
       </Card>
 

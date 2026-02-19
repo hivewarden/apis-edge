@@ -92,11 +92,13 @@ static int create_parent_dirs(const char *path) {
     if (p == tmp) return 0; // No parent directory
 
     // Create each directory in path with restricted permissions (0700)
-    // This ensures only the owner can access the config directory
+    // This ensures only the owner can access the config directory.
+    // SPIFFS doesn't support real directories (ENOTSUP) — skip gracefully
+    // since SPIFFS uses flat path-like filenames.
     for (p = tmp + 1; *p; p++) {
         if (*p == '/') {
             *p = '\0';
-            if (mkdir(tmp, 0700) != 0 && errno != EEXIST) {
+            if (mkdir(tmp, 0700) != 0 && errno != EEXIST && errno != ENOTSUP) {
                 LOG_ERROR("Failed to create directory %s: %s", tmp, strerror(errno));
                 return -1;
             }
@@ -104,7 +106,7 @@ static int create_parent_dirs(const char *path) {
         }
     }
 
-    if (mkdir(tmp, 0700) != 0 && errno != EEXIST) {
+    if (mkdir(tmp, 0700) != 0 && errno != EEXIST && errno != ENOTSUP) {
         LOG_ERROR("Failed to create directory %s: %s", tmp, strerror(errno));
         return -1;
     }
@@ -551,6 +553,15 @@ int config_manager_save(void) {
 
     // COMM-001-2 fix: Open file with restricted permissions (0600 = owner read/write only)
     // This prevents other users from reading the API key stored in the config file.
+#ifdef APIS_PLATFORM_ESP32
+    // ESP32 SPIFFS doesn't support open()/fdopen() or file permissions.
+    // Use fopen() directly — SPIFFS is single-user on embedded device.
+    FILE *fp = fopen(temp_path, "w");
+    if (!fp) {
+        LOG_ERROR("Failed to create temp config: %s", strerror(errno));
+        return -1;
+    }
+#else
     // Using open() instead of fopen() allows us to set explicit permissions.
     int fd = open(temp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (fd < 0) {
@@ -565,6 +576,7 @@ int config_manager_save(void) {
         close(fd);
         return -1;
     }
+#endif
 
     // Pretty print for human readability.
     // Note: If cJSON_Print fails (returns NULL), we fall through without writing
@@ -584,7 +596,7 @@ int config_manager_save(void) {
         fputs(json, fp);
     }
 
-    fclose(fp);  // Also closes fd
+    fclose(fp);
 
     // S8-I-01: Clear the JSON buffer that contained the API key in cleartext.
     // Using memset here (not volatile-based secure_clear) is acceptable since
@@ -601,10 +613,13 @@ int config_manager_save(void) {
 
     // COMM-001-2 fix: Verify file has correct permissions after rename
     // (some filesystems may not preserve permissions on rename)
+    // ESP32 SPIFFS does not support chmod - skip on ESP32
+#ifndef APIS_PLATFORM_ESP32
     if (chmod(path, 0600) != 0) {
         LOG_WARN("Failed to set config file permissions: %s", strerror(errno));
         // Continue anyway - file was written successfully
     }
+#endif
 
     LOG_INFO("Runtime configuration saved to %s", path);
 

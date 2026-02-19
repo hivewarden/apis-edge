@@ -129,11 +129,11 @@ export function TimeRangeSelector() {
         options={TIME_RANGE_OPTIONS}
         value={range}
         onChange={handleRangeChange}
-        size="large"
+        size="middle"
         style={{
           backgroundColor: colors.coconutCream,
           borderRadius: 9999, // rounded-full
-          padding: 4,
+          padding: 3,
         }}
       />
 
@@ -156,16 +156,16 @@ export function TimeRangeSelector() {
           style={{
             color: colors.brownBramble,
             borderRadius: 9999,
-            minWidth: 36,
-            height: 36,
+            minWidth: 32,
+            height: 32,
           }}
         />
         <span
           style={{
             color: colors.brownBramble,
             fontWeight: 500,
-            fontSize: 14,
-            minWidth: 140,
+            fontSize: 13,
+            minWidth: 130,
             textAlign: 'center',
             display: 'inline-block',
           }}
@@ -181,8 +181,8 @@ export function TimeRangeSelector() {
           style={{
             color: isNextDisabled ? colors.textMuted : colors.brownBramble,
             borderRadius: 9999,
-            minWidth: 36,
-            height: 36,
+            minWidth: 32,
+            height: 32,
           }}
         />
       </Space>
@@ -193,7 +193,7 @@ export function TimeRangeSelector() {
         onChange={handleDateChange}
         allowClear={false}
         disabledDate={(current) => current && current > dayjs().endOf('day')}
-        size="large"
+        size="middle"
         aria-label="Select date"
         style={{
           width: range === 'day' ? 160 : 0,

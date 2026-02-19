@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -18,8 +19,10 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/jermoo/apis/apis-server/internal/auth"
 	"github.com/jermoo/apis/apis-server/internal/config"
 	"github.com/jermoo/apis/apis-server/internal/handlers"
+	apismdns "github.com/jermoo/apis/apis-server/internal/mdns"
 	authmw "github.com/jermoo/apis/apis-server/internal/middleware"
 	"github.com/jermoo/apis/apis-server/internal/services"
 	"github.com/jermoo/apis/apis-server/internal/storage"
@@ -69,11 +72,38 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to run migrations")
 	}
 
-	// In local mode, ensure the default tenant exists
+	// In local mode, ensure the default tenant exists and handle password reset
 	if config.IsLocalAuth() {
 		if err := storage.EnsureDefaultTenantExists(ctx, storage.DB); err != nil {
 			log.Fatal().Err(err).Msg("Failed to ensure default tenant exists")
 		}
+
+		// ADMIN_RESET_PASSWORD: Reset first admin's password on startup (local auth only)
+		if resetPwd := os.Getenv("ADMIN_RESET_PASSWORD"); resetPwd != "" {
+			if err := auth.ValidatePasswordStrength(resetPwd); err != nil {
+				log.Fatal().Err(err).Msg("ADMIN_RESET_PASSWORD: password does not meet requirements")
+			}
+			hash, err := auth.HashPassword(resetPwd)
+			if err != nil {
+				log.Fatal().Err(err).Msg("ADMIN_RESET_PASSWORD: failed to hash password")
+			}
+			email, err := storage.ResetAdminPassword(ctx, storage.DB, config.DefaultTenantUUID(), hash)
+			if err != nil {
+				if errors.Is(err, storage.ErrNoAdminUser) {
+					log.Warn().Msg("ADMIN_RESET_PASSWORD: no admin user exists yet — complete the setup wizard first, then retry")
+				} else {
+					log.Fatal().Err(err).Msg("ADMIN_RESET_PASSWORD: failed to reset admin password")
+				}
+			} else {
+				log.Warn().Str("email", email).Msg("ADMIN_RESET_PASSWORD: password reset — remove this env var and restart")
+			}
+			os.Unsetenv("ADMIN_RESET_PASSWORD")
+		}
+	}
+
+	// Warn if ADMIN_RESET_PASSWORD is set in non-local auth mode
+	if !config.IsLocalAuth() && os.Getenv("ADMIN_RESET_PASSWORD") != "" {
+		log.Warn().Msg("ADMIN_RESET_PASSWORD is set but AUTH_MODE is not 'local' — password reset only works in local auth mode")
 	}
 
 	// Get Keycloak configuration from config package (or env vars for discovery URL)
@@ -588,12 +618,25 @@ func main() {
 		}
 	}()
 
+	// mDNS service advertisement: in standalone mode, advertise this server
+	// on the local network so ESP32 edge devices can auto-discover it.
+	// SaaS mode uses DNS, so mDNS is not needed.
+	var mdnsAdvertiser apismdns.Advertiser
+	if config.IsLocalAuth() {
+		if err := mdnsAdvertiser.Start(port, config.AuthMode()); err != nil {
+			log.Warn().Err(err).Msg("mDNS advertisement failed — edge devices will need manual server URL")
+		}
+	}
+
 	// Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Info().Msg("Server shutting down...")
+
+	// Stop mDNS advertisement
+	mdnsAdvertiser.Stop()
 
 	// Stop rate limiters to cleanup background goroutines
 	log.Debug().Msg("Stopping rate limiters")

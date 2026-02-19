@@ -19,6 +19,8 @@ export function getBadgeStatus(type: CalendarEvent['type']): BadgeProps['status'
       return 'warning'; // Orange
     case 'reminder':
       return 'processing'; // Blue
+    case 'inspection_past':
+      return 'default'; // Purple (uses getBadgeColor for actual color)
     default:
       return 'default';
   }
@@ -27,6 +29,9 @@ export function getBadgeStatus(type: CalendarEvent['type']): BadgeProps['status'
 /**
  * Get color for a calendar event type.
  */
+/** Purple color for inspection events */
+const INSPECTION_PURPLE = '#722ed1';
+
 export function getBadgeColor(type: CalendarEvent['type']): string {
   switch (type) {
     case 'treatment_past':
@@ -35,6 +40,8 @@ export function getBadgeColor(type: CalendarEvent['type']): string {
       return colors.seaBuckthorn;
     case 'reminder':
       return colors.info;
+    case 'inspection_past':
+      return INSPECTION_PURPLE;
     default:
       return colors.textMuted;
   }

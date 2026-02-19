@@ -103,6 +103,10 @@ export const LazySiteMapThumbnail = lazy(
   () => import(/* webpackChunkName: "comp-maps" */ './SiteMapThumbnail')
 );
 
+export const LazyLocationPickerMap = lazy(
+  () => import(/* webpackChunkName: "comp-maps" */ './LocationPickerMap')
+);
+
 // ============================================================================
 // QR COMPONENTS (import html5-qrcode + qrcode - ~45KB)
 // ============================================================================

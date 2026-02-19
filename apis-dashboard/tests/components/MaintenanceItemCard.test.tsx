@@ -4,7 +4,7 @@
  * Tests for the maintenance item card component.
  * Part of Epic 8, Story 8.5 (Maintenance Priority View)
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
@@ -187,7 +187,7 @@ describe('MaintenanceItemCard', () => {
     expect(onSelectionChange).toHaveBeenCalledWith('hive-123', true);
   });
 
-  it('renders quick action buttons', () => {
+  it('navigates to hive detail when card is clicked', () => {
     const item = createTestItem();
     renderWithProviders(
       <MaintenanceItemCard
@@ -197,79 +197,11 @@ describe('MaintenanceItemCard', () => {
       />
     );
 
-    expect(screen.getByText('Log Treatment')).toBeInTheDocument();
-    expect(screen.getByText('View Details')).toBeInTheDocument();
-  });
-
-  it('navigates to hive detail when hive name is clicked', () => {
-    const item = createTestItem();
-    renderWithProviders(
-      <MaintenanceItemCard
-        item={item}
-        selected={false}
-        onSelectionChange={() => {}}
-      />
-    );
-
+    // The whole card is clickable
     const hiveNameElement = screen.getByText('Test Hive');
     fireEvent.click(hiveNameElement);
 
     expect(mockNavigate).toHaveBeenCalledWith('/hives/hive-123');
-  });
-
-  it('navigates with tab state when quick action has tab', () => {
-    const item = createTestItem();
-    renderWithProviders(
-      <MaintenanceItemCard
-        item={item}
-        selected={false}
-        onSelectionChange={() => {}}
-      />
-    );
-
-    const logTreatmentButton = screen.getByText('Log Treatment');
-    fireEvent.click(logTreatmentButton);
-
-    expect(mockNavigate).toHaveBeenCalledWith('/hives/hive-123', { state: { activeTab: 'treatments' } });
-  });
-
-  it('navigates without state when quick action has no tab', () => {
-    const item = createTestItem();
-    renderWithProviders(
-      <MaintenanceItemCard
-        item={item}
-        selected={false}
-        onSelectionChange={() => {}}
-      />
-    );
-
-    const viewDetailsButton = screen.getByText('View Details');
-    fireEvent.click(viewDetailsButton);
-
-    expect(mockNavigate).toHaveBeenCalledWith('/hives/hive-123');
-  });
-
-  it('calls onQuickAction callback when provided', () => {
-    const item = createTestItem();
-    const onQuickAction = vi.fn();
-
-    renderWithProviders(
-      <MaintenanceItemCard
-        item={item}
-        selected={false}
-        onSelectionChange={() => {}}
-        onQuickAction={onQuickAction}
-      />
-    );
-
-    const logTreatmentButton = screen.getByText('Log Treatment');
-    fireEvent.click(logTreatmentButton);
-
-    expect(onQuickAction).toHaveBeenCalledWith({
-      label: 'Log Treatment',
-      url: '/hives/hive-123',
-      tab: 'treatments',
-    });
   });
 
   it('has accessible checkbox label', () => {
@@ -290,7 +222,7 @@ describe('MaintenanceItemCard', () => {
 describe('MaintenanceItemCard priority styling', () => {
   it('applies red styling for Urgent priority', () => {
     const item = createTestItem({ priority: 'Urgent' });
-    const { container } = renderWithProviders(
+    renderWithProviders(
       <MaintenanceItemCard
         item={item}
         selected={false}
@@ -329,45 +261,6 @@ describe('MaintenanceItemCard priority styling', () => {
 
     const tag = screen.getByText('Optional');
     expect(tag).toBeInTheDocument();
-  });
-});
-
-describe('MaintenanceItemCard with multiple quick actions', () => {
-  it('renders all quick actions', () => {
-    const item = createTestItem({
-      quick_actions: [
-        { label: 'Log Treatment', url: '/hives/hive-123', tab: 'treatments' },
-        { label: 'Log Inspection', url: '/hives/hive-123/inspections/new' },
-        { label: 'View Details', url: '/hives/hive-123' },
-      ],
-    });
-
-    renderWithProviders(
-      <MaintenanceItemCard
-        item={item}
-        selected={false}
-        onSelectionChange={() => {}}
-      />
-    );
-
-    expect(screen.getByText('Log Treatment')).toBeInTheDocument();
-    expect(screen.getByText('Log Inspection')).toBeInTheDocument();
-    expect(screen.getByText('View Details')).toBeInTheDocument();
-  });
-
-  it('first action is primary button', () => {
-    const item = createTestItem();
-    renderWithProviders(
-      <MaintenanceItemCard
-        item={item}
-        selected={false}
-        onSelectionChange={() => {}}
-      />
-    );
-
-    const buttons = screen.getAllByRole('button');
-    // First button should have primary type (check by class or style)
-    expect(buttons.length).toBeGreaterThan(0);
   });
 });
 

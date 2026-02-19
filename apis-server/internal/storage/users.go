@@ -459,3 +459,56 @@ func SetUserPassword(ctx context.Context, conn *pgxpool.Conn, userID, passwordHa
 
 // ErrEmailExists is returned when trying to create a user with an email that already exists.
 var ErrEmailExists = errors.New("email already exists")
+
+// ErrNoAdminUser is returned when no admin user exists in the tenant.
+var ErrNoAdminUser = errors.New("no admin user exists")
+
+// ResetAdminPassword resets the password for the first (oldest) admin user in a tenant.
+// It uses a transaction with SELECT FOR UPDATE to safely find and update the admin.
+// The admin is also reactivated (is_active=true) and must_change_password is set to true.
+// Returns the admin's email address for logging, or ErrNoAdminUser if no admin exists.
+func ResetAdminPassword(ctx context.Context, pool *pgxpool.Pool, tenantID, passwordHash string) (string, error) {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return "", fmt.Errorf("storage: failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Set tenant context for RLS (transaction-local)
+	_, err = tx.Exec(ctx, "SELECT set_config('app.tenant_id', $1, true)", tenantID)
+	if err != nil {
+		return "", fmt.Errorf("storage: failed to set tenant context: %w", err)
+	}
+
+	// Find the first (oldest) admin user, regardless of is_active status
+	var userID, email string
+	err = tx.QueryRow(ctx,
+		`SELECT id, email FROM users
+		 WHERE tenant_id = $1 AND role = 'admin'
+		 ORDER BY created_at LIMIT 1
+		 FOR UPDATE`,
+		tenantID,
+	).Scan(&userID, &email)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNoAdminUser
+	}
+	if err != nil {
+		return "", fmt.Errorf("storage: failed to find admin user: %w", err)
+	}
+
+	// Update password, force change on next login, and reactivate
+	_, err = tx.Exec(ctx,
+		`UPDATE users SET password_hash = $2, must_change_password = true, is_active = true WHERE id = $1`,
+		userID, passwordHash,
+	)
+	if err != nil {
+		return "", fmt.Errorf("storage: failed to reset admin password: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", fmt.Errorf("storage: failed to commit transaction: %w", err)
+	}
+
+	return email, nil
+}

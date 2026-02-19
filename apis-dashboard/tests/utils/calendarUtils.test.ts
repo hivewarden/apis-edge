@@ -20,6 +20,10 @@ describe('getBadgeStatus', () => {
     expect(getBadgeStatus('reminder')).toBe('processing');
   });
 
+  it('returns default for inspection_past', () => {
+    expect(getBadgeStatus('inspection_past')).toBe('default');
+  });
+
   it('returns default for unknown types', () => {
     // @ts-expect-error Testing invalid type
     expect(getBadgeStatus('unknown_type')).toBe('default');
@@ -43,6 +47,11 @@ describe('getBadgeColor', () => {
     const color = getBadgeColor('reminder');
     expect(color).toBeDefined();
     expect(typeof color).toBe('string');
+  });
+
+  it('returns purple color for inspection_past', () => {
+    const color = getBadgeColor('inspection_past');
+    expect(color).toBe('#722ed1');
   });
 
   it('returns textMuted color for unknown types', () => {

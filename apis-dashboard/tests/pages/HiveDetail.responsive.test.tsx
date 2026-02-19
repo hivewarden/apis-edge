@@ -22,7 +22,9 @@ vi.mock('../../src/providers/apiClient', () => ({
 }));
 
 // Mock the hooks
+const mockUseHiveDetail = vi.fn();
 vi.mock('../../src/hooks', () => ({
+  useHiveDetail: (...args: unknown[]) => mockUseHiveDetail(...args),
   useTreatments: () => ({
     treatments: [],
     loading: false,
@@ -96,34 +98,39 @@ vi.mock('../../src/context', () => ({
   }),
 }));
 
-// Mock child components that make API calls
-vi.mock('../../src/components', async () => {
-  const actual = await vi.importActual('../../src/components');
-  return {
-    ...actual,
-    HiveDetailMobile: ({ hive }: { hive: { name: string } }) => (
-      <div data-testid="hive-detail-mobile">
-        HiveDetailMobile: {hive.name}
-      </div>
-    ),
-    HiveDetailDesktop: ({ hive }: { hive: { name: string } }) => (
-      <div data-testid="hive-detail-desktop">
-        HiveDetailDesktop: {hive.name}
-      </div>
-    ),
-    TreatmentFormModal: () => null,
-    TreatmentFollowupModal: () => null,
-    FeedingFormModal: () => null,
-    HarvestFormModal: () => null,
-    FirstHarvestModal: () => null,
-    EquipmentFormModal: () => null,
-    HiveLossWizard: () => null,
-    QRGeneratorModal: () => null,
-    showFirstHiveCelebration: vi.fn(),
-  };
-});
+// Mock child components - avoid importActual which loads ALL barrel exports and their dependencies
+vi.mock('../../src/components', () => ({
+  HiveDetailMobile: ({ hive }: { hive: { name: string } }) => (
+    <div data-testid="hive-detail-mobile">
+      HiveDetailMobile: {hive.name}
+    </div>
+  ),
+  HiveDetailDesktop: ({ hive }: { hive: { name: string } }) => (
+    <div data-testid="hive-detail-desktop">
+      HiveDetailDesktop: {hive.name}
+    </div>
+  ),
+  TreatmentFormModal: () => null,
+  TreatmentFollowupModal: () => null,
+  FeedingFormModal: () => null,
+  HarvestFormModal: () => null,
+  FirstHarvestModal: () => null,
+  EquipmentFormModal: () => null,
+  HiveLossWizard: () => null,
+  QRGeneratorModal: () => null,
+  showFirstHiveCelebration: vi.fn(),
+}));
 
-import { apiClient } from '../../src/providers/apiClient';
+// Mock lazy components
+vi.mock('../../src/components/lazy', () => ({
+  LazyQRGeneratorModal: () => null,
+}));
+
+// Mock utils used by HiveDetail
+vi.mock('../../src/utils', () => ({
+  formatQueenSource: (source: string) => source || 'Unknown',
+  calculateQueenAge: () => '1 year',
+}));
 
 const mockHive = {
   id: 'hive-1',
@@ -143,6 +150,19 @@ const mockHive = {
   updated_at: '2024-01-20',
 };
 
+const defaultHiveDetailResult = {
+  hive: mockHive,
+  site: { name: 'Test Site' },
+  siteHives: [],
+  loading: false,
+  error: null,
+  deleteHive: vi.fn(),
+  deleting: false,
+  replaceQueen: vi.fn(),
+  replacingQueen: false,
+  refetch: vi.fn(),
+};
+
 function renderWithRouter() {
   return render(
     <MemoryRouter initialEntries={['/hives/hive-1']}>
@@ -160,19 +180,8 @@ describe('HiveDetail Responsive Layout', () => {
     originalInnerWidth = window.innerWidth;
     vi.clearAllMocks();
 
-    // Mock successful hive fetch
-    (apiClient.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
-      if (url.includes('/hives/hive-1') && !url.includes('/hives/')) {
-        return Promise.resolve({ data: { data: mockHive } });
-      }
-      if (url.includes('/sites/site-1/hives')) {
-        return Promise.resolve({ data: { data: [] } });
-      }
-      if (url.includes('/sites/site-1')) {
-        return Promise.resolve({ data: { data: { name: 'Test Site' } } });
-      }
-      return Promise.resolve({ data: { data: mockHive } });
-    });
+    // Set up useHiveDetail mock
+    mockUseHiveDetail.mockReturnValue(defaultHiveDetailResult);
   });
 
   afterEach(() => {
@@ -319,10 +328,12 @@ describe('HiveDetail Responsive Layout', () => {
 
   describe('loading state', () => {
     it('shows loading spinner while fetching hive data', async () => {
-      // Delay the API response
-      (apiClient.get as ReturnType<typeof vi.fn>).mockImplementation(() =>
-        new Promise((resolve) => setTimeout(() => resolve({ data: { data: mockHive } }), 100))
-      );
+      // Mock hook to return loading state
+      mockUseHiveDetail.mockReturnValue({
+        ...defaultHiveDetailResult,
+        hive: null,
+        loading: true,
+      });
 
       setViewportWidth(768);
       const { container } = renderWithRouter();

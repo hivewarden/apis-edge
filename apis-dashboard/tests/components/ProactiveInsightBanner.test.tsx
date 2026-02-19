@@ -135,7 +135,7 @@ describe('ProactiveInsightBanner', () => {
       renderComponent();
 
       // Should show loading skeleton and header
-      expect(screen.getByText('BeeBrain Insights')).toBeInTheDocument();
+      expect(screen.getByText('BeeBrain Alerts')).toBeInTheDocument();
     });
   });
 
@@ -159,7 +159,7 @@ describe('ProactiveInsightBanner', () => {
   describe('Content Rendering', () => {
     it('should render banner header with title', () => {
       renderComponent();
-      expect(screen.getByText('BeeBrain Insights')).toBeInTheDocument();
+      expect(screen.getByText('BeeBrain Alerts')).toBeInTheDocument();
     });
 
     it('should render insight count in header', () => {

@@ -85,13 +85,13 @@ describe('OIDCLoginButton Component', () => {
       const button = screen.getByRole('button', { name: /sign in with sso/i });
       fireEvent.click(button);
 
-      // Button should show loading state
-      expect(button).toHaveClass('ant-btn-loading');
+      // Button should show loading text
+      expect(screen.getByText('Connecting...')).toBeInTheDocument();
 
       // Resolve the promise
       resolveLogin!();
       await waitFor(() => {
-        expect(button).not.toHaveClass('ant-btn-loading');
+        expect(screen.getByText('Sign in with SSO')).toBeInTheDocument();
       });
     });
   });
@@ -143,7 +143,7 @@ describe('OIDCLoginButton Component', () => {
       fireEvent.click(button);
 
       await waitFor(() => {
-        expect(button).not.toHaveClass('ant-btn-loading');
+        expect(screen.getByText('Sign in with SSO')).toBeInTheDocument();
       });
     });
   });

@@ -386,7 +386,7 @@ export function HiveDetailMobile({
         />
 
         {/* Queen History - Collapsible */}
-        {hive.queen_history && hive.queen_history.length > 0 && (
+        {(hive.queen_history ?? []).length > 0 && (
           <Collapse
             accordion
             defaultActiveKey={[]}
@@ -397,12 +397,12 @@ export function HiveDetailMobile({
                 label: (
                   <Space>
                     <CrownOutlined style={{ color: colors.seaBuckthorn }} />
-                    Queen History ({hive.queen_history.length})
+                    Queen History ({(hive.queen_history ?? []).length})
                   </Space>
                 ),
                 children: (
                   <Timeline
-                    items={hive.queen_history.map((qh) => ({
+                    items={(hive.queen_history ?? []).map((qh) => ({
                       color: qh.replaced_at ? 'gray' : 'gold',
                       dot: <CrownOutlined style={{ fontSize: 14 }} />,
                       children: (
@@ -437,7 +437,7 @@ export function HiveDetailMobile({
         )}
 
         {/* Box Change History - Collapsible */}
-        {hive.box_changes && hive.box_changes.length > 0 && (
+        {(hive.box_changes ?? []).length > 0 && (
           <Collapse
             accordion
             defaultActiveKey={[]}
@@ -445,10 +445,10 @@ export function HiveDetailMobile({
             items={[
               {
                 key: 'box-history',
-                label: `Box Changes (${hive.box_changes.length})`,
+                label: `Box Changes (${(hive.box_changes ?? []).length})`,
                 children: (
                   <Timeline
-                    items={hive.box_changes.map((bc) => ({
+                    items={(hive.box_changes ?? []).map((bc) => ({
                       color: bc.change_type === 'added' ? 'green' : 'red',
                       dot: bc.change_type === 'added' ? <PlusOutlined /> : <MinusOutlined />,
                       children: (

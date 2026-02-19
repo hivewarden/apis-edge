@@ -231,6 +231,7 @@ export function UnitDetail() {
           apiKey={newApiKey}
           onClose={handleKeyModalClose}
           isRegenerate={true}
+          serverUrl={window.location.origin}
         />
       )}
     </div>

@@ -31,26 +31,65 @@ vi.mock('react-router-dom', async () => {
 });
 
 // Mock hooks from src/hooks
-vi.mock('../../src/hooks', async () => {
-  const actual = await vi.importActual('../../src/hooks');
-  return {
-    ...actual,
-    useHarvestsBySite: () => ({
-      createHarvest: vi.fn(),
-      creating: false,
-    }),
-    useHarvestAnalytics: () => ({
-      analytics: null,
-      loading: false,
-      error: null,
-      refetch: vi.fn(),
-    }),
-    useMilestoneFlags: () => ({
-      flags: null,
-      markMilestoneSeen: vi.fn(),
-    }),
-  };
-});
+const mockUseSiteDetail = vi.fn();
+vi.mock('../../src/hooks', () => ({
+  useSiteDetail: (...args: unknown[]) => mockUseSiteDetail(...args),
+  useHarvestsBySite: () => ({
+    harvests: [],
+    createHarvest: vi.fn(),
+    updateHarvest: vi.fn(),
+    deleteHarvest: vi.fn(),
+    creating: false,
+    updating: false,
+    deleting: false,
+    seasonTotalKg: 0,
+    seasonHarvestCount: 0,
+    loading: false,
+    error: null,
+  }),
+  useHarvestAnalytics: () => ({
+    analytics: null,
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+  useMilestoneFlags: () => ({
+    flags: null,
+    markMilestoneSeen: vi.fn(),
+  }),
+}));
+
+// Mock lazy component
+vi.mock('../../src/components/lazy', () => ({
+  SiteMapViewLazy: () => <div data-testid="mock-site-map">Map</div>,
+}));
+
+// Mock components - avoid importActual which loads ALL barrel exports and their dependencies
+vi.mock('../../src/components', () => ({
+  ActivityFeedCard: () => <div data-testid="mock-activity-feed">Activity Feed</div>,
+  HarvestAnalyticsCard: () => <div data-testid="mock-harvest-analytics">Harvest Analytics</div>,
+  HarvestFormModal: () => null,
+  FirstHarvestModal: () => null,
+  showFirstHiveCelebration: vi.fn(),
+  HiveStatusBadge: () => null,
+  MiniHiveVisualization: () => null,
+  OverdueBadge: () => null,
+}));
+
+// Mock useActivityFeed used by ActivityFeedCard (direct import)
+vi.mock('../../src/hooks/useActivityFeed', () => ({
+  useActivityFeed: () => ({
+    items: [],
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+
+// Mock getLastInspectionText utility
+vi.mock('../../src/utils', () => ({
+  getLastInspectionText: () => 'No inspections yet',
+}));
 
 // Import after mocks
 import { SiteDetail } from '../../src/pages/SiteDetail';
@@ -68,27 +107,46 @@ const renderWithProviders = (ui: React.ReactElement) => {
 describe('SiteDetail Page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSiteDetail.mockReturnValue({
+      site: null,
+      hives: [],
+      loading: true,
+      hivesLoading: false,
+      deleteSite: vi.fn(),
+      deleting: false,
+      error: null,
+      refetch: vi.fn(),
+    });
   });
 
   describe('Loading state', () => {
     it('shows loading spinner when loading', () => {
-      mockGet.mockImplementation(() => new Promise(() => {})); // Never resolves
-
       renderWithProviders(<SiteDetail />);
 
-      expect(screen.getByRole('img', { name: /loading/i })).toBeInTheDocument();
+      // Ant Design Spin renders with class ant-spin-spinning, not role="img"
+      expect(document.querySelector('.ant-spin-spinning')).toBeInTheDocument();
     });
   });
 
   describe('Site not found', () => {
     it('shows not found message when site does not exist', async () => {
-      mockGet.mockRejectedValue({ response: { status: 404 } });
+      mockUseSiteDetail.mockReturnValue({
+        site: null,
+        hives: [],
+        loading: false,
+        hivesLoading: false,
+        deleteSite: vi.fn(),
+        deleting: false,
+        error: new Error('Not found'),
+        refetch: vi.fn(),
+      });
 
       renderWithProviders(<SiteDetail />);
 
-      // Should navigate back to sites list
+      // Should show "Site not found" Empty state with a Back to Sites button
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/sites');
+        expect(screen.getByText('Site not found')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /back to sites/i })).toBeInTheDocument();
       });
     });
   });
@@ -105,14 +163,15 @@ describe('SiteDetail Page', () => {
     };
 
     beforeEach(() => {
-      mockGet.mockImplementation((url: string) => {
-        if (url === '/sites/site-1') {
-          return Promise.resolve({ data: { data: mockSite } });
-        }
-        if (url === '/sites/site-1/hives') {
-          return Promise.resolve({ data: { data: [], meta: { total: 0 } } });
-        }
-        return Promise.reject(new Error('Unknown URL'));
+      mockUseSiteDetail.mockReturnValue({
+        site: mockSite,
+        hives: [],
+        loading: false,
+        hivesLoading: false,
+        deleteSite: vi.fn(),
+        deleting: false,
+        error: null,
+        refetch: vi.fn(),
       });
     });
 
@@ -120,7 +179,8 @@ describe('SiteDetail Page', () => {
       renderWithProviders(<SiteDetail />);
 
       await waitFor(() => {
-        expect(screen.getByText('Home Apiary')).toBeInTheDocument();
+        // Site name may appear in both header and breadcrumb
+        expect(screen.getAllByText('Home Apiary').length).toBeGreaterThanOrEqual(1);
       });
     });
 
@@ -231,14 +291,15 @@ describe('SiteDetail Page', () => {
     };
 
     beforeEach(() => {
-      mockGet.mockImplementation((url: string) => {
-        if (url === '/sites/site-1') {
-          return Promise.resolve({ data: { data: mockSiteNoCoords } });
-        }
-        if (url === '/sites/site-1/hives') {
-          return Promise.resolve({ data: { data: [], meta: { total: 0 } } });
-        }
-        return Promise.reject(new Error('Unknown URL'));
+      mockUseSiteDetail.mockReturnValue({
+        site: mockSiteNoCoords,
+        hives: [],
+        loading: false,
+        hivesLoading: false,
+        deleteSite: vi.fn(),
+        deleting: false,
+        error: null,
+        refetch: vi.fn(),
       });
     });
 
@@ -271,14 +332,15 @@ describe('SiteDetail Page', () => {
     };
 
     beforeEach(() => {
-      mockGet.mockImplementation((url: string) => {
-        if (url === '/sites/site-1') {
-          return Promise.resolve({ data: { data: mockSite } });
-        }
-        if (url === '/sites/site-1/hives') {
-          return Promise.resolve({ data: { data: [], meta: { total: 0 } } });
-        }
-        return Promise.reject(new Error('Unknown URL'));
+      mockUseSiteDetail.mockReturnValue({
+        site: mockSite,
+        hives: [],
+        loading: false,
+        hivesLoading: false,
+        deleteSite: vi.fn(),
+        deleting: false,
+        error: null,
+        refetch: vi.fn(),
       });
     });
 
@@ -291,7 +353,8 @@ describe('SiteDetail Page', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Delete Site')).toBeInTheDocument();
+        // "Delete Site" appears in both the button and modal title
+        expect(screen.getAllByText('Delete Site').length).toBeGreaterThanOrEqual(1);
         expect(screen.getByText(/are you sure you want to delete/i)).toBeInTheDocument();
       });
     });

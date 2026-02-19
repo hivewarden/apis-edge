@@ -434,10 +434,10 @@ export function HiveDetailDesktop({
       </div>
 
       {/* Queen History */}
-      {hive.queen_history && hive.queen_history.length > 0 && (
+      {(hive.queen_history ?? []).length > 0 && (
         <Card title="Queen History" style={{ marginTop: 16 }}>
           <Timeline
-            items={hive.queen_history.map((qh) => ({
+            items={(hive.queen_history ?? []).map((qh) => ({
               color: qh.replaced_at ? 'gray' : 'gold',
               dot: <CrownOutlined style={{ fontSize: 16 }} />,
               children: (
@@ -583,10 +583,10 @@ export function HiveDetailDesktop({
       </div>
 
       {/* Box Change History */}
-      {hive.box_changes && hive.box_changes.length > 0 && (
+      {(hive.box_changes ?? []).length > 0 && (
         <Card title="Box Change History" style={{ marginTop: 16 }}>
           <Timeline
-            items={hive.box_changes.map((bc) => ({
+            items={(hive.box_changes ?? []).map((bc) => ({
               color: bc.change_type === 'added' ? 'green' : 'red',
               dot: bc.change_type === 'added' ? <PlusOutlined /> : <MinusOutlined />,
               children: (

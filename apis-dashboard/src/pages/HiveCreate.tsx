@@ -143,14 +143,19 @@ export function HiveCreate() {
               allowClear
               options={QUEEN_SOURCES.map((s) => ({
                 value: s.value,
-                label: (
-                  <Space direction="vertical" size={0}>
-                    <span>{s.label}</span>
-                    <Text type="secondary" style={{ fontSize: 12 }}>{s.description}</Text>
-                  </Space>
-                ),
+                label: s.label,
               }))}
-              optionLabelProp="label"
+              optionRender={(option) => {
+                const source = QUEEN_SOURCES.find((s) => s.value === option.value);
+                return (
+                  <Space direction="vertical" size={0}>
+                    <span>{option.label}</span>
+                    {source && (
+                      <Text type="secondary" style={{ fontSize: 12 }}>{source.description}</Text>
+                    )}
+                  </Space>
+                );
+              }}
             />
           </Form.Item>
 

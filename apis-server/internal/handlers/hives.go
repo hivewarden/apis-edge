@@ -495,6 +495,10 @@ func GetHive(w http.ResponseWriter, r *http.Request) {
 
 	resp := hiveToResponse(hive)
 
+	// Initialize to empty slices so JSON serializes as [] instead of null
+	resp.QueenHistory = []QueenHistoryResponse{}
+	resp.BoxChanges = []BoxChangeResponse{}
+
 	// Get queen history
 	queenHistory, err := storage.ListQueenHistory(r.Context(), conn, hiveID)
 	if err != nil {

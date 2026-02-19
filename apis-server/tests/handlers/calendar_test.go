@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jermoo/apis/apis-server/internal/handlers"
@@ -650,6 +651,209 @@ func TestSkipTreatmentDueValidation(t *testing.T) {
 			assert.Contains(t, resp["error"], tt.expectedError)
 		})
 	}
+}
+
+func TestGetCalendarDateRangeValidation(t *testing.T) {
+	conn, tenantID, cleanup := storage.SetupTestDB(t)
+	defer cleanup()
+
+	router := setupCalendarTestRouter(conn, tenantID)
+
+	tests := []struct {
+		name           string
+		queryParams    string
+		expectedStatus int
+		expectedError  string
+	}{
+		{
+			name:           "end before start",
+			queryParams:    "?start=2026-02-15&end=2026-01-01",
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "end date must be after start date",
+		},
+		{
+			name:           "range exceeds 366 days",
+			queryParams:    "?start=2024-01-01&end=2026-12-31",
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "date range cannot exceed 366 days",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/calendar"+tt.queryParams, nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			assert.Equal(t, tt.expectedStatus, rec.Code)
+
+			var resp map[string]any
+			err := json.Unmarshal(rec.Body.Bytes(), &resp)
+			require.NoError(t, err)
+			assert.Contains(t, resp["error"], tt.expectedError)
+		})
+	}
+}
+
+func TestGetCalendarWithInspectionEvents(t *testing.T) {
+	conn, tenantID, cleanup := storage.SetupTestDB(t)
+	defer cleanup()
+
+	router := setupCalendarTestRouter(conn, tenantID)
+
+	// Create a site
+	site, err := storage.CreateSite(context.Background(), conn.Conn, tenantID, &storage.CreateSiteInput{
+		Name:     "Calendar Test Site",
+		Timezone: "UTC",
+	})
+	require.NoError(t, err)
+
+	// Create a hive in that site
+	hive, err := storage.CreateHive(context.Background(), conn.Conn, tenantID, &storage.CreateHiveInput{
+		SiteID: site.ID,
+		Name:   "Calendar Test Hive",
+	})
+	require.NoError(t, err)
+
+	// Create an inspection
+	broodFrames := 5
+	honeyLevel := "high"
+	inspectedAt := time.Date(2026, 2, 10, 12, 0, 0, 0, time.UTC)
+	_, err = storage.CreateInspection(context.Background(), conn.Conn, tenantID, &storage.CreateInspectionInput{
+		HiveID:      hive.ID,
+		InspectedAt: inspectedAt,
+		BroodFrames: &broodFrames,
+		HoneyLevel:  &honeyLevel,
+		Issues:      []string{"mites", "wax_moths"},
+	})
+	require.NoError(t, err)
+
+	// Fetch calendar for Feb 2026
+	req := httptest.NewRequest("GET", "/api/calendar?start=2026-02-01&end=2026-02-28", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp handlers.CalendarResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	// Find the inspection event
+	var found bool
+	for _, event := range resp.Data {
+		if event.Type == "inspection_past" {
+			found = true
+			assert.Equal(t, "2026-02-10", event.Date)
+			assert.Equal(t, "Inspection - Calendar Test Hive", event.Title)
+			assert.NotNil(t, event.HiveID)
+			assert.Equal(t, hive.ID, *event.HiveID)
+
+			// Check metadata
+			require.NotNil(t, event.Metadata)
+			assert.NotEmpty(t, event.Metadata["inspection_id"])
+			assert.Equal(t, float64(5), event.Metadata["brood_frames"])
+			assert.Equal(t, "high", event.Metadata["honey_level"])
+			assert.Equal(t, float64(2), event.Metadata["issues_count"])
+			break
+		}
+	}
+	assert.True(t, found, "Should find an inspection_past event in calendar")
+}
+
+func TestGetCalendarSiteFiltering(t *testing.T) {
+	conn, tenantID, cleanup := storage.SetupTestDB(t)
+	defer cleanup()
+
+	router := setupCalendarTestRouter(conn, tenantID)
+
+	// Create two sites
+	siteA, err := storage.CreateSite(context.Background(), conn.Conn, tenantID, &storage.CreateSiteInput{
+		Name: "Site Alpha", Timezone: "UTC",
+	})
+	require.NoError(t, err)
+
+	siteB, err := storage.CreateSite(context.Background(), conn.Conn, tenantID, &storage.CreateSiteInput{
+		Name: "Site Beta", Timezone: "UTC",
+	})
+	require.NoError(t, err)
+
+	// Create a hive in each site
+	hiveA, err := storage.CreateHive(context.Background(), conn.Conn, tenantID, &storage.CreateHiveInput{
+		SiteID: siteA.ID, Name: "Hive A",
+	})
+	require.NoError(t, err)
+
+	hiveB, err := storage.CreateHive(context.Background(), conn.Conn, tenantID, &storage.CreateHiveInput{
+		SiteID: siteB.ID, Name: "Hive B",
+	})
+	require.NoError(t, err)
+
+	// Create inspection on each hive
+	inspDate := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	_, err = storage.CreateInspection(context.Background(), conn.Conn, tenantID, &storage.CreateInspectionInput{
+		HiveID: hiveA.ID, InspectedAt: inspDate,
+	})
+	require.NoError(t, err)
+
+	_, err = storage.CreateInspection(context.Background(), conn.Conn, tenantID, &storage.CreateInspectionInput{
+		HiveID: hiveB.ID, InspectedAt: inspDate,
+	})
+	require.NoError(t, err)
+
+	t.Run("no filter returns all events", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/calendar?start=2026-03-01&end=2026-03-31", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var resp handlers.CalendarResponse
+		json.Unmarshal(rec.Body.Bytes(), &resp)
+
+		inspCount := 0
+		for _, e := range resp.Data {
+			if e.Type == "inspection_past" {
+				inspCount++
+			}
+		}
+		assert.Equal(t, 2, inspCount, "Should see inspections from both hives")
+	})
+
+	t.Run("site_id filter shows only that site", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/calendar?start=2026-03-01&end=2026-03-31&site_id="+siteA.ID, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var resp handlers.CalendarResponse
+		json.Unmarshal(rec.Body.Bytes(), &resp)
+
+		for _, e := range resp.Data {
+			if e.Type == "inspection_past" {
+				assert.Equal(t, hiveA.ID, *e.HiveID, "Should only see Hive A")
+				assert.NotNil(t, e.SiteID, "SiteID should be populated with filtering")
+				assert.Equal(t, siteA.ID, *e.SiteID)
+				assert.NotNil(t, e.SiteName, "SiteName should be populated with filtering")
+				assert.Equal(t, "Site Alpha", *e.SiteName)
+			}
+		}
+	})
+
+	t.Run("hive_id filter shows only that hive", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/calendar?start=2026-03-01&end=2026-03-31&hive_id="+hiveB.ID, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var resp handlers.CalendarResponse
+		json.Unmarshal(rec.Body.Bytes(), &resp)
+
+		for _, e := range resp.Data {
+			if e.Type == "inspection_past" {
+				assert.Equal(t, hiveB.ID, *e.HiveID, "Should only see Hive B")
+			}
+		}
+	})
 }
 
 func TestListRemindersSuccess(t *testing.T) {

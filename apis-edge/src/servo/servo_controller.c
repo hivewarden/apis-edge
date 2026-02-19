@@ -154,10 +154,10 @@ static void handle_hardware_failure(servo_axis_t axis, const char *reason) {
         LOG_WARN("Laser disabled due to servo failure");
     }
 
-    // Set LED to error state per AC12: "LED indicates fault"
+    // Set LED to servo-specific error state per AC12: "LED indicates fault"
     if (led_controller_is_initialized()) {
-        led_controller_set_state(LED_STATE_ERROR);
-        LOG_INFO("LED set to ERROR state due to servo failure");
+        led_controller_set_state(LED_STATE_SERVO_FAIL);
+        LOG_INFO("LED set to SERVO_FAIL state (triple red blink)");
     }
 
     // C7-H2 fix: Invoke failure callback outside the lock

@@ -258,6 +258,14 @@ func (s *BeeBrainService) AnalyzeHive(ctx context.Context, conn *pgxpool.Conn, t
 		return nil, fmt.Errorf("beebrain: failed to analyze hive: %w", err)
 	}
 
+	// Dismiss previous active insights for this hive before storing new ones (prevents duplicates)
+	dismissed, err := storage.DismissActiveInsightsForHive(ctx, conn, tenantID, hiveID)
+	if err != nil {
+		log.Warn().Err(err).Str("hive_id", hiveID).Msg("beebrain: failed to dismiss old hive insights")
+	} else if dismissed > 0 {
+		log.Debug().Int64("dismissed", dismissed).Str("hive_id", hiveID).Msg("beebrain: dismissed previous hive insights")
+	}
+
 	// Store insights
 	for i := range insights {
 		stored, err := storage.CreateInsight(ctx, conn, tenantID, &storage.CreateInsightInput{

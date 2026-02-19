@@ -29,7 +29,7 @@ export function SiteMapThumbnail({
   height = 80,
   zoom = 12,
 }: SiteMapThumbnailProps) {
-  if (latitude === null || longitude === null) {
+  if (latitude == null || longitude == null) {
     return (
       <div
         style={{

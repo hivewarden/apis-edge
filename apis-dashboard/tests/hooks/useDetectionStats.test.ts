@@ -16,12 +16,16 @@ vi.mock('../../src/providers/apiClient', () => ({
   },
 }));
 
+// Mock the constants module to use a known interval
+vi.mock('../../src/constants', () => ({
+  POLL_INTERVAL_MS: 30000,
+}));
+
 const mockApiClient = apiClient as { get: ReturnType<typeof vi.fn> };
 
 describe('useDetectionStats', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
   });
 
   afterEach(() => {
@@ -31,18 +35,7 @@ describe('useDetectionStats', () => {
 
   describe('initial state', () => {
     it('returns null stats and loading true initially when siteId is provided', () => {
-      mockApiClient.get.mockResolvedValue({
-        data: {
-          data: {
-            total_detections: 5,
-            laser_activations: 3,
-            hourly_breakdown: [],
-            avg_confidence: 0.85,
-            first_detection: null,
-            last_detection: null,
-          },
-        },
-      });
+      mockApiClient.get.mockReturnValue(new Promise(() => {})); // never resolves
 
       const { result } = renderHook(() => useDetectionStats('site-1'));
 
@@ -202,6 +195,9 @@ describe('useDetectionStats', () => {
         data: { data: mockStats },
       });
 
+      // Use fake timers with shouldAdvanceTime to allow promise resolution
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+
       renderHook(() => useDetectionStats('site-1'));
 
       // Wait for initial fetch
@@ -214,14 +210,18 @@ describe('useDetectionStats', () => {
         vi.advanceTimersByTime(30000);
       });
 
-      expect(mockApiClient.get).toHaveBeenCalledTimes(2);
+      await waitFor(() => {
+        expect(mockApiClient.get).toHaveBeenCalledTimes(2);
+      });
 
       // Advance another 30 seconds
       await act(async () => {
         vi.advanceTimersByTime(30000);
       });
 
-      expect(mockApiClient.get).toHaveBeenCalledTimes(3);
+      await waitFor(() => {
+        expect(mockApiClient.get).toHaveBeenCalledTimes(3);
+      });
     });
 
     it('cleans up interval on unmount', async () => {
@@ -237,6 +237,9 @@ describe('useDetectionStats', () => {
       mockApiClient.get.mockResolvedValue({
         data: { data: mockStats },
       });
+
+      // Use fake timers with shouldAdvanceTime to allow promise resolution
+      vi.useFakeTimers({ shouldAdvanceTime: true });
 
       const { unmount } = renderHook(() => useDetectionStats('site-1'));
 

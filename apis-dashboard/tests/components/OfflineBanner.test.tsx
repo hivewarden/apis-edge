@@ -1,5 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
+
+// Mock usePendingSync (uses IndexedDB which is unavailable in test env)
+vi.mock('../../src/hooks/usePendingSync', () => ({
+  usePendingSync: () => ({
+    pendingCount: 0,
+    pendingGroups: [],
+    dbError: null,
+    loading: false,
+  }),
+}));
+
 import { OfflineBanner } from '../../src/components/OfflineBanner';
 
 describe('OfflineBanner', () => {
@@ -134,7 +145,7 @@ describe('OfflineBanner', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('displays the wifi icon', () => {
+  it('displays the cloud_off icon', () => {
     Object.defineProperty(navigator, 'onLine', {
       value: false,
       configurable: true,
@@ -148,9 +159,11 @@ describe('OfflineBanner', () => {
       vi.runAllTimers();
     });
 
-    // The WifiOutlined icon should be present
+    // The Material Symbols cloud_off icon should be present
     const alert = screen.getByRole('alert');
-    expect(alert.querySelector('.anticon-wifi')).toBeInTheDocument();
+    const icon = alert.querySelector('.material-symbols-outlined');
+    expect(icon).toBeInTheDocument();
+    expect(icon?.textContent).toBe('cloud_off');
   });
 
   it('handles rapid online/offline toggling without errors', () => {

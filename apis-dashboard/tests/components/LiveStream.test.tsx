@@ -1,5 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
+
+// Explicit @ant-design/icons mock to override setup.ts Proxy mock.
+// The Proxy mock hangs during module resolution for transitive imports;
+// explicit named exports resolve instantly.
+vi.mock('@ant-design/icons', () => {
+  const S = () => null;
+  return {
+    __esModule: true,
+    default: {},
+    CloseOutlined: S,
+    ReloadOutlined: S,
+    DisconnectOutlined: S,
+    WifiOutlined: S,
+  };
+});
+
 import { LiveStream } from '../../src/components/LiveStream';
 
 // Mock WebSocket
@@ -55,7 +71,7 @@ let objectURLCounter = 0;
 describe('LiveStream', () => {
   const mockOnClose = vi.fn();
   const defaultProps = {
-    unitId: 'unit-123',
+    unitId: 'a1b2c3d4-e5f6-0000-0000-abcdef012345',
     unitStatus: 'online',
     onClose: mockOnClose,
   };
@@ -68,7 +84,7 @@ describe('LiveStream', () => {
     mockObjectURLs.length = 0;
 
     // Replace global WebSocket
-    (global as unknown as { WebSocket: typeof MockWebSocket }).WebSocket = MockWebSocket;
+    vi.stubGlobal('WebSocket', MockWebSocket);
 
     // Mock URL methods
     global.URL.createObjectURL = vi.fn(() => {
@@ -85,12 +101,13 @@ describe('LiveStream', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('shows offline message when unit is offline', () => {
     render(
       <LiveStream
-        unitId="unit-123"
+        unitId="a1b2c3d4-e5f6-0000-0000-abcdef012345"
         unitStatus="offline"
         onClose={mockOnClose}
       />
@@ -226,7 +243,7 @@ describe('LiveStream', () => {
   it('calls onClose when close button is clicked', () => {
     render(
       <LiveStream
-        unitId="unit-123"
+        unitId="a1b2c3d4-e5f6-0000-0000-abcdef012345"
         unitStatus="offline"
         onClose={mockOnClose}
       />
@@ -330,7 +347,7 @@ describe('LiveStream', () => {
     render(<LiveStream {...defaultProps} />);
 
     const ws = MockWebSocket.instances[0];
-    expect(ws.url).toBe('wss://apis.example.com/ws/stream/unit-123');
+    expect(ws.url).toBe('wss://apis.example.com/ws/stream/a1b2c3d4-e5f6-0000-0000-abcdef012345');
   });
 
   it('uses ws: protocol for http sites', () => {
@@ -345,7 +362,7 @@ describe('LiveStream', () => {
     render(<LiveStream {...defaultProps} />);
 
     const ws = MockWebSocket.instances[0];
-    expect(ws.url).toBe('ws://localhost:5173/ws/stream/unit-123');
+    expect(ws.url).toBe('ws://localhost:5173/ws/stream/a1b2c3d4-e5f6-0000-0000-abcdef012345');
   });
 });
 

@@ -46,6 +46,11 @@
 #define MSG_NOSIGNAL 0
 #endif
 
+#ifdef APIS_PLATFORM_ESP32
+#include "wifi_provision.h"
+#include "esp_system.h"  // for esp_restart()
+#endif
+
 #include "cJSON.h"
 
 // ============================================================================
@@ -77,8 +82,11 @@ static char g_local_auth_token[LOCAL_AUTH_TOKEN_LEN + 1] = {0};
 
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 static pthread_t g_server_thread;
-#else
-/* ESP32 task handle would go here */
+#elif defined(APIS_PLATFORM_ESP32)
+#include "freertos/task.h"
+static TaskHandle_t g_server_task = NULL;
+#define HTTP_SERVER_TASK_STACK_SIZE 16384
+#define HTTP_SERVER_TASK_PRIORITY   5
 #endif
 
 #include "platform_mutex.h"
@@ -98,6 +106,8 @@ static int init_local_auth_token(void);  // COMM-001-7: Forward declare
 
 // Endpoint handlers
 static void handle_status(int client_fd, const http_request_t *req);
+static void handle_setup_get(int client_fd, const http_request_t *req);
+static void handle_setup_post(int client_fd, const http_request_t *req);
 static void handle_arm(int client_fd, const http_request_t *req);
 static void handle_disarm(int client_fd, const http_request_t *req);
 static void handle_config_get(int client_fd, const http_request_t *req);
@@ -212,6 +222,21 @@ int http_server_start(bool background) {
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
         if (pthread_create(&g_server_thread, NULL, server_thread_func, NULL) != 0) {
             LOG_ERROR("Failed to create server thread: %s", strerror(errno));
+            g_running = false;
+            g_background_mode = false;
+            return -1;
+        }
+        LOG_INFO("HTTP server started in background on port %d", g_config.port);
+#elif defined(APIS_PLATFORM_ESP32)
+        BaseType_t ret = xTaskCreate(
+            (TaskFunction_t)server_thread_func,
+            "http_server",
+            HTTP_SERVER_TASK_STACK_SIZE,
+            NULL,
+            HTTP_SERVER_TASK_PRIORITY,
+            &g_server_task);
+        if (ret != pdPASS) {
+            LOG_ERROR("Failed to create HTTP server task");
             g_running = false;
             g_background_mode = false;
             return -1;
@@ -375,8 +400,8 @@ static int init_local_auth_token(void) {
         }
     }
 
-    LOG_INFO("New local auth token generated (display on device for initial setup)");
-    LOG_INFO("New local auth token generated (length: %d)", LOCAL_AUTH_TOKEN_LEN);
+    LOG_INFO("Local auth token: %s", g_local_auth_token);
+    LOG_INFO("Use: curl -H 'Authorization: Bearer %s' http://<device-ip>:8080/config", g_local_auth_token);
 
     return 0;
 }
@@ -642,68 +667,85 @@ static void *server_thread_func(void *arg) {
 // ============================================================================
 
 static void handle_client(int client_fd, const char *client_ip) {
-    char buffer[HTTP_RECV_BUFFER_SIZE];
+    LOG_INFO("HTTP client connected from %s", client_ip);
+
+    // Heap-allocate large buffers to avoid stack overflow on ESP32
+    // (recv buffer 8KB + http_request_t ~5KB would exceed FreeRTOS task stack)
+    char *buffer = (char *)malloc(HTTP_RECV_BUFFER_SIZE);
+    http_request_t *req_ptr = (http_request_t *)calloc(1, sizeof(http_request_t));
+    if (!buffer || !req_ptr) {
+        LOG_ERROR("Failed to allocate HTTP buffers");
+        free(buffer);
+        free(req_ptr);
+        return;
+    }
 
     // Read headers first (initial recv)
-    ssize_t received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+    ssize_t received = recv(client_fd, buffer, HTTP_RECV_BUFFER_SIZE - 1, 0);
 
     if (received <= 0) {
         if (received < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
             LOG_ERROR("recv error: %s", strerror(errno));
         }
+        free(buffer);
+        free(req_ptr);
         return;
     }
 
     buffer[received] = '\0';
 
     // Parse request (headers + any initial body data)
-    http_request_t req = {0};
-    if (parse_request(buffer, received, &req) < 0) {
+    // Use heap-allocated req_ptr (not stack) to avoid stack overflow on ESP32
+    http_request_t *req = req_ptr;
+    if (parse_request(buffer, received, req) < 0) {
         http_send_error(client_fd, HTTP_BAD_REQUEST, "Malformed request");
+        free(buffer);
+        free(req_ptr);
         return;
     }
 
+    // Done with recv buffer
+    free(buffer);
+    buffer = NULL;
+
     // Store client IP for rate limiting
-    strncpy(req.client_ip, client_ip, sizeof(req.client_ip) - 1);
-    req.client_ip[sizeof(req.client_ip) - 1] = '\0';
+    strncpy(req->client_ip, client_ip, sizeof(req->client_ip) - 1);
+    req->client_ip[sizeof(req->client_ip) - 1] = '\0';
 
     // Change 11: Loop recv to read remaining body if Content-Length > body received so far
-    if (req.content_length > 0 && req.body_len < req.content_length) {
-        size_t remaining = req.content_length - req.body_len;
-        if (remaining > sizeof(req.body) - 1 - req.body_len) {
-            remaining = sizeof(req.body) - 1 - req.body_len;
-        }
-        size_t total_body_read = req.body_len;
-        while (total_body_read < req.content_length &&
-               total_body_read < sizeof(req.body) - 1) {
-            size_t to_read = req.content_length - total_body_read;
-            if (to_read > sizeof(req.body) - 1 - total_body_read) {
-                to_read = sizeof(req.body) - 1 - total_body_read;
+    if (req->content_length > 0 && req->body_len < req->content_length) {
+        size_t total_body_read = req->body_len;
+        while (total_body_read < req->content_length &&
+               total_body_read < sizeof(req->body) - 1) {
+            size_t to_read = req->content_length - total_body_read;
+            if (to_read > sizeof(req->body) - 1 - total_body_read) {
+                to_read = sizeof(req->body) - 1 - total_body_read;
             }
-            ssize_t chunk = recv(client_fd, req.body + total_body_read, to_read, 0);
+            ssize_t chunk = recv(client_fd, req->body + total_body_read, to_read, 0);
             if (chunk <= 0) {
                 if (chunk < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-                    // Timeout waiting for body data
                     LOG_WARN("Timeout reading request body");
                 }
                 break;
             }
             total_body_read += (size_t)chunk;
         }
-        req.body[total_body_read] = '\0';
-        req.body_len = total_body_read;
+        req->body[total_body_read] = '\0';
+        req->body_len = total_body_read;
     }
 
     // Set CORS origin for response helpers
-    http_set_request_origin(req.origin);
+    http_set_request_origin(req->origin);
 
-    LOG_DEBUG("Request: %s %s", req.method, req.path);
+    LOG_INFO("Request: %s %s from %s", req->method, req->path, client_ip);
 
     // Route to handler
-    route_request(client_fd, &req);
+    route_request(client_fd, req);
 
     // Clear thread-local origin
     http_set_request_origin(NULL);
+
+    free(req_ptr);
 }
 
 static int parse_request(const char *buffer, size_t len, http_request_t *req) {
@@ -879,6 +921,23 @@ static void route_request(int client_fd, const http_request_t *req) {
         return;
     }
 
+    // Setup endpoint - accessible without auth ONLY when device needs setup
+    // (AP mode / first boot). Once configured, requires auth like everything else.
+    if (strcmp(req->path, "/setup") == 0) {
+        if (config_manager_needs_setup()) {
+            // No auth required during initial setup
+            if (strcmp(req->method, "GET") == 0) {
+                handle_setup_get(client_fd, req);
+            } else if (strcmp(req->method, "POST") == 0) {
+                handle_setup_post(client_fd, req);
+            } else {
+                http_send_error(client_fd, HTTP_METHOD_NOT_ALLOWED, "Use GET or POST for /setup");
+            }
+            return;
+        }
+        // If setup is complete, fall through to auth check below
+    }
+
     // Rate limiting: check if client IP is blocked due to repeated auth failures
     if (rate_limit_is_blocked(req->client_ip)) {
         LOG_WARN("Rate limited request from %s to %s", req->client_ip, req->path);
@@ -995,6 +1054,16 @@ static void handle_status(int client_fd, const http_request_t *req) {
     cJSON_AddNumberToObject(response, "storage_free_mb", storage_free_mb);
 
     cJSON_AddStringToObject(response, "firmware_version", FIRMWARE_VERSION);
+
+    // LED status: current display state + all active states
+    if (led_controller_is_initialized()) {
+        cJSON *led = cJSON_CreateObject();
+        cJSON_AddStringToObject(led, "current", led_state_name(led_controller_get_state()));
+        char led_summary[256];
+        led_controller_active_summary(led_summary, sizeof(led_summary));
+        cJSON_AddStringToObject(led, "active", led_summary);
+        cJSON_AddItemToObject(response, "led", led);
+    }
 
     char *json = cJSON_PrintUnformatted(response);
     http_send_json(client_fd, HTTP_OK, json);
@@ -1235,7 +1304,306 @@ static void handle_stream(int client_fd, const http_request_t *req) {
     LOG_INFO("MJPEG stream ended after %d frames", frame_count);
 }
 
+// ============================================================================
+// Setup Page (WiFi Provisioning)
+// ============================================================================
+
+// Embedded HTML for the setup page
+static const char SETUP_PAGE_HTML[] =
+    "<!DOCTYPE html><html><head>"
+    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+    "<title>HiveWarden Setup</title>"
+    "<style>"
+    "body{font-family:-apple-system,sans-serif;max-width:420px;margin:24px auto;"
+    "padding:0 16px;background:#0f0f23;color:#e0e0e0}"
+    "h1{color:#f5a623;font-size:1.3em;text-align:center;margin-bottom:4px}"
+    ".sub{text-align:center;font-size:.85em;color:#888;margin-bottom:20px}"
+    "label{display:block;margin:14px 0 4px;font-size:.9em;color:#ccc}"
+    "input{width:100%;padding:10px;border:1px solid #333;border-radius:6px;"
+    "background:#1a1a3e;color:#fff;box-sizing:border-box;font-size:1em}"
+    "input:focus{border-color:#f5a623;outline:none}"
+    "button{width:100%;padding:13px;margin-top:22px;background:#f5a623;"
+    "color:#0f0f23;border:none;border-radius:6px;font-size:1.05em;"
+    "font-weight:bold;cursor:pointer}"
+    "button:active{background:#d4891a}"
+    ".hint{font-size:.78em;color:#666;margin-top:3px}"
+    "hr{border:none;border-top:1px solid #222;margin:18px 0}"
+    "#qr-wrap{display:none;text-align:center;margin:12px 0}"
+    "#qr-video{width:100%;max-width:300px;height:200px;object-fit:cover;"
+    "border-radius:6px;border:2px solid #f5a623;background:#000}"
+    "#qr-scan{background:#2a2a5e;color:#f5a623;border:1px solid #f5a623;"
+    "margin-top:0;font-weight:normal}"
+    "#qr-cancel{background:#333;color:#ccc;margin-top:8px;font-size:.9em;"
+    "display:none}"
+    "#qr-status{font-size:.8em;color:#888;margin-top:6px}"
+    ".qr-ok{color:#4CAF50!important}"
+    "</style></head><body>"
+    "<h1>HiveWarden Setup</h1>"
+    "<p class=\"sub\">Connect your device to WiFi</p>"
+    "<form method=\"POST\" action=\"/setup\">"
+    "<label>WiFi Network (SSID)</label>"
+    "<input name=\"ssid\" required placeholder=\"Your WiFi name\">"
+    "<label>WiFi Password</label>"
+    "<input name=\"password\" type=\"password\" placeholder=\"WiFi password\">"
+    "<hr>"
+    "<label>API Key</label>"
+    "<input name=\"api_key\" id=\"api_key\" placeholder=\"From your dashboard\">"
+    "<p class=\"hint\">Register your device at the dashboard to get this key</p>"
+    "<button type=\"button\" id=\"qr-scan\" onclick=\"startScan()\">"
+    "&#128247; Scan QR Code instead</button>"
+    "<div id=\"qr-wrap\">"
+    "<video id=\"qr-video\" playsinline autoplay muted></video>"
+    "<button type=\"button\" id=\"qr-cancel\" onclick=\"stopScan()\">"
+    "Cancel</button>"
+    "<p id=\"qr-status\"></p></div>"
+    // Server URL: hidden field, only populated via QR code or advanced users.
+    // By default the firmware uses ONBOARDING_DEFAULT_URL from onboarding_defaults.h
+    "<input type=\"hidden\" name=\"server_url\" id=\"server_url\">"
+    "<details style=\"margin-top:16px\">"
+    "<summary style=\"color:#666;font-size:.8em;cursor:pointer\">"
+    "Advanced: custom server URL</summary>"
+    "<label style=\"margin-top:8px\">Server URL</label>"
+    "<input id=\"server_url_visible\" "
+    "placeholder=\"https://hivewarden.eu\" "
+    "oninput=\"document.getElementById('server_url').value=this.value\">"
+    "<p class=\"hint\">Only change if self-hosting Hive Warden</p>"
+    "</details>"
+    "<button type=\"submit\">Save &amp; Reboot</button>"
+    "</form>"
+    "<script>"
+    "var stream=null,raf=null;"
+    "function startScan(){"
+    "if(!('BarcodeDetector' in window)){"
+    "document.getElementById('qr-status').textContent="
+    "'QR scanning not supported on this browser \\u2014 enter the key manually';"
+    "document.getElementById('qr-wrap').style.display='block';return}"
+    "var v=document.getElementById('qr-video');"
+    "var w=document.getElementById('qr-wrap');"
+    "var c=document.getElementById('qr-cancel');"
+    "var s=document.getElementById('qr-status');"
+    "w.style.display='block';c.style.display='block';"
+    "s.textContent='Opening camera...';"
+    "navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})"
+    ".then(function(st){"
+    "stream=st;v.srcObject=st;s.textContent='Point at QR code...';"
+    "var bd=new BarcodeDetector({formats:['qr_code']});"
+    "function detect(){"
+    "bd.detect(v).then(function(codes){"
+    "if(codes.length>0){try{"
+    "var d=JSON.parse(codes[0].rawValue);"
+    "if(d.s){document.getElementById('server_url').value=d.s;"
+    "document.getElementById('server_url_visible').value=d.s}"
+    "if(d.k){document.getElementById('api_key').value=d.k}"
+    "s.textContent='\\u2705 QR scanned!';"
+    "s.className='qr-ok';stopScan();return"
+    "}catch(e){}}"
+    "raf=requestAnimationFrame(detect)"
+    "}).catch(function(){raf=requestAnimationFrame(detect)})"
+    "}raf=requestAnimationFrame(detect)"
+    "}).catch(function(e){"
+    "s.textContent='Camera error: '+e.message;"
+    "c.style.display='block'})}"
+    "function stopScan(){"
+    "if(raf){cancelAnimationFrame(raf);raf=null}"
+    "if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}"
+    "document.getElementById('qr-video').srcObject=null;"
+    "document.getElementById('qr-cancel').style.display='none'}"
+    "if(!('BarcodeDetector' in window)){"
+    "document.getElementById('qr-scan').style.display='none'}"
+    "</script>"
+    "</body></html>";
+
+// Success page shown after setup
+static const char SETUP_SUCCESS_HTML[] =
+    "<!DOCTYPE html><html><head>"
+    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+    "<title>HiveWarden - Setup Complete</title>"
+    "<style>"
+    "body{font-family:-apple-system,sans-serif;max-width:420px;margin:40px auto;"
+    "padding:0 16px;background:#0f0f23;color:#e0e0e0;text-align:center}"
+    "h1{color:#4CAF50;font-size:1.3em}"
+    "p{color:#aaa;line-height:1.5}"
+    "</style></head><body>"
+    "<h1>Setup Complete</h1>"
+    "<p>Device is rebooting and will connect to your WiFi network.</p>"
+    "<p>You can close this page.</p>"
+    "</body></html>";
+
+/**
+ * Send an HTML response.
+ */
+static int http_send_html(int client_fd, http_status_t status, const char *html) {
+    char header[256];
+    size_t body_len = html ? strlen(html) : 0;
+    int header_len = snprintf(header, sizeof(header),
+        "HTTP/1.1 %d %s\r\n"
+        "Content-Type: text/html; charset=utf-8\r\n"
+        "Content-Length: %zu\r\n"
+        "Connection: close\r\n"
+        "\r\n",
+        status, http_status_text(status), body_len);
+
+    if (header_len < 0 || (size_t)header_len >= sizeof(header)) return -1;
+    if (send(client_fd, header, header_len, 0) < 0) return -1;
+    if (body_len > 0 && send(client_fd, html, body_len, 0) < 0) return -1;
+    return 0;
+}
+
+/**
+ * URL-decode a string in-place.
+ * Handles %XX hex encoding and '+' as space.
+ */
+static int url_decode(const char *src, char *dst, size_t dst_size) {
+    size_t j = 0;
+    for (size_t i = 0; src[i] && j < dst_size - 1; i++) {
+        if (src[i] == '%' && src[i + 1] && src[i + 2]) {
+            char hex[3] = {src[i + 1], src[i + 2], 0};
+            char *end;
+            long val = strtol(hex, &end, 16);
+            if (end == hex + 2 && val >= 0 && val <= 255) {
+                dst[j++] = (char)val;
+                i += 2;  // skip the two hex chars (loop increments i too)
+                continue;
+            }
+        }
+        if (src[i] == '+') {
+            dst[j++] = ' ';
+            continue;
+        }
+        dst[j++] = src[i];
+    }
+    dst[j] = '\0';
+    return (int)j;
+}
+
+/**
+ * Extract a parameter from URL-encoded form body.
+ * Returns true if found, value is URL-decoded.
+ */
+static bool form_get_param(const char *body, const char *key,
+                           char *value, size_t value_size) {
+    size_t key_len = strlen(key);
+    const char *p = body;
+
+    while (*p) {
+        // Check if this position matches "key="
+        if (strncmp(p, key, key_len) == 0 && p[key_len] == '=') {
+            const char *val_start = p + key_len + 1;
+            const char *val_end = strchr(val_start, '&');
+            if (!val_end) val_end = val_start + strlen(val_start);
+
+            size_t encoded_len = (size_t)(val_end - val_start);
+            char encoded[512];
+            if (encoded_len >= sizeof(encoded)) encoded_len = sizeof(encoded) - 1;
+            memcpy(encoded, val_start, encoded_len);
+            encoded[encoded_len] = '\0';
+
+            url_decode(encoded, value, value_size);
+            return true;
+        }
+
+        // Skip to next parameter
+        const char *next = strchr(p, '&');
+        if (!next) break;
+        p = next + 1;
+    }
+
+    value[0] = '\0';
+    return false;
+}
+
+static void handle_setup_get(int client_fd, const http_request_t *req) {
+    (void)req;
+    http_send_html(client_fd, HTTP_OK, SETUP_PAGE_HTML);
+    LOG_INFO("Served setup page");
+}
+
+static void handle_setup_post(int client_fd, const http_request_t *req) {
+    if (req->body_len == 0) {
+        http_send_error(client_fd, HTTP_BAD_REQUEST, "Form data required");
+        return;
+    }
+
+    // Parse form parameters
+    char ssid[64] = {0};
+    char password[128] = {0};
+    char server_url[256] = {0};
+    char api_key[64] = {0};
+
+    if (!form_get_param(req->body, "ssid", ssid, sizeof(ssid)) || strlen(ssid) == 0) {
+        http_send_error(client_fd, HTTP_BAD_REQUEST, "WiFi SSID is required");
+        return;
+    }
+
+    form_get_param(req->body, "password", password, sizeof(password));
+    form_get_param(req->body, "server_url", server_url, sizeof(server_url));
+    form_get_param(req->body, "api_key", api_key, sizeof(api_key));
+
+    LOG_INFO("Setup: SSID=%s, server=%s", ssid,
+             strlen(server_url) > 0 ? server_url : "(standalone)");
+
+    // Save WiFi credentials
+#ifdef APIS_PLATFORM_ESP32
+    if (wifi_provision_save_credentials(ssid, password) != 0) {
+        http_send_error(client_fd, HTTP_INTERNAL_ERROR, "Failed to save WiFi credentials");
+        return;
+    }
+#endif
+
+    // Save server configuration if provided
+    if (strlen(server_url) > 0) {
+        config_manager_set_server(server_url, api_key);
+    }
+
+    // Mark setup as complete
+    config_manager_complete_setup();
+
+    // Send success page before rebooting
+    http_send_html(client_fd, HTTP_OK, SETUP_SUCCESS_HTML);
+    LOG_INFO("Setup complete - rebooting...");
+
+    // Give the response time to be sent, then reboot
+#ifdef APIS_PLATFORM_ESP32
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    esp_restart();
+#else
+    // On Pi/test, just log (no reboot)
+    LOG_INFO("Setup complete (reboot skipped on non-ESP32 platform)");
+#endif
+}
+
+/**
+ * Send an HTTP 302 redirect response.
+ */
+static int http_send_redirect(int client_fd, const char *location) {
+    // iOS requires a non-empty body to detect captive portal redirects
+    const char *body = "Redirecting to setup page...";
+    char header[512];
+    int header_len = snprintf(header, sizeof(header),
+        "HTTP/1.1 302 Found\r\n"
+        "Location: %s\r\n"
+        "Content-Type: text/plain\r\n"
+        "Content-Length: %zu\r\n"
+        "Connection: close\r\n"
+        "\r\n",
+        location, strlen(body));
+
+    if (header_len < 0 || (size_t)header_len >= sizeof(header)) return -1;
+    if (send(client_fd, header, header_len, MSG_NOSIGNAL) < 0) return -1;
+    if (send(client_fd, body, strlen(body), MSG_NOSIGNAL) < 0) return -1;
+    return 0;
+}
+
 static void handle_not_found(int client_fd, const http_request_t *req) {
+    // Captive portal mode: during setup, redirect ALL unknown paths to /setup.
+    // This is what makes the captive portal popup work — when a phone probes
+    // captive.apple.com/hotspot-detect.html or connectivitycheck.gstatic.com,
+    // the DNS server resolves it to us, and we redirect to the setup page.
+    if (config_manager_needs_setup()) {
+        http_send_redirect(client_fd, "/setup");
+        return;
+    }
+
     // MEMORY-001-3 fix: Sanitize path before including in error message
     // Replace non-printable characters to prevent JSON output corruption
     char safe_path[64];

@@ -166,7 +166,7 @@ describe('QRGeneratorModal', () => {
       // and verifying the link properties, but that's complex for this unit test
     });
 
-    it('should show error when canvas is not ready', async () => {
+    it('should attempt download when canvas is present', async () => {
       render(
         <QRGeneratorModal
           hive={mockHive}
@@ -177,12 +177,13 @@ describe('QRGeneratorModal', () => {
         />
       );
 
-      // Since our mock QRCode.toCanvas doesn't actually create a canvas,
-      // the download should fail gracefully
+      // Canvas is always in the DOM (hidden until QR renders).
+      // The mock QRCode.toCanvas resolves without drawing, but the canvas
+      // element exists, so download proceeds with a blank canvas.
       fireEvent.click(screen.getByRole('button', { name: /download png/i }));
 
       await waitFor(() => {
-        expect(message.error).toHaveBeenCalledWith('QR code not ready for download');
+        expect(message.success).toHaveBeenCalledWith('QR code downloaded');
       });
     });
   });

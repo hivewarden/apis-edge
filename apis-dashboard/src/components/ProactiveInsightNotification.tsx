@@ -75,21 +75,10 @@ const snoozeOptions = [
 
 /**
  * Navigation mapping: rule_id to target URL.
+ * Routes to Tasks page so users can create/accept task suggestions from BeeBrain insights.
  */
-const getActionUrl = (insight: ProactiveInsight): string => {
-  switch (insight.rule_id) {
-    case 'queen_aging':
-      return insight.hive_id ? `/hives/${insight.hive_id}` : '/hives';
-    case 'treatment_due':
-      return insight.hive_id ? `/hives/${insight.hive_id}` : '/hives';
-    case 'inspection_overdue':
-      return insight.hive_id ? `/hives/${insight.hive_id}/inspections/new` : '/hives';
-    case 'hornet_activity_spike':
-      return '/clips';
-    default:
-      // Fallback: if hive_id exists, go to hive detail, otherwise hives list
-      return insight.hive_id ? `/hives/${insight.hive_id}` : '/hives';
-  }
+const getActionUrl = (_insight: ProactiveInsight): string => {
+  return '/tasks';
 };
 
 /**

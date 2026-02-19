@@ -192,7 +192,7 @@ export function Sites() {
                         marginTop: 6,
                         display: 'block',
                       }}>
-                        Last inspected 2 days ago
+                        {site.timezone}
                       </Text>
                     </div>
                     <button
@@ -210,41 +210,14 @@ export function Sites() {
                     </button>
                   </div>
 
-                  {/* Stats row per mockup */}
+                  {/* Created date */}
                   <div style={{
-                    display: 'flex',
-                    gap: 12,
                     paddingTop: 16,
                     borderTop: '1px solid #f3f4f6',
                   }}>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '6px 12px',
-                      borderRadius: 8,
-                      background: '#fafaf9',
-                      color: colors.brownBramble,
-                    }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#d97706' }}>
-                        grid_view
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 700 }}>2 Units</span>
-                    </div>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '6px 12px',
-                      borderRadius: 8,
-                      background: '#fafaf9',
-                      color: colors.brownBramble,
-                    }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: colors.seaBuckthorn }}>
-                        hive
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 700 }}>8 Hives</span>
-                    </div>
+                    <Text style={{ fontSize: 12, color: '#9c8749' }}>
+                      Created {new Date(site.created_at).toLocaleDateString()}
+                    </Text>
                   </div>
                 </div>
               </Card>

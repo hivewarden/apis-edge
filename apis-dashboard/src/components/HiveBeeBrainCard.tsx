@@ -213,7 +213,7 @@ export function HiveBeeBrainCard({ hiveId }: HiveBeeBrainCardProps) {
     event.stopPropagation(); // Prevent toggle
 
     // Get sorted insights and find current index for focus management
-    const sortedInsights = data ? sortInsightsBySeverity(data.insights) : [];
+    const sortedInsights = data ? sortInsightsBySeverity(data.insights || []) : [];
     const currentIndex = sortedInsights.findIndex((i) => i.id === insightId);
     const nextInsight = sortedInsights[currentIndex + 1];
 
@@ -389,7 +389,7 @@ export function HiveBeeBrainCard({ hiveId }: HiveBeeBrainCardProps) {
   }
 
   // Sort insights by severity for prioritized display
-  const sortedInsights = sortInsightsBySeverity(data.insights);
+  const sortedInsights = sortInsightsBySeverity(data.insights || []);
   const hasInsights = sortedInsights.length > 0;
 
   return (

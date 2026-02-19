@@ -3,19 +3,105 @@
  *
  * Part of Epic 14, Story 14.9: Mobile Tasks Section View
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
-import { useHiveTasks } from '../../src/hooks/useHiveTasks';
-import { apiClient } from '../../src/providers/apiClient';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { Task } from '../../src/hooks/useTasks';
 import dayjs from 'dayjs';
 
-// Mock the apiClient
+// We need to mock ALL the dependencies that useHiveTasks imports.
+// The hook imports:
+//   1. apiClient from ../providers/apiClient
+//   2. Task from ../hooks/useTasks (type-only, no mock needed)
+//   3. { cachedToTask, isCacheStale, isOverdue, sortByPriority, sortByPriorityThenDueDate } from ../utils
+//   4. { cacheTasksFromServer, getCachedTasks, getTasksCacheTimestamp, getPendingTaskSyncItems, ServerTask } from ../services/offlineTasks
+
+// Mock apiClient
 vi.mock('../../src/providers/apiClient', () => ({
   apiClient: {
     get: vi.fn(),
   },
 }));
+
+// Mock the constants (used by taskUtils if not fully mocked)
+vi.mock('../../src/constants', () => ({
+  CACHE_STALENESS_MINUTES: 5,
+}));
+
+// Mock the db module (imported by offlineTasks)
+vi.mock('../../src/services/db', () => ({
+  db: {
+    tasks: {
+      where: vi.fn().mockReturnValue({
+        equals: vi.fn().mockReturnValue({
+          filter: vi.fn().mockReturnValue({
+            toArray: vi.fn().mockResolvedValue([]),
+          }),
+          toArray: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+      bulkPut: vi.fn().mockResolvedValue(undefined),
+      put: vi.fn().mockResolvedValue(undefined),
+    },
+    sync_queue: {
+      where: vi.fn().mockReturnValue({
+        equals: vi.fn().mockReturnValue({
+          filter: vi.fn().mockReturnValue({
+            toArray: vi.fn().mockResolvedValue([]),
+          }),
+          toArray: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+      add: vi.fn().mockResolvedValue(undefined),
+    },
+    transaction: vi.fn().mockImplementation((_mode: string, _tables: unknown[], fn: () => Promise<void>) => fn()),
+  },
+  default: {},
+}));
+
+// Mock the offlineTasks service directly
+vi.mock('../../src/services/offlineTasks', () => ({
+  cacheTasksFromServer: vi.fn().mockResolvedValue(undefined),
+  getCachedTasks: vi.fn().mockResolvedValue([]),
+  getTasksCacheTimestamp: vi.fn().mockResolvedValue(null),
+  getPendingTaskSyncItems: vi.fn().mockResolvedValue([]),
+}));
+
+// Mock the utils module - isCacheStale must return true to trigger API path
+vi.mock('../../src/utils', () => {
+  const PRIORITY_ORDER: Record<string, number> = {
+    urgent: 0,
+    high: 1,
+    medium: 2,
+    low: 3,
+  };
+
+  return {
+    cachedToTask: vi.fn((cached: Record<string, unknown>) => cached as unknown),
+    isCacheStale: vi.fn().mockReturnValue(true),
+    isOverdue: (task: { due_date?: string; status?: string }) => {
+      if (!task.due_date || task.status !== 'pending') return false;
+      return dayjs(task.due_date).isBefore(dayjs(), 'day');
+    },
+    sortByPriority: (a: { priority: string }, b: { priority: string }) => {
+      return (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99);
+    },
+    sortByPriorityThenDueDate: (a: { priority: string; due_date?: string }, b: { priority: string; due_date?: string }) => {
+      const priorityDiff = (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99);
+      if (priorityDiff !== 0) return priorityDiff;
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return a.due_date.localeCompare(b.due_date);
+    },
+    priorityOrder: PRIORITY_ORDER,
+  };
+});
+
+// Now import the modules under test
+import { apiClient } from '../../src/providers/apiClient';
+import { useHiveTasks } from '../../src/hooks/useHiveTasks';
+import { getTasksCacheTimestamp, getCachedTasks, getPendingTaskSyncItems } from '../../src/services/offlineTasks';
+import { isCacheStale } from '../../src/utils';
 
 // Helper to create mock tasks
 const createTask = (overrides: Partial<Task>): Task => ({
@@ -29,10 +115,17 @@ const createTask = (overrides: Partial<Task>): Task => ({
 });
 
 describe('useHiveTasks', () => {
-  const mockApiClient = apiClient as { get: ReturnType<typeof vi.fn> };
+  const mockApiGet = apiClient.get as Mock;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Ensure navigator.onLine is true so we go through the API path
+    Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true });
+    // Reset mock implementations to default
+    (getTasksCacheTimestamp as Mock).mockResolvedValue(null);
+    (getCachedTasks as Mock).mockResolvedValue([]);
+    (getPendingTaskSyncItems as Mock).mockResolvedValue([]);
+    (isCacheStale as Mock).mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -41,34 +134,29 @@ describe('useHiveTasks', () => {
 
   describe('Loading State', () => {
     it('returns loading true initially', async () => {
-      // Create a promise that we control
       let resolvePromise: (value: unknown) => void;
       const pendingPromise = new Promise((resolve) => {
         resolvePromise = resolve;
       });
-
-      mockApiClient.get.mockReturnValue(pendingPromise);
+      mockApiGet.mockReturnValue(pendingPromise);
 
       const { result } = renderHook(() => useHiveTasks('hive-1'));
 
       expect(result.current.loading).toBe(true);
       expect(result.current.tasks).toEqual([]);
 
-      // Clean up
       resolvePromise!({ data: { data: [], meta: { total: 0 } } });
       await waitFor(() => expect(result.current.loading).toBe(false));
     });
 
     it('sets loading false after fetch completes', async () => {
-      mockApiClient.get.mockResolvedValue({
+      mockApiGet.mockResolvedValue({
         data: { data: [], meta: { total: 0 } },
       });
 
       const { result } = renderHook(() => useHiveTasks('hive-1'));
 
       await waitFor(() => expect(result.current.loading).toBe(false));
-
-      expect(result.current.loading).toBe(false);
     });
   });
 
@@ -79,7 +167,7 @@ describe('useHiveTasks', () => {
         createTask({ id: 'task-2', title: 'Task 2' }),
       ];
 
-      mockApiClient.get.mockResolvedValue({
+      mockApiGet.mockResolvedValue({
         data: { data: mockTasks, meta: { total: 2 } },
       });
 
@@ -93,38 +181,38 @@ describe('useHiveTasks', () => {
     });
 
     it('fetches from correct endpoint', async () => {
-      mockApiClient.get.mockResolvedValue({
+      mockApiGet.mockResolvedValue({
         data: { data: [], meta: { total: 0 } },
       });
 
       renderHook(() => useHiveTasks('hive-123'));
 
       await waitFor(() =>
-        expect(mockApiClient.get).toHaveBeenCalledWith('/hives/hive-123/tasks?status=pending')
+        expect(mockApiGet).toHaveBeenCalledWith('/hives/hive-123/tasks?status=pending')
       );
     });
 
     it('passes status filter to API', async () => {
-      mockApiClient.get.mockResolvedValue({
+      mockApiGet.mockResolvedValue({
         data: { data: [], meta: { total: 0 } },
       });
 
       renderHook(() => useHiveTasks('hive-1', 'completed'));
 
       await waitFor(() =>
-        expect(mockApiClient.get).toHaveBeenCalledWith('/hives/hive-1/tasks?status=completed')
+        expect(mockApiGet).toHaveBeenCalledWith('/hives/hive-1/tasks?status=completed')
       );
     });
 
     it('does not pass status filter when status is all', async () => {
-      mockApiClient.get.mockResolvedValue({
+      mockApiGet.mockResolvedValue({
         data: { data: [], meta: { total: 0 } },
       });
 
       renderHook(() => useHiveTasks('hive-1', 'all'));
 
       await waitFor(() =>
-        expect(mockApiClient.get).toHaveBeenCalledWith('/hives/hive-1/tasks')
+        expect(mockApiGet).toHaveBeenCalledWith('/hives/hive-1/tasks')
       );
     });
   });
@@ -137,10 +225,10 @@ describe('useHiveTasks', () => {
       const mockTasks = [
         createTask({ id: 'overdue-1', title: 'Overdue Task', due_date: yesterday }),
         createTask({ id: 'pending-1', title: 'Pending Task', due_date: tomorrow }),
-        createTask({ id: 'pending-2', title: 'No Due Date Task' }), // No due_date
+        createTask({ id: 'pending-2', title: 'No Due Date Task' }),
       ];
 
-      mockApiClient.get.mockResolvedValue({
+      mockApiGet.mockResolvedValue({
         data: { data: mockTasks, meta: { total: 3 } },
       });
 
@@ -163,7 +251,7 @@ describe('useHiveTasks', () => {
         createTask({ id: 'today-task', title: 'Due Today', due_date: today }),
       ];
 
-      mockApiClient.get.mockResolvedValue({
+      mockApiGet.mockResolvedValue({
         data: { data: mockTasks, meta: { total: 1 } },
       });
 
@@ -187,7 +275,7 @@ describe('useHiveTasks', () => {
         createTask({ id: 'high', priority: 'high', due_date: yesterday }),
       ];
 
-      mockApiClient.get.mockResolvedValue({
+      mockApiGet.mockResolvedValue({
         data: { data: mockTasks, meta: { total: 4 } },
       });
 
@@ -212,7 +300,7 @@ describe('useHiveTasks', () => {
         createTask({ id: 'urgent-day1', priority: 'urgent', due_date: day1 }),
       ];
 
-      mockApiClient.get.mockResolvedValue({
+      mockApiGet.mockResolvedValue({
         data: { data: mockTasks, meta: { total: 4 } },
       });
 
@@ -232,7 +320,7 @@ describe('useHiveTasks', () => {
         createTask({ id: 'has-date', priority: 'high', due_date: tomorrow }),
       ];
 
-      mockApiClient.get.mockResolvedValue({
+      mockApiGet.mockResolvedValue({
         data: { data: mockTasks, meta: { total: 2 } },
       });
 
@@ -247,7 +335,7 @@ describe('useHiveTasks', () => {
 
   describe('Handles API Error', () => {
     it('handles API error', async () => {
-      mockApiClient.get.mockRejectedValue(new Error('Network error'));
+      mockApiGet.mockRejectedValue(new Error('Network error'));
 
       const { result } = renderHook(() => useHiveTasks('hive-1'));
 
@@ -260,7 +348,7 @@ describe('useHiveTasks', () => {
     });
 
     it('clears error on successful refetch', async () => {
-      mockApiClient.get
+      mockApiGet
         .mockRejectedValueOnce(new Error('Network error'))
         .mockResolvedValueOnce({
           data: { data: [createTask({ id: 'task-1' })], meta: { total: 1 } },
@@ -270,7 +358,9 @@ describe('useHiveTasks', () => {
 
       await waitFor(() => expect(result.current.error).toBe('Network error'));
 
-      await result.current.refetch();
+      await act(async () => {
+        await result.current.refetch();
+      });
 
       await waitFor(() => expect(result.current.error).toBeNull());
       expect(result.current.tasks).toHaveLength(1);
@@ -285,7 +375,7 @@ describe('useHiveTasks', () => {
         createTask({ id: 'task-2', title: 'New Task' }),
       ];
 
-      mockApiClient.get
+      mockApiGet
         .mockResolvedValueOnce({ data: { data: initialTasks, meta: { total: 1 } } })
         .mockResolvedValueOnce({ data: { data: updatedTasks, meta: { total: 2 } } });
 
@@ -293,7 +383,9 @@ describe('useHiveTasks', () => {
 
       await waitFor(() => expect(result.current.tasks).toHaveLength(1));
 
-      await result.current.refetch();
+      await act(async () => {
+        await result.current.refetch();
+      });
 
       await waitFor(() => expect(result.current.tasks).toHaveLength(2));
       expect(result.current.tasks[1].title).toBe('New Task');
@@ -306,7 +398,7 @@ describe('useHiveTasks', () => {
 
       await waitFor(() => expect(result.current.loading).toBe(false));
 
-      expect(mockApiClient.get).not.toHaveBeenCalled();
+      expect(mockApiGet).not.toHaveBeenCalled();
       expect(result.current.tasks).toEqual([]);
     });
   });
