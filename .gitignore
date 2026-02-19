@@ -1,11 +1,23 @@
-# Environment files (contain secrets)
-.env
-.env.local
-.env.*.local
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
 
-# SOPS decrypted secrets (NEVER commit)
-secrets/*.dec.yaml
-secrets/*.dec.json
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# ESP-IDF
+platforms/esp32/.cache/
+platforms/esp32/build/
+platforms/esp32/managed_components/
+platforms/esp32/sdkconfig.old
+platforms/esp32/dependencies.lock
 
 # IDE
 .idea/
@@ -14,24 +26,12 @@ secrets/*.dec.json
 *.swo
 .DS_Store
 
-# Build artifacts
-apis-server/apis-server
-apis-server/server
-apis-edge/.cache/
-apis-edge/build/
-*.exe
-
-# Node
-node_modules/
-dist/
-build/
-
-# Go
-*.test
-coverage.out
-
 # Logs
 *.log
+logs/
+
+# Test data output
+data/output/
 
 # AI assistant tooling (local/generated)
 .claude/audio/
