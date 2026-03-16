@@ -75,22 +75,22 @@ Single source of truth for all bugs, review findings, and technical debt.
 
 | ID | Date | Sev | Context | Summary | Status | Fixed In | Notes |
 |----|------|-----|---------|---------|--------|----------|-------|
-| R-006 | 2026-03-16 | HIGH | src/config/config_manager.c:817-820 | `config_manager_init` reads `g_runtime_config.device.id`, `.armed`, `.needs_setup` in LOG_INFO after CONFIG_UNLOCK — data race if another thread calls config_manager_update concurrently (unlikely at init, but the pattern is unsafe) | open | | Pattern: read-after-unlock |
+| R-006 | 2026-03-16 | HIGH | src/config/config_manager.c:817-820 | `config_manager_init` reads `g_runtime_config.device.id`, `.armed`, `.needs_setup` in LOG_INFO after CONFIG_UNLOCK — data race if another thread calls config_manager_update concurrently (unlikely at init, but the pattern is unsafe) | verified-fixed | 553678b | Pattern: read-after-unlock |
 | R-007 | 2026-03-16 | HIGH | src/config/config_manager.c:832-836 | `config_manager_get()` returns raw pointer to `g_runtime_config` without any locking — any caller reading through this pointer has a data race with writers. Marked DEPRECATED but still present and callable | open | | Pattern: unprotected-shared-state |
 | R-008 | 2026-03-16 | MED | src/led/led_controller.c:67-73 | LED globals `g_initialized`, `g_running`, `g_active_states`, `g_detection_flash_end` are `volatile` but accessed from multiple threads without mutex in some paths — `volatile` alone does not guarantee atomicity on 32-bit platforms for 64-bit `g_detection_flash_end` (not atomic on ESP32 Xtensa). `g_running` is set in cleanup without lock while pattern thread reads it | open | | Pattern: volatile-not-atomic |
 | R-009 | 2026-03-16 | MED | src/led/led_controller.c:416-417 | `led_controller_init` sets `g_initialized = true` outside the LED mutex — pattern thread starts before this flag is set, creating a window where `led_controller_set_state` calls are silently dropped | open | | |
-| R-010 | 2026-03-16 | MED | src/button/button_handler.c:477-478 | `button_handler_update` reads `ctx.initialized` without lock at line 478 — if another thread calls `button_handler_cleanup` concurrently, this is a data race on the initialized flag | open | | Pattern: init-flag-no-lock |
-| R-011 | 2026-03-16 | MED | src/button/button_handler.c:660-662 | `button_handler_is_initialized` reads `ctx.initialized` without lock — same pattern as R-010, concurrent cleanup creates a race | open | | Pattern: init-flag-no-lock |
-| R-012 | 2026-03-16 | LOW | src/led/led_controller.c:575-577 | `led_controller_is_initialized` reads `g_initialized` without lock — same volatile-but-not-atomic pattern | open | | Pattern: init-flag-no-lock |
+| R-010 | 2026-03-16 | MED | src/button/button_handler.c:477-478 | `button_handler_update` reads `ctx.initialized` without lock at line 478 — if another thread calls `button_handler_cleanup` concurrently, this is a data race on the initialized flag | verified-fixed | c0dde57 | Pattern: init-flag-no-lock |
+| R-011 | 2026-03-16 | MED | src/button/button_handler.c:660-662 | `button_handler_is_initialized` reads `ctx.initialized` without lock — same pattern as R-010, concurrent cleanup creates a race | verified-fixed | c0dde57 | Pattern: init-flag-no-lock |
+| R-012 | 2026-03-16 | LOW | src/led/led_controller.c:575-577 | `led_controller_is_initialized` reads `g_initialized` without lock — same volatile-but-not-atomic pattern | verified-fixed | c0dde57 | Pattern: init-flag-no-lock |
 | R-030 | 2026-03-16 | HIGH | src/detection/tracker.c:21-23 | `tracker_state_t g_state`, `g_config`, `g_initialized` accessed without mutex — `tracker_update`, `tracker_get_history`, `tracker_get_object` can race if called from different threads (e.g., detection thread vs HTTP status query) | verified-fixed | RC-004 | Pattern: missing-mutex-global-state |
 | R-031 | 2026-03-16 | HIGH | src/detection/classifier.c:19-20 | `classifier_classify` reads `g_config` and `g_initialized` without mutex — races possible if classifier_init/cleanup called from a different thread than classify | verified-fixed | RC-004 | Pattern: missing-mutex-global-state |
 | R-032 | 2026-03-16 | MED | src/detection/motion.c:33-50 | All motion detection global state unprotected by mutex — documented single-thread-only, but `motion_reset_background` (line 496) could be called from HTTP control task while detection thread is in `motion_detect`, corrupting background model | verified-fixed | RC-004 | Pattern: missing-mutex-global-state |
 | R-033 | 2026-03-16 | MED | src/qr/qr_scanner.c:23-30 | QR scanner uses `volatile bool g_initialized` but no mutex — `qr_scanner_cleanup` can race with `qr_scanner_scan_frame`/`qr_scanner_process`, causing use-after-free of `g_qr` or `g_source_gray` | verified-fixed | RC-004 | Pattern: volatile-not-mutex |
 | R-034 | 2026-03-16 | MED | src/storage/clip_recorder.c:1121-1126 | `clip_recorder_get_current_path` returns pointer to internal `g_current_clip` after releasing mutex — buffer can be overwritten by another thread starting a new clip before caller copies the string | open | | Pattern: return-internal-ptr-after-unlock |
-| R-044 | 2026-03-16 | HIGH | src/laser/targeting.c:631 | `targeting_update()` reads `g_state` after `TARGET_UNLOCK()` to pass to `st_cb3` callback. State can change between unlock and read, delivering wrong state to callback consumer. Must capture state into local var before unlocking | open | | Pattern: read-after-unlock |
-| R-045 | 2026-03-16 | HIGH | src/laser/laser_controller.c:869 | `laser_controller_cleanup()` sets `g_initialized = false` AFTER releasing the lock (line 861). Between unlock and this assignment, another thread can see `g_initialized == true`, acquire the lock, and call `gpio_set_laser(true)` on already-cleaned-up GPIO — use-after-cleanup race | open | | Pattern: cleanup-race |
-| R-046 | 2026-03-16 | MED | src/laser/laser_controller.c:370-371 | `laser_controller_on()` logs `get_cooldown_remaining_internal()` AFTER `LASER_UNLOCK()` on line 369. Reads `g_deactivation_time` without the lock, racing with concurrent writes. Log may show incorrect cooldown value | open | | Pattern: read-after-unlock |
-| R-047 | 2026-03-16 | MED | src/laser/coordinate_mapper.c:239-241 | `coord_mapper_load_calibration()` logs `g_calibration` fields after `COORD_UNLOCK()`. Reads of shared state without the lock are a data race, though impact is limited to incorrect log output | open | | Pattern: read-after-unlock |
+| R-044 | 2026-03-16 | HIGH | src/laser/targeting.c:631 | `targeting_update()` reads `g_state` after `TARGET_UNLOCK()` to pass to `st_cb3` callback. State can change between unlock and read, delivering wrong state to callback consumer. Must capture state into local var before unlocking | verified-fixed | 553678b | Pattern: read-after-unlock |
+| R-045 | 2026-03-16 | HIGH | src/laser/laser_controller.c:869 | `laser_controller_cleanup()` sets `g_initialized = false` AFTER releasing the lock (line 861). Between unlock and this assignment, another thread can see `g_initialized == true`, acquire the lock, and call `gpio_set_laser(true)` on already-cleaned-up GPIO — use-after-cleanup race | verified-fixed | 553678b | Pattern: cleanup-race |
+| R-046 | 2026-03-16 | MED | src/laser/laser_controller.c:370-371 | `laser_controller_on()` logs `get_cooldown_remaining_internal()` AFTER `LASER_UNLOCK()` on line 369. Reads `g_deactivation_time` without the lock, racing with concurrent writes. Log may show incorrect cooldown value | verified-fixed | 553678b | Pattern: read-after-unlock |
+| R-047 | 2026-03-16 | MED | src/laser/coordinate_mapper.c:239-241 | `coord_mapper_load_calibration()` logs `g_calibration` fields after `COORD_UNLOCK()`. Reads of shared state without the lock are a data race, though impact is limited to incorrect log output | verified-fixed | 553678b | Pattern: read-after-unlock |
 
 ### STATE — State Machine & Workflow Correctness
 
@@ -99,7 +99,7 @@ Single source of truth for all bugs, review findings, and technical debt.
 | R-013 | 2026-03-16 | MED | src/main.c:1613-1614 | AP timeout standalone fallback calls `motion_init(NULL)` — passing NULL config pointer may crash depending on motion_init implementation; should pass `&motion_cfg` with defaults like the normal path does | open | | |
 | R-014 | 2026-03-16 | MED | src/main.c:1714-1715 | After mDNS/default/fallback discovery, `config_manager_get_public(&cfg_snap)` masks api_key to "***" — the check `strlen(cfg_snap.server.api_key) == 0` on line 1715 will be FALSE for any claimed device since the masked value "***" has length 3, meaning the unclaimed check is always wrong for the public snapshot. However, this only matters if the api_key was already set, so it works by coincidence | open | | Pattern: masked-field-check |
 | R-015 | 2026-03-16 | LOW | src/main.c:1482-1484 | `main()` ignores argc/argv — the `config_load(NULL)` hardcodes "config.yaml". No way to specify a different config file path from the command line on Pi platform | open | | |
-| R-016 | 2026-03-16 | LOW | src/config/config_manager.c:1417-1422 | `config_manager_cleanup` sets `g_initialized = false` outside the lock — concurrent calls to config_manager functions that check `g_initialized` could see stale state | open | | Pattern: init-flag-no-lock |
+| R-016 | 2026-03-16 | LOW | src/config/config_manager.c:1417-1422 | `config_manager_cleanup` sets `g_initialized = false` outside the lock — concurrent calls to config_manager functions that check `g_initialized` could see stale state | verified-fixed | 553678b | Pattern: init-flag-no-lock |
 | R-035 | 2026-03-16 | MED | src/storage/clip_recorder.c:1044-1046 | `clip_recorder_feed_capture` does not handle `RECORD_STATE_ERROR` — if encoder fails mid-clip (sets state to ERROR at line 1045), subsequent `feed_capture` calls silently drop frames without recovery or finalization | open | | |
 | R-036 | 2026-03-16 | LOW | src/storage/storage_manager.c:157 | `storage_manager_get_stats` only counts `.mp4` files but ESP32 uses `.avi` extension — on ESP32, `get_stats` will always report 0 clips, preventing cleanup from triggering | open | | Pattern: mp4-only-file-filter |
 | R-037 | 2026-03-16 | LOW | src/storage/storage_manager.c:256 | `storage_manager_cleanup` also only scans for `.mp4` — same ESP32 `.avi` blind spot as R-036, cleanup will never delete ESP32 clips | open | | Pattern: mp4-only-file-filter |
@@ -170,7 +170,7 @@ Single source of truth for all bugs, review findings, and technical debt.
 **Scope:** src/config/config_manager.c, src/laser/targeting.c, src/laser/laser_controller.c, src/laser/coordinate_mapper.c
 **Effort:** S
 **Risk:** Low — mechanical refactor, no API changes
-**Status:** open
+**Status:** verified-fixed
 
 ### RC-003: init-flag-no-lock
 
@@ -181,7 +181,7 @@ Single source of truth for all bugs, review findings, and technical debt.
 **Scope:** src/button/button_handler.c, src/led/led_controller.c, src/config/config_manager.c, src/laser/laser_controller.c
 **Effort:** S
 **Risk:** Low — adding lock around flag access
-**Status:** open
+**Status:** verified-fixed
 
 ### RC-004: missing-mutex-global-state
 
