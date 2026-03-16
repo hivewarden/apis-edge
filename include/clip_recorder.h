@@ -2,7 +2,8 @@
  * Clip Recorder API
  *
  * Detection-triggered video clip recording with pre-roll support.
- * Records frames to H.264 MP4 files with automatic overlap handling.
+ * Records frames to H.264 MP4 files on host builds and MJPEG AVI clips on
+ * the ESP32 target.
  */
 
 #ifndef APIS_CLIP_RECORDER_H
@@ -15,7 +16,8 @@
 #define MAX_LINKED_EVENTS 10
 #define PRE_ROLL_SECONDS 2
 #define POST_ROLL_SECONDS 3
-#define CLIP_PATH_MAX 128
+#define CLIP_PATH_MAX 256
+#define CLIP_RECORDED_AT_MAX 32
 
 /**
  * Clip recorder status codes.
@@ -40,6 +42,13 @@ typedef enum {
     RECORD_STATE_ERROR,
 } record_state_t;
 
+typedef enum {
+    CLIP_RECORDER_OWNER_NONE = 0,
+    CLIP_RECORDER_OWNER_DETECTION,
+    CLIP_RECORDER_OWNER_SHADOW,
+    CLIP_RECORDER_OWNER_MANUAL,
+} clip_recorder_owner_t;
+
 /**
  * Clip recorder configuration.
  */
@@ -55,6 +64,7 @@ typedef struct {
  */
 typedef struct {
     char filepath[CLIP_PATH_MAX];              // Full path to recorded clip
+    char recorded_at[CLIP_RECORDED_AT_MAX];    // RFC3339 UTC timestamp
     uint32_t duration_ms;                      // Clip duration in ms
     uint32_t file_size;                        // File size in bytes
     int64_t linked_events[MAX_LINKED_EVENTS];  // Event IDs linked to this clip
@@ -95,6 +105,19 @@ clip_recorder_status_t clip_recorder_init(const clip_recorder_config_t *config);
 const char *clip_recorder_start(int64_t event_id);
 
 /**
+ * Start recording a new clip with an explicit target duration.
+ *
+ * @param event_id Event ID to link to this clip (<= 0 for manual/orphan clips)
+ * @param duration_ms Requested duration in milliseconds (0 = default post-roll)
+ * @return Path to clip file (NULL on error), points to internal buffer
+ */
+const char *clip_recorder_start_with_duration(int64_t event_id, uint32_t duration_ms);
+
+const char *clip_recorder_start_owned(int64_t event_id,
+                                      uint32_t duration_ms,
+                                      clip_recorder_owner_t owner);
+
+/**
  * Feed a frame to the clip recorder.
  * Call this from the main capture loop for every frame.
  * Frame is recorded if in recording state.
@@ -103,6 +126,12 @@ const char *clip_recorder_start(int64_t event_id);
  * @return true if clip was finalized this call
  */
 bool clip_recorder_feed_frame(const frame_t *frame);
+
+bool clip_recorder_feed_capture(const frame_t *frame,
+                                const uint8_t *jpeg_data,
+                                size_t jpeg_size,
+                                uint16_t jpeg_width,
+                                uint16_t jpeg_height);
 
 /**
  * Extend the current clip (for overlapping detections).
@@ -125,6 +154,7 @@ bool clip_recorder_is_recording(void);
  * @return Current state
  */
 record_state_t clip_recorder_get_state(void);
+clip_recorder_owner_t clip_recorder_get_owner(void);
 
 /**
  * Force stop recording (e.g., on shutdown).
@@ -134,6 +164,23 @@ record_state_t clip_recorder_get_state(void);
  * @return 0 if clip was finalized, -1 if no clip was recording
  */
 int clip_recorder_stop(clip_result_t *result);
+
+/**
+ * Abort the current clip without publishing a finalized result.
+ * Used to recover from encoder/write failures.
+ *
+ * @param remove_partial_file Remove the partially written clip from disk
+ * @return 0 if a clip was aborted, -1 if recorder was idle
+ */
+int clip_recorder_abort(bool remove_partial_file);
+
+/**
+ * Consume the most recently finalized clip result.
+ *
+ * @param result Output clip result
+ * @return 0 on success, -1 if no finalized result is pending
+ */
+int clip_recorder_consume_last_result(clip_result_t *result);
 
 /**
  * Get current clip filepath.

@@ -17,6 +17,7 @@
 #ifndef APIS_QR_SCANNER_H
 #define APIS_QR_SCANNER_H
 
+#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include "frame.h"
@@ -32,18 +33,50 @@ typedef enum {
     QR_SCANNER_ERROR_DECODE,    // QR decode error (not fatal)
 } qr_scanner_status_t;
 
+typedef enum {
+    QR_CLAIM_NONE = 0,
+    QR_CLAIM_API_KEY,
+    QR_CLAIM_TOKEN,
+} qr_claim_type_t;
+
 /**
  * Result of a QR code scan.
  */
 typedef struct {
     bool found;                 // True if a valid claiming QR was decoded
+    qr_claim_type_t claim_type; // What kind of claim material was decoded
     char server_url[256];       // Server URL from "s" field
     char api_key[64];           // API key from "k" field
+    char claim_token[64];       // Optional short-lived claim token from "t" field
 } qr_scan_result_t;
 
+typedef struct {
+    bool initialized;
+    int width;
+    int height;
+    int last_code_count;
+    char last_decode_error[48];
+    char last_decode_pass[32];
+    char operator_hint[64];
+    uint32_t frames_processed;
+    uint32_t frames_with_candidates;
+    uint32_t frames_with_payload;
+} qr_scanner_diagnostics_t;
+
 /**
- * Initialize the QR scanner.
- * Allocates quirc instance and resizes to frame dimensions.
+ * Initialize the QR scanner with custom resolution.
+ * Allocates quirc instance and resizes to specified dimensions.
+ * Use QVGA (320x240) on ESP32 for QR-only phase (~75KB PSRAM).
+ *
+ * @param width  Image width in pixels
+ * @param height Image height in pixels
+ * @return QR_SCANNER_OK on success, error code on failure
+ */
+qr_scanner_status_t qr_scanner_init_with_size(int width, int height);
+
+/**
+ * Initialize the QR scanner at default frame resolution (640x480).
+ * Convenience wrapper for qr_scanner_init_with_size(FRAME_WIDTH, FRAME_HEIGHT).
  *
  * @return QR_SCANNER_OK on success, error code on failure
  */
@@ -109,6 +142,13 @@ qr_scanner_status_t qr_scanner_feed_grayscale(const uint8_t *gray,
  * @return QR_SCANNER_OK on success (check result->found)
  */
 qr_scanner_status_t qr_scanner_process(qr_scan_result_t *result);
+
+/**
+ * Get current QR scanner diagnostics for operator feedback/debugging.
+ *
+ * @param out Output diagnostics snapshot
+ */
+void qr_scanner_get_diagnostics(qr_scanner_diagnostics_t *out);
 
 /* ── Internal / testable helpers (not part of public API) ──────────── */
 

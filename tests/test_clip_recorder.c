@@ -51,6 +51,8 @@ static void fill_test_frame(frame_t *frame, int pattern) {
     for (int i = 0; i < FRAME_SIZE; i++) {
         frame->data[i] = (uint8_t)((i + pattern) % 256);
     }
+    frame->width = FRAME_WIDTH;
+    frame->height = FRAME_HEIGHT;
     frame->valid = true;
     frame->sequence = pattern;
     frame->timestamp_ms = pattern * 100;
@@ -313,6 +315,47 @@ static void test_clip_recorder_states(void) {
     rolling_buffer_cleanup();
     cleanup_test_dir();
     TEST_PASS("Clip Recorder States");
+}
+
+/**
+ * Test aborting a failed clip resets the recorder and removes the partial file.
+ */
+static void test_clip_recorder_abort(void) {
+    printf("\n--- Test: Clip Recorder Abort ---\n");
+
+    clip_recorder_cleanup();
+    rolling_buffer_cleanup();
+    cleanup_test_dir();
+
+    rolling_buffer_init(NULL);
+
+    clip_recorder_config_t config = clip_recorder_config_defaults();
+    snprintf(config.output_dir, sizeof(config.output_dir), "%s", TEST_CLIPS_DIR);
+    clip_recorder_init(&config);
+
+    const char *clip_path = clip_recorder_start(321);
+    TEST_ASSERT(clip_path != NULL, "Should return clip path");
+
+    char saved_path[CLIP_PATH_MAX];
+    snprintf(saved_path, sizeof(saved_path), "%s", clip_path);
+
+    FILE *partial = fopen(saved_path, "wb");
+    TEST_ASSERT(partial != NULL, "Should create partial clip file");
+    if (partial != NULL) {
+        fwrite("partial", 1, 7, partial);
+        fclose(partial);
+    }
+
+    TEST_ASSERT(access(saved_path, F_OK) == 0, "Partial clip file exists before abort");
+    TEST_ASSERT(clip_recorder_abort(true) == 0, "Abort should succeed");
+    TEST_ASSERT(clip_recorder_get_state() == RECORD_STATE_IDLE, "Abort resets state to IDLE");
+    TEST_ASSERT(!clip_recorder_is_recording(), "Abort clears recording state");
+    TEST_ASSERT(access(saved_path, F_OK) != 0, "Abort removes partial clip file");
+
+    clip_recorder_cleanup();
+    rolling_buffer_cleanup();
+    cleanup_test_dir();
+    TEST_PASS("Clip Recorder Abort");
 }
 
 /**
@@ -618,6 +661,7 @@ int main(void) {
     test_storage_manager_init();
     test_clip_recorder_init();
     test_clip_recorder_states();
+    test_clip_recorder_abort();
     test_clip_natural_finalization();
     test_error_handling();
     test_status_strings();

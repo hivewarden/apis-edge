@@ -14,17 +14,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 #include <pthread.h>
 #elif defined(APIS_PLATFORM_ESP32)
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "img_converters.h"
 #endif
 
 #ifdef APIS_PLATFORM_PI
 #include <sys/stat.h>
-#include <errno.h>
 // FFmpeg headers for H.264 encoding
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -56,8 +59,14 @@ static record_state_t g_state = RECORD_STATE_IDLE;
 static char g_current_clip[CLIP_PATH_MAX];
 static uint32_t g_record_start_ms = 0;
 static uint32_t g_extend_until_ms = 0;
+static clip_recorder_owner_t g_owner = CLIP_RECORDER_OWNER_NONE;
+static uint16_t g_record_width = FRAME_WIDTH;
+static uint16_t g_record_height = FRAME_HEIGHT;
 static int64_t g_linked_events[MAX_LINKED_EVENTS];
 static int g_linked_count = 0;
+static char g_recorded_at[CLIP_RECORDED_AT_MAX];
+static clip_result_t g_last_result;
+static bool g_last_result_available = false;
 static bool g_initialized = false;
 
 #ifdef APIS_PLATFORM_PI
@@ -68,6 +77,20 @@ static AVStream *g_stream = NULL;
 static struct SwsContext *g_sws_ctx = NULL;
 static AVFrame *g_frame = NULL;
 static int g_frame_count = 0;
+#elif defined(APIS_PLATFORM_ESP32)
+#define AVI_MAX_FRAMES 96
+#define AVI_MJPEG_QUALITY 80
+
+static FILE *g_avi_fp = NULL;
+static uint32_t g_avi_frame_offsets[AVI_MAX_FRAMES];
+static uint32_t g_avi_frame_sizes[AVI_MAX_FRAMES];
+static uint32_t g_avi_frame_count = 0;
+static uint32_t g_last_written_frame_ts_ms = 0;
+static long g_avi_riff_size_offset = 0;
+static long g_avi_total_frames_offset = 0;
+static long g_avi_stream_length_offset = 0;
+static long g_avi_movi_size_offset = 0;
+static long g_avi_movi_fourcc_offset = 0;
 #endif
 
 /**
@@ -94,6 +117,10 @@ static bool is_event_linked(int64_t event_id) {
  * @return true if event was added, false if already linked or list full
  */
 static bool link_event_if_new(int64_t event_id) {
+    if (event_id <= 0) {
+        return false;
+    }
+
     if (g_linked_count >= MAX_LINKED_EVENTS) {
         LOG_WARN("Cannot link event %lld: max linked events reached (%d)",
                  (long long)event_id, MAX_LINKED_EVENTS);
@@ -111,8 +138,16 @@ static bool link_event_if_new(int64_t event_id) {
 clip_recorder_config_t clip_recorder_config_defaults(void) {
     clip_recorder_config_t config;
     memset(&config, 0, sizeof(config));
+#ifdef APIS_PLATFORM_ESP32
+    snprintf(config.output_dir, sizeof(config.output_dir), "/data/clips");
+#else
     snprintf(config.output_dir, sizeof(config.output_dir), "./data/clips");
+#endif
+#ifdef APIS_PLATFORM_ESP32
+    config.fps = 5;
+#else
     config.fps = 10;
+#endif
     config.pre_roll_seconds = PRE_ROLL_SECONDS;
     config.post_roll_seconds = POST_ROLL_SECONDS;
     return config;
@@ -126,13 +161,31 @@ static void generate_filename(char *buf, size_t size) {
     time_t now = time(NULL);
     struct tm tm_buf;
     struct tm *tm = localtime_r(&now, &tm_buf);
+#ifdef APIS_PLATFORM_ESP32
+    const char *extension = "avi";
+#else
+    const char *extension = "mp4";
+#endif
     if (tm) {
-        snprintf(buf, size, "%s/det_%04d%02d%02d_%02d%02d%02d.mp4",
+        snprintf(buf, size, "%s/det_%04d%02d%02d_%02d%02d%02d.%s",
                  g_config.output_dir,
                  tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
-                 tm->tm_hour, tm->tm_min, tm->tm_sec);
+                 tm->tm_hour, tm->tm_min, tm->tm_sec,
+                 extension);
     } else {
-        snprintf(buf, size, "%s/det_unknown.mp4", g_config.output_dir);
+        snprintf(buf, size, "%s/det_unknown.%s", g_config.output_dir, extension);
+    }
+}
+
+static void set_recorded_at_now(char *buf, size_t size) {
+    time_t now = time(NULL);
+    struct tm tm_buf;
+    struct tm *tm = gmtime_r(&now, &tm_buf);
+
+    if (tm != NULL) {
+        strftime(buf, size, "%Y-%m-%dT%H:%M:%SZ", tm);
+    } else {
+        snprintf(buf, size, "1970-01-01T00:00:00Z");
     }
 }
 
@@ -214,8 +267,8 @@ static int init_encoder(const char *filepath) {
 
     g_codec_ctx->codec_id = AV_CODEC_ID_H264;
     g_codec_ctx->codec_type = AVMEDIA_TYPE_VIDEO;
-    g_codec_ctx->width = FRAME_WIDTH;
-    g_codec_ctx->height = FRAME_HEIGHT;
+    g_codec_ctx->width = g_record_width;
+    g_codec_ctx->height = g_record_height;
     g_codec_ctx->time_base = (AVRational){1, g_config.fps};
     g_codec_ctx->framerate = (AVRational){g_config.fps, 1};
     g_codec_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
@@ -294,8 +347,8 @@ static int init_encoder(const char *filepath) {
 
     // Create scaler for BGR to YUV conversion
     g_sws_ctx = sws_getContext(
-        FRAME_WIDTH, FRAME_HEIGHT, AV_PIX_FMT_BGR24,
-        FRAME_WIDTH, FRAME_HEIGHT, AV_PIX_FMT_YUV420P,
+        g_record_width, g_record_height, AV_PIX_FMT_BGR24,
+        g_record_width, g_record_height, AV_PIX_FMT_YUV420P,
         SWS_BILINEAR, NULL, NULL, NULL
     );
 
@@ -334,9 +387,9 @@ static int encode_frame(const uint8_t *bgr_data) {
 
     // Convert BGR to YUV
     const uint8_t *src_slices[1] = {bgr_data};
-    int src_strides[1] = {FRAME_WIDTH * 3};
+    int src_strides[1] = {g_record_width * 3};
 
-    sws_scale(g_sws_ctx, src_slices, src_strides, 0, FRAME_HEIGHT,
+    sws_scale(g_sws_ctx, src_slices, src_strides, 0, g_record_height,
               g_frame->data, g_frame->linesize);
 
     g_frame->pts = g_frame_count++;
@@ -419,6 +472,339 @@ static void close_encoder(void) {
 }
 #endif // APIS_PLATFORM_PI
 
+#ifdef APIS_PLATFORM_ESP32
+static bool write_u16_le(FILE *fp, uint16_t value) {
+    uint8_t bytes[2] = {
+        (uint8_t)(value & 0xFF),
+        (uint8_t)((value >> 8) & 0xFF),
+    };
+    return fwrite(bytes, 1, sizeof(bytes), fp) == sizeof(bytes);
+}
+
+static bool write_u32_le(FILE *fp, uint32_t value) {
+    uint8_t bytes[4] = {
+        (uint8_t)(value & 0xFF),
+        (uint8_t)((value >> 8) & 0xFF),
+        (uint8_t)((value >> 16) & 0xFF),
+        (uint8_t)((value >> 24) & 0xFF),
+    };
+    return fwrite(bytes, 1, sizeof(bytes), fp) == sizeof(bytes);
+}
+
+static bool write_fourcc(FILE *fp, const char *fourcc) {
+    return fwrite(fourcc, 1, 4, fp) == 4;
+}
+
+static bool patch_u32_le(FILE *fp, long offset, uint32_t value) {
+    long current = ftell(fp);
+    if (current < 0) {
+        return false;
+    }
+
+    if (fseek(fp, offset, SEEK_SET) != 0) {
+        return false;
+    }
+
+    bool ok = write_u32_le(fp, value);
+    if (fseek(fp, current, SEEK_SET) != 0) {
+        return false;
+    }
+    return ok;
+}
+
+static uint32_t frame_interval_ms(void) {
+    return (g_config.fps > 0) ? (1000U / g_config.fps) : 200U;
+}
+
+static bool should_write_frame(uint32_t timestamp_ms) {
+    if (g_avi_frame_count == 0 || g_last_written_frame_ts_ms == 0) {
+        g_last_written_frame_ts_ms = timestamp_ms;
+        return true;
+    }
+
+    if ((timestamp_ms - g_last_written_frame_ts_ms) >= frame_interval_ms()) {
+        g_last_written_frame_ts_ms = timestamp_ms;
+        return true;
+    }
+
+    return false;
+}
+
+static int init_avi_writer(const char *filepath, uint16_t width, uint16_t height) {
+    long strl_size_offset;
+    long hdrl_end;
+
+    g_avi_fp = fopen(filepath, "wb");
+    if (g_avi_fp == NULL) {
+        LOG_ERROR("Could not open AVI output file: %s", filepath);
+        return -1;
+    }
+
+    memset(g_avi_frame_offsets, 0, sizeof(g_avi_frame_offsets));
+    memset(g_avi_frame_sizes, 0, sizeof(g_avi_frame_sizes));
+    g_avi_frame_count = 0;
+    g_last_written_frame_ts_ms = 0;
+
+    if (!write_fourcc(g_avi_fp, "RIFF")) {
+        return -1;
+    }
+    g_avi_riff_size_offset = ftell(g_avi_fp);
+    if (!write_u32_le(g_avi_fp, 0) ||
+        !write_fourcc(g_avi_fp, "AVI ")) {
+        return -1;
+    }
+
+    if (!write_fourcc(g_avi_fp, "LIST")) {
+        return -1;
+    }
+    long hdrl_size_offset = ftell(g_avi_fp);
+    if (!write_u32_le(g_avi_fp, 0) ||
+        !write_fourcc(g_avi_fp, "hdrl")) {
+        return -1;
+    }
+
+    if (!write_fourcc(g_avi_fp, "avih") ||
+        !write_u32_le(g_avi_fp, 56) ||
+        !write_u32_le(g_avi_fp, 1000000U / (g_config.fps > 0 ? g_config.fps : 1)) ||
+        !write_u32_le(g_avi_fp, (uint32_t)width * height * g_config.fps) ||
+        !write_u32_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, 0x10)) {
+        return -1;
+    }
+    g_avi_total_frames_offset = ftell(g_avi_fp);
+    if (!write_u32_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, 1) ||
+        !write_u32_le(g_avi_fp, (uint32_t)width * height * FRAME_CHANNELS) ||
+        !write_u32_le(g_avi_fp, width) ||
+        !write_u32_le(g_avi_fp, height) ||
+        !write_u32_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, 0)) {
+        return -1;
+    }
+
+    if (!write_fourcc(g_avi_fp, "LIST")) {
+        return -1;
+    }
+    strl_size_offset = ftell(g_avi_fp);
+    if (!write_u32_le(g_avi_fp, 0) ||
+        !write_fourcc(g_avi_fp, "strl")) {
+        return -1;
+    }
+
+    if (!write_fourcc(g_avi_fp, "strh") ||
+        !write_u32_le(g_avi_fp, 56) ||
+        !write_fourcc(g_avi_fp, "vids") ||
+        !write_fourcc(g_avi_fp, "MJPG") ||
+        !write_u32_le(g_avi_fp, 0) ||
+        !write_u16_le(g_avi_fp, 0) ||
+        !write_u16_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, 1) ||
+        !write_u32_le(g_avi_fp, g_config.fps) ||
+        !write_u32_le(g_avi_fp, 0)) {
+        return -1;
+    }
+    g_avi_stream_length_offset = ftell(g_avi_fp);
+    if (!write_u32_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, (uint32_t)width * height * FRAME_CHANNELS) ||
+        !write_u32_le(g_avi_fp, 0xFFFFFFFFU) ||
+        !write_u32_le(g_avi_fp, 0) ||
+        !write_u16_le(g_avi_fp, 0) ||
+        !write_u16_le(g_avi_fp, 0) ||
+        !write_u16_le(g_avi_fp, width) ||
+        !write_u16_le(g_avi_fp, height)) {
+        return -1;
+    }
+
+    if (!write_fourcc(g_avi_fp, "strf") ||
+        !write_u32_le(g_avi_fp, 40) ||
+        !write_u32_le(g_avi_fp, 40) ||
+        !write_u32_le(g_avi_fp, width) ||
+        !write_u32_le(g_avi_fp, height) ||
+        !write_u16_le(g_avi_fp, 1) ||
+        !write_u16_le(g_avi_fp, 24) ||
+        !write_fourcc(g_avi_fp, "MJPG") ||
+        !write_u32_le(g_avi_fp, (uint32_t)width * height * FRAME_CHANNELS) ||
+        !write_u32_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, 0) ||
+        !write_u32_le(g_avi_fp, 0)) {
+        return -1;
+    }
+
+    hdrl_end = ftell(g_avi_fp);
+    if (!patch_u32_le(g_avi_fp, strl_size_offset,
+                      (uint32_t)(hdrl_end - (strl_size_offset + 4))) ||
+        !patch_u32_le(g_avi_fp, hdrl_size_offset,
+                      (uint32_t)(hdrl_end - (hdrl_size_offset + 4)))) {
+        return -1;
+    }
+
+    if (!write_fourcc(g_avi_fp, "LIST")) {
+        return -1;
+    }
+    g_avi_movi_size_offset = ftell(g_avi_fp);
+    g_avi_movi_fourcc_offset = g_avi_movi_size_offset + 4;
+    if (!write_u32_le(g_avi_fp, 0) ||
+        !write_fourcc(g_avi_fp, "movi")) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int write_avi_frame(const uint8_t *jpeg_data, size_t jpeg_size) {
+    if (g_avi_fp == NULL || jpeg_data == NULL || jpeg_size == 0) {
+        return -1;
+    }
+
+    if (g_avi_frame_count >= AVI_MAX_FRAMES) {
+        LOG_WARN("AVI frame limit reached (%u frames)", AVI_MAX_FRAMES);
+        return -1;
+    }
+
+    long chunk_offset = ftell(g_avi_fp);
+    if (chunk_offset < 0) {
+        return -1;
+    }
+
+    g_avi_frame_offsets[g_avi_frame_count] =
+        (uint32_t)(chunk_offset - g_avi_movi_fourcc_offset);
+    g_avi_frame_sizes[g_avi_frame_count] = (uint32_t)jpeg_size;
+
+    if (!write_fourcc(g_avi_fp, "00dc") ||
+        !write_u32_le(g_avi_fp, (uint32_t)jpeg_size) ||
+        fwrite(jpeg_data, 1, jpeg_size, g_avi_fp) != jpeg_size) {
+        return -1;
+    }
+
+    if ((jpeg_size & 1U) != 0U) {
+        fputc(0, g_avi_fp);
+    }
+
+    g_avi_frame_count++;
+    return 0;
+}
+
+static int encode_frame_esp32(const uint8_t *bgr_data, uint16_t width,
+                              uint16_t height, uint32_t timestamp_ms) {
+    uint8_t *jpeg_data = NULL;
+    size_t jpeg_size = 0;
+    int result = -1;
+
+    if (!should_write_frame(timestamp_ms)) {
+        return 0;
+    }
+
+    if (!fmt2jpg((uint8_t *)bgr_data,
+                 (size_t)width * height * FRAME_CHANNELS,
+                 width,
+                 height,
+                 PIXFORMAT_RGB888,
+                 AVI_MJPEG_QUALITY,
+                 &jpeg_data,
+                 &jpeg_size)) {
+        LOG_WARN("ESP32 JPEG conversion failed");
+        return -1;
+    }
+
+    result = write_avi_frame(jpeg_data, jpeg_size);
+    free(jpeg_data);
+    return result;
+}
+
+static int write_capture_frame_esp32(const uint8_t *bgr_data,
+                                     uint16_t width,
+                                     uint16_t height,
+                                     uint32_t timestamp_ms,
+                                     const uint8_t *jpeg_data,
+                                     size_t jpeg_size,
+                                     uint16_t jpeg_width,
+                                     uint16_t jpeg_height) {
+    if (bgr_data == NULL) {
+        return -1;
+    }
+
+    if (jpeg_data != NULL && jpeg_size > 0 &&
+        jpeg_width == g_record_width &&
+        jpeg_height == g_record_height) {
+        if (!should_write_frame(timestamp_ms)) {
+            return 0;
+        }
+        return write_avi_frame(jpeg_data, jpeg_size);
+    }
+
+    return encode_frame_esp32(bgr_data, width, height, timestamp_ms);
+}
+
+static void close_avi_writer(void) {
+    long movi_end;
+    long file_end;
+
+    if (g_avi_fp == NULL) {
+        return;
+    }
+
+    movi_end = ftell(g_avi_fp);
+
+    if (write_fourcc(g_avi_fp, "idx1") &&
+        write_u32_le(g_avi_fp, g_avi_frame_count * 16U)) {
+        for (uint32_t i = 0; i < g_avi_frame_count; i++) {
+            if (!write_fourcc(g_avi_fp, "00dc") ||
+                !write_u32_le(g_avi_fp, 0x10) ||
+                !write_u32_le(g_avi_fp, g_avi_frame_offsets[i]) ||
+                !write_u32_le(g_avi_fp, g_avi_frame_sizes[i])) {
+                break;
+            }
+        }
+    }
+
+    file_end = ftell(g_avi_fp);
+
+    patch_u32_le(g_avi_fp, g_avi_riff_size_offset, (uint32_t)(file_end - 8));
+    patch_u32_le(g_avi_fp, g_avi_total_frames_offset, g_avi_frame_count);
+    patch_u32_le(g_avi_fp, g_avi_stream_length_offset, g_avi_frame_count);
+    patch_u32_le(g_avi_fp, g_avi_movi_size_offset,
+                 (uint32_t)(movi_end - (g_avi_movi_size_offset + 4)));
+
+    fclose(g_avi_fp);
+    g_avi_fp = NULL;
+}
+#endif
+
+static uint32_t get_file_size_bytes(const char *filepath) {
+    struct stat st;
+    if (filepath == NULL) {
+        return 0;
+    }
+
+    if (stat(filepath, &st) == 0) {
+        return (uint32_t)st.st_size;
+    }
+
+    return 0;
+}
+
+static void populate_result_locked(clip_result_t *result, uint32_t end_ms) {
+    if (result == NULL) {
+        return;
+    }
+
+    memset(result, 0, sizeof(*result));
+    snprintf(result->filepath, sizeof(result->filepath), "%s", g_current_clip);
+    snprintf(result->recorded_at, sizeof(result->recorded_at), "%s", g_recorded_at);
+    result->linked_count = g_linked_count;
+    if (g_linked_count > 0) {
+        memcpy(result->linked_events, g_linked_events,
+               g_linked_count * sizeof(int64_t));
+    }
+    result->duration_ms = end_ms - g_record_start_ms;
+    result->file_size = get_file_size_bytes(g_current_clip);
+}
+
 clip_recorder_status_t clip_recorder_init(const clip_recorder_config_t *config) {
     CLIP_LOCK();
 
@@ -443,8 +829,14 @@ clip_recorder_status_t clip_recorder_init(const clip_recorder_config_t *config) 
 #endif
 
     g_state = RECORD_STATE_IDLE;
+    g_owner = CLIP_RECORDER_OWNER_NONE;
+    g_record_width = FRAME_WIDTH;
+    g_record_height = FRAME_HEIGHT;
     g_linked_count = 0;
     g_current_clip[0] = '\0';
+    g_recorded_at[0] = '\0';
+    memset(&g_last_result, 0, sizeof(g_last_result));
+    g_last_result_available = false;
     g_initialized = true;
 
     CLIP_UNLOCK();
@@ -478,6 +870,22 @@ bool clip_recorder_is_initialized(void) {
  * written concurrently during the function call itself.
  */
 const char *clip_recorder_start(int64_t event_id) {
+    return clip_recorder_start_owned(event_id, 0, CLIP_RECORDER_OWNER_DETECTION);
+}
+
+const char *clip_recorder_start_with_duration(int64_t event_id, uint32_t duration_ms) {
+    return clip_recorder_start_owned(event_id, duration_ms, CLIP_RECORDER_OWNER_DETECTION);
+}
+
+const char *clip_recorder_start_owned(int64_t event_id,
+                                      uint32_t duration_ms,
+                                      clip_recorder_owner_t owner) {
+    uint32_t target_duration_ms;
+    buffered_frame_t *pre_roll = NULL;
+    int pre_roll_count = 0;
+    uint16_t inferred_width = FRAME_WIDTH;
+    uint16_t inferred_height = FRAME_HEIGHT;
+
     CLIP_LOCK();
 
     if (!g_initialized) {
@@ -486,9 +894,13 @@ const char *clip_recorder_start(int64_t event_id) {
         return NULL;
     }
 
+    target_duration_ms = duration_ms > 0
+        ? duration_ms
+        : (uint32_t)g_config.post_roll_seconds * 1000U;
+
     if (g_state == RECORD_STATE_RECORDING || g_state == RECORD_STATE_EXTENDING) {
         // Already recording - extend instead (inline to keep mutex held)
-        uint32_t new_end = get_time_ms() + (g_config.post_roll_seconds * 1000);
+        uint32_t new_end = get_time_ms() + target_duration_ms;
         if (new_end > g_extend_until_ms) {
             g_extend_until_ms = new_end;
             g_state = RECORD_STATE_EXTENDING;
@@ -507,26 +919,44 @@ const char *clip_recorder_start(int64_t event_id) {
     // Generate filename
     generate_filename(g_current_clip, sizeof(g_current_clip));
 
-    // Link event
-    g_linked_events[0] = event_id;
-    g_linked_count = 1;
+    g_linked_count = 0;
+    memset(g_linked_events, 0, sizeof(g_linked_events));
+    link_event_if_new(event_id);
+    set_recorded_at_now(g_recorded_at, sizeof(g_recorded_at));
+    g_last_result_available = false;
+    g_owner = owner;
+
+    pre_roll = rolling_buffer_alloc_frames(MAX_BUFFER_FRAMES);
+    if (pre_roll != NULL) {
+        pre_roll_count = rolling_buffer_get_all(pre_roll);
+        for (int i = 0; i < pre_roll_count; i++) {
+            if (!pre_roll[i].valid) {
+                continue;
+            }
+            if (pre_roll[i].jpeg_size > 0 && pre_roll[i].jpeg_width > 0 && pre_roll[i].jpeg_height > 0) {
+                inferred_width = pre_roll[i].jpeg_width;
+                inferred_height = pre_roll[i].jpeg_height;
+                break;
+            }
+            if (pre_roll[i].width > 0 && pre_roll[i].height > 0) {
+                inferred_width = pre_roll[i].width;
+                inferred_height = pre_roll[i].height;
+            }
+        }
+    }
+    g_record_width = inferred_width;
+    g_record_height = inferred_height;
 
 #ifdef APIS_PLATFORM_PI
     // Initialize encoder
     if (init_encoder(g_current_clip) < 0) {
         g_state = RECORD_STATE_ERROR;
+        rolling_buffer_free_frames(pre_roll, MAX_BUFFER_FRAMES);
         CLIP_UNLOCK();
         return NULL;
     }
 
-    // Write pre-roll frames from rolling buffer
-    // Allocate frame array with data buffers for thread-safe copy
-    buffered_frame_t *pre_roll = rolling_buffer_alloc_frames(MAX_BUFFER_FRAMES);
-    int pre_roll_count = 0;
-
     if (pre_roll != NULL) {
-        pre_roll_count = rolling_buffer_get_all(pre_roll);
-
         for (int i = 0; i < pre_roll_count; i++) {
             if (pre_roll[i].valid && pre_roll[i].data) {
                 encode_frame(pre_roll[i].data);
@@ -539,17 +969,41 @@ const char *clip_recorder_start(int64_t event_id) {
     }
 
     LOG_INFO("Started clip: %s with %d pre-roll frames", g_current_clip, pre_roll_count);
+#elif defined(APIS_PLATFORM_ESP32)
+    if (init_avi_writer(g_current_clip, g_record_width, g_record_height) < 0) {
+        g_state = RECORD_STATE_ERROR;
+        rolling_buffer_free_frames(pre_roll, MAX_BUFFER_FRAMES);
+        CLIP_UNLOCK();
+        return NULL;
+    }
+
+    if (pre_roll != NULL) {
+        for (int i = 0; i < pre_roll_count; i++) {
+            if (pre_roll[i].valid && pre_roll[i].data != NULL) {
+                if (write_capture_frame_esp32(pre_roll[i].data,
+                                              pre_roll[i].width,
+                                              pre_roll[i].height,
+                                              pre_roll[i].timestamp_ms,
+                                              pre_roll[i].jpeg_data,
+                                              pre_roll[i].jpeg_size,
+                                              pre_roll[i].jpeg_width,
+                                              pre_roll[i].jpeg_height) < 0) {
+                    LOG_WARN("Failed to encode pre-roll frame %d", i);
+                }
+            }
+        }
+
+        rolling_buffer_free_frames(pre_roll, MAX_BUFFER_FRAMES);
+    }
+
+    LOG_INFO("Started clip: %s with %d pre-roll frames", g_current_clip, pre_roll_count);
 #else
-    // ESP32: MVP uses JPEG sequence approach (frames saved individually)
-    // TODO(ESP32): Implement encoder_esp32.c with hardware JPEG encoding
-    // when porting to production ESP32 firmware. For now, log only - frames
-    // are still tracked in rolling buffer but not persisted to flash.
-    LOG_INFO("Started clip (ESP32 mode): %s (stub - frames not persisted)", g_current_clip);
+    LOG_INFO("Started clip: %s", g_current_clip);
 #endif
 
     g_state = RECORD_STATE_RECORDING;
     g_record_start_ms = get_time_ms();
-    g_extend_until_ms = g_record_start_ms + (g_config.post_roll_seconds * 1000);
+    g_extend_until_ms = g_record_start_ms + target_duration_ms;
 
     CLIP_UNLOCK();
 
@@ -557,6 +1011,14 @@ const char *clip_recorder_start(int64_t event_id) {
 }
 
 bool clip_recorder_feed_frame(const frame_t *frame) {
+    return clip_recorder_feed_capture(frame, NULL, 0, 0, 0);
+}
+
+bool clip_recorder_feed_capture(const frame_t *frame,
+                                const uint8_t *jpeg_data,
+                                size_t jpeg_size,
+                                uint16_t jpeg_width,
+                                uint16_t jpeg_height) {
     if (frame == NULL) {
         return false;
     }
@@ -573,6 +1035,16 @@ bool clip_recorder_feed_frame(const frame_t *frame) {
     if (g_state == RECORD_STATE_RECORDING || g_state == RECORD_STATE_EXTENDING) {
 #ifdef APIS_PLATFORM_PI
         encode_frame(frame->data);
+#elif defined(APIS_PLATFORM_ESP32)
+        if (write_capture_frame_esp32(frame->data,
+                                      frame->width,
+                                      frame->height,
+                                      frame->timestamp_ms,
+                                      jpeg_data, jpeg_size,
+                                      jpeg_width, jpeg_height) < 0) {
+            g_state = RECORD_STATE_ERROR;
+            LOG_ERROR("Failed to encode ESP32 clip frame");
+        }
 #endif
 
         // Check if recording should end
@@ -585,13 +1057,19 @@ bool clip_recorder_feed_frame(const frame_t *frame) {
 
 #ifdef APIS_PLATFORM_PI
             close_encoder();
+#elif defined(APIS_PLATFORM_ESP32)
+            close_avi_writer();
 #endif
+
+            populate_result_locked(&g_last_result, now);
+            g_last_result_available = true;
 
             uint32_t duration_ms = now - g_record_start_ms;
             LOG_INFO("Finalized clip: %s (duration: %u ms, linked to %d events)",
                      g_current_clip, duration_ms, g_linked_count);
 
             g_state = RECORD_STATE_IDLE;
+            g_owner = CLIP_RECORDER_OWNER_NONE;
             finalized = true;
         }
     }
@@ -633,6 +1111,13 @@ record_state_t clip_recorder_get_state(void) {
     return state;
 }
 
+clip_recorder_owner_t clip_recorder_get_owner(void) {
+    CLIP_LOCK();
+    clip_recorder_owner_t owner = g_owner;
+    CLIP_UNLOCK();
+    return owner;
+}
+
 const char *clip_recorder_get_current_path(void) {
     CLIP_LOCK();
     const char *path = (g_state != RECORD_STATE_IDLE) ? g_current_clip : NULL;
@@ -641,6 +1126,8 @@ const char *clip_recorder_get_current_path(void) {
 }
 
 int clip_recorder_stop(clip_result_t *result) {
+    uint32_t now = 0;
+
     CLIP_LOCK();
 
     if (g_state == RECORD_STATE_IDLE) {
@@ -648,35 +1135,100 @@ int clip_recorder_stop(clip_result_t *result) {
         return -1;
     }
 
+    now = get_time_ms();
+
 #ifdef APIS_PLATFORM_PI
     close_encoder();
+#elif defined(APIS_PLATFORM_ESP32)
+    close_avi_writer();
 #endif
 
+    populate_result_locked(&g_last_result, now);
+    g_last_result_available = true;
     if (result) {
-        memset(result, 0, sizeof(*result));
-        snprintf(result->filepath, sizeof(result->filepath), "%s", g_current_clip);
-        result->linked_count = g_linked_count;
-        if (g_linked_count > 0) {
-            memcpy(result->linked_events, g_linked_events,
-                   g_linked_count * sizeof(int64_t));
-        }
-        result->duration_ms = get_time_ms() - g_record_start_ms;
-
-#ifdef APIS_PLATFORM_PI
-        // Get file size
-        struct stat st;
-        if (stat(g_current_clip, &st) == 0) {
-            result->file_size = (uint32_t)st.st_size;
-        }
-#endif
+        *result = g_last_result;
     }
 
     g_state = RECORD_STATE_IDLE;
+    g_owner = CLIP_RECORDER_OWNER_NONE;
+    g_record_width = FRAME_WIDTH;
+    g_record_height = FRAME_HEIGHT;
 
     CLIP_UNLOCK();
 
     LOG_INFO("Clip stopped: %s", g_current_clip);
 
+    return 0;
+}
+
+int clip_recorder_abort(bool remove_partial_file) {
+    char clip_path[CLIP_PATH_MAX] = {0};
+    bool had_clip = false;
+
+    CLIP_LOCK();
+
+    if (g_state == RECORD_STATE_IDLE) {
+        CLIP_UNLOCK();
+        return -1;
+    }
+
+    if (g_current_clip[0] != '\0') {
+        snprintf(clip_path, sizeof(clip_path), "%s", g_current_clip);
+        had_clip = true;
+    }
+
+#ifdef APIS_PLATFORM_PI
+    close_encoder();
+#elif defined(APIS_PLATFORM_ESP32)
+    close_avi_writer();
+#endif
+
+    g_state = RECORD_STATE_IDLE;
+    g_owner = CLIP_RECORDER_OWNER_NONE;
+    g_record_width = FRAME_WIDTH;
+    g_record_height = FRAME_HEIGHT;
+    g_record_start_ms = 0;
+    g_extend_until_ms = 0;
+    g_linked_count = 0;
+    memset(g_linked_events, 0, sizeof(g_linked_events));
+    g_current_clip[0] = '\0';
+    g_recorded_at[0] = '\0';
+    g_last_result_available = false;
+    memset(&g_last_result, 0, sizeof(g_last_result));
+
+    CLIP_UNLOCK();
+
+    if (remove_partial_file && had_clip) {
+        if (unlink(clip_path) == 0) {
+            LOG_WARN("Removed partial clip after abort: %s", clip_path);
+        } else if (errno != ENOENT) {
+            LOG_WARN("Failed to remove partial clip %s: %s",
+                     clip_path, strerror(errno));
+        }
+    }
+
+    if (had_clip) {
+        LOG_WARN("Aborted clip recording: %s", clip_path);
+    } else {
+        LOG_WARN("Aborted clip recording");
+    }
+
+    return 0;
+}
+
+int clip_recorder_consume_last_result(clip_result_t *result) {
+    CLIP_LOCK();
+
+    if (!g_last_result_available || result == NULL) {
+        CLIP_UNLOCK();
+        return -1;
+    }
+
+    *result = g_last_result;
+    g_last_result_available = false;
+    memset(&g_last_result, 0, sizeof(g_last_result));
+
+    CLIP_UNLOCK();
     return 0;
 }
 
@@ -704,10 +1256,18 @@ void clip_recorder_cleanup(void) {
     if (g_state != RECORD_STATE_IDLE) {
         close_encoder();
     }
+#elif defined(APIS_PLATFORM_ESP32)
+    if (g_state != RECORD_STATE_IDLE) {
+        close_avi_writer();
+    }
 #endif
 
     g_state = RECORD_STATE_IDLE;
+    g_owner = CLIP_RECORDER_OWNER_NONE;
+    g_record_width = FRAME_WIDTH;
+    g_record_height = FRAME_HEIGHT;
     g_initialized = false;
+    g_last_result_available = false;
 
     CLIP_UNLOCK();
 

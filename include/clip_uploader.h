@@ -17,6 +17,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "edge_sync_schema.h"
+
 // ============================================================================
 // Configuration Constants
 // ============================================================================
@@ -31,17 +33,34 @@
 
 #define CLIP_PATH_MAX           256
 #define DETECTION_ID_MAX        64
+#define RECORDED_AT_MAX         32
+#define CLIP_ID_MAX             EDGE_SYNC_ID_MAX
+#define ENCOUNTER_ID_MAX        EDGE_SYNC_ID_MAX
+#define ACTIVATION_ID_MAX       EDGE_SYNC_ID_MAX
 
 // ============================================================================
 // Types
 // ============================================================================
+
+typedef struct {
+    char clip_path[CLIP_PATH_MAX];
+    char clip_id[CLIP_ID_MAX];
+    char detection_id[DETECTION_ID_MAX];
+    char encounter_id[ENCOUNTER_ID_MAX];
+    char activation_id[ACTIVATION_ID_MAX];
+    char recorded_at[RECORDED_AT_MAX];
+} clip_upload_request_t;
 
 /**
  * Clip upload queue entry.
  */
 typedef struct {
     char clip_path[CLIP_PATH_MAX];      // Path to clip file
+    char clip_id[CLIP_ID_MAX];          // Device-generated stable clip ID
     char detection_id[DETECTION_ID_MAX]; // Detection event ID
+    char encounter_id[ENCOUNTER_ID_MAX]; // Journalled encounter summary ID
+    char activation_id[ACTIVATION_ID_MAX]; // Journalled activation event ID
+    char recorded_at[RECORDED_AT_MAX];  // RFC3339 UTC timestamp when clip was recorded
     uint32_t retry_count;               // Number of retry attempts
     int64_t next_retry_time;            // Unix timestamp for next retry (0 = now)
     int64_t queued_time;                // When clip was queued (Unix timestamp)
@@ -73,6 +92,10 @@ typedef struct {
     int64_t oldest_pending_time;        // Oldest clip in queue (Unix timestamp)
 } upload_stats_t;
 
+typedef void (*clip_upload_complete_cb_t)(const clip_upload_request_t *request,
+                                          upload_status_t status,
+                                          void *user_data);
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -93,11 +116,11 @@ int clip_uploader_start(void);
 /**
  * Queue a clip for upload.
  * If queue is full, oldest unuploaded clip is dropped.
- * @param clip_path Path to the clip file
- * @param detection_id Detection event ID (for linking on server)
+ * @param request Upload metadata (clip path required, recorded_at required,
+ *                detection_id optional)
  * @return 0 on success, -1 on error
  */
-int clip_uploader_queue(const char *clip_path, const char *detection_id);
+int clip_uploader_queue(const clip_upload_request_t *request);
 
 /**
  * Get number of pending clips in queue.
@@ -133,6 +156,13 @@ bool clip_uploader_is_initialized(void);
  * @return true if upload thread is active
  */
 bool clip_uploader_is_running(void);
+
+/**
+ * Register a callback for terminal upload outcomes.
+ * Called on successful upload or permanent failure.
+ */
+void clip_uploader_set_completion_callback(clip_upload_complete_cb_t callback,
+                                           void *user_data);
 
 /**
  * Get status name for logging.

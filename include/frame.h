@@ -2,7 +2,9 @@
  * Frame data structure for captured video frames.
  *
  * Memory layout: BGR interleaved (same as OpenCV default)
- * Total size at 640x480: 640 * 480 * 3 = 921,600 bytes (~900KB)
+ * Total size:
+ * - ESP32 builds use 640x360 as the analysis surface for the HD watch path
+ * - Pi/test builds use 640x480
  */
 
 #ifndef APIS_FRAME_H
@@ -12,8 +14,15 @@
 #include <stdbool.h>
 #include <string.h>
 
+#if defined(APIS_PLATFORM_ESP32)
+#define FRAME_WIDTH  640
+#define FRAME_HEIGHT 360
+#define FRAME_JPEG_MAX_SIZE (512 * 1024)
+#else
 #define FRAME_WIDTH  640
 #define FRAME_HEIGHT 480
+#define FRAME_JPEG_MAX_SIZE 0
+#endif
 #define FRAME_CHANNELS 3  // BGR
 #define FRAME_SIZE (FRAME_WIDTH * FRAME_HEIGHT * FRAME_CHANNELS)
 

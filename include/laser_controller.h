@@ -35,7 +35,7 @@
 #if defined(APIS_PLATFORM_PI)
 #define GPIO_LASER_CONTROL          23      // GPIO pin for MOSFET gate
 #elif defined(APIS_PLATFORM_ESP32)
-#define GPIO_LASER_CONTROL          4       // Available GPIO on ESP32-CAM
+#define GPIO_LASER_CONTROL          2       // XIAO D1 in the documented build
 #else
 // Test platform - define a placeholder value (not actually used in mock GPIO)
 #define GPIO_LASER_CONTROL          0
@@ -108,6 +108,7 @@ typedef void (*laser_state_callback_t)(laser_state_t new_state, void *user_data)
  * Callback when safety timeout occurs.
  */
 typedef void (*laser_timeout_callback_t)(uint32_t duration_ms, void *user_data);
+typedef void (*laser_activation_callback_t)(const laser_event_t *event, void *user_data);
 
 // ============================================================================
 // Public API
@@ -240,6 +241,7 @@ void laser_controller_set_state_callback(laser_state_callback_t callback, void *
  * @param user_data User data passed to callback
  */
 void laser_controller_set_timeout_callback(laser_timeout_callback_t callback, void *user_data);
+void laser_controller_set_activation_callback(laser_activation_callback_t callback, void *user_data);
 
 /**
  * Get laser statistics.

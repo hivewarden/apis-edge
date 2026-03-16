@@ -36,15 +36,11 @@
 #define GPIO_BUTTON_PIN             17      // GPIO pin for button (with pull-up)
 #define GPIO_BUZZER_PIN             27      // GPIO pin for buzzer (optional)
 #elif defined(APIS_PLATFORM_ESP32)
-// NOTE: GPIO 0 is the boot mode selection pin on ESP32. It must be HIGH during
-// boot/flash. Using it as button input works at runtime but may require special
-// handling during firmware updates. For production, consider using a different
-// GPIO (e.g., GPIO 4, 12, 13, 14, 15, 25, 26, 27, 32, 33).
-#define GPIO_BUTTON_PIN             0       // Boot button on ESP32 dev boards
-// NOTE: GPIO 2 is often connected to an onboard LED on ESP32 dev boards.
-// This means buzzer activity will also flash the LED, which may be acceptable
-// or even desirable for visual feedback. For production, consider GPIO 4 or 5.
-#define GPIO_BUZZER_PIN             2       // Available GPIO for buzzer (may share with LED)
+#define GPIO_BUTTON_PIN             6       // XIAO D5 in the documented pan-only build
+#define GPIO_BUZZER_PIN             (-1)    // No buzzer in the documented XIAO wiring
+#else
+#define GPIO_BUTTON_PIN             0
+#define GPIO_BUZZER_PIN             (-1)
 #endif
 
 // Buzzer tones (frequency in Hz, duration in ms)

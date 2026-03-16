@@ -3,6 +3,7 @@
 > **Skill Level:** Beginner-friendly
 > **Time Required:** 1-2 hours
 > **Cost:** ~€30-45 total
+> **Current repo note:** The hardware/wiring guidance in this document is still useful. For current firmware build and flash commands, use `docs/esp32-usb-flashing.md`, and use `docs/hardware-manual.md` as the live entry point for the XIAO build.
 
 This guide walks you through assembling an APIS unit using the Seeed XIAO ESP32S3 Sense. The XIAO is the "balanced" production option - more capable than ESP32-CAM, easier to program, with better camera quality.
 

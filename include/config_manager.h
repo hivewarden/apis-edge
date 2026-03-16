@@ -22,6 +22,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "install_profile.h"
+
 // Configuration paths
 #define CONFIG_JSON_PATH "/data/apis/config.json"
 #define CONFIG_JSON_PATH_TEMP "/data/apis/config.json.tmp"
@@ -78,6 +80,11 @@ typedef struct {
     uint8_t cooldown_seconds;
 } cfg_laser_t;
 
+typedef enum {
+    CONFIG_DETERRENT_MODE_SHADOW = 0,
+    CONFIG_DETERRENT_MODE_LIVE = 1,
+} config_deterrent_mode_t;
+
 /**
  * Complete runtime configuration.
  */
@@ -85,8 +92,12 @@ typedef struct {
     uint8_t schema_version;
     cfg_device_t device;
     cfg_server_t server;
+    char pending_claim_token[CFG_MAX_API_KEY_LEN];
+    char pending_claim_server_url[CFG_MAX_URL_LEN];
     cfg_detection_t detection;
     cfg_laser_t laser;
+    install_profile_t install_profile;
+    config_deterrent_mode_t deterrent_mode;
     bool armed;
     bool needs_setup;
     char updated_at[CFG_MAX_TIMESTAMP_LEN];
@@ -100,6 +111,15 @@ typedef struct {
     char error_field[64];
     char error_message[128];
 } cfg_validation_t;
+
+typedef enum {
+    CONFIG_HOME_SOURCE_NONE = 0,
+    CONFIG_HOME_SOURCE_PERSISTED,
+    CONFIG_HOME_SOURCE_RUNTIME,
+    CONFIG_HOME_SOURCE_MDNS,
+    CONFIG_HOME_SOURCE_DEFAULT,
+    CONFIG_HOME_SOURCE_FALLBACK,
+} config_home_source_t;
 
 /**
  * Initialize configuration manager.
@@ -134,6 +154,17 @@ void config_manager_get_public(runtime_config_t *out);
  * @param out Output config structure (caller-owned)
  */
 void config_manager_get_snapshot(runtime_config_t *out);
+
+/**
+ * Get a thread-safe snapshot of the effective runtime configuration.
+ *
+ * This overlays the runtime-selected server URL onto the snapshot when no
+ * persisted server.url exists. It lets callers use discovery/default/fallback
+ * results without committing them to disk.
+ *
+ * @param out Output config structure (caller-owned)
+ */
+void config_manager_get_effective_snapshot(runtime_config_t *out);
 
 /**
  * Load configuration from file.
@@ -194,6 +225,9 @@ int config_manager_set_armed(bool armed);
  */
 bool config_manager_is_armed(void);
 
+int config_manager_set_install_profile(install_profile_t profile);
+install_profile_t config_manager_get_install_profile(void);
+
 /**
  * Mark setup as complete.
  * Sets needs_setup to false and saves.
@@ -219,6 +253,162 @@ int config_manager_set_device(const char *id, const char *name);
  * @return 0 on success
  */
 int config_manager_set_server(const char *url, const char *api_key);
+
+/**
+ * Finalize a successful claim by persisting the explicit server URL, the unit
+ * API key, clearing any pending claim token, and marking setup complete.
+ *
+ * @param url Persisted server URL bound by the successful claim
+ * @param api_key Unit API key returned by the server
+ * @return 0 on success
+ */
+int config_manager_finalize_claim(const char *url, const char *api_key);
+
+/**
+ * Set a runtime-only server URL without persisting it.
+ *
+ * This is used for mDNS/default/fallback server selection on unclaimed or
+ * URL-less devices. A persisted server.url always takes precedence.
+ *
+ * @param url Server URL
+ * @return 0 on success
+ */
+int config_manager_set_runtime_server_url(const char *url);
+
+/**
+ * Set a runtime-only server URL and its source without persisting it.
+ */
+int config_manager_set_runtime_server_choice(const char *url, config_home_source_t source);
+
+/**
+ * Clear the runtime-only server URL.
+ */
+void config_manager_clear_runtime_server_url(void);
+
+/**
+ * Get the effective source of the current home URL.
+ */
+config_home_source_t config_manager_get_effective_server_source(void);
+
+/**
+ * Get a stable string name for a home URL source.
+ */
+const char *config_home_source_name(config_home_source_t source);
+
+/**
+ * Get a stable string name for the deterrent mode.
+ */
+const char *config_deterrent_mode_name(config_deterrent_mode_t mode);
+
+/**
+ * Parse deterrent mode from a string.
+ *
+ * @param value Mode string
+ * @param out Output mode
+ * @return 0 on success, -1 on invalid value
+ */
+int config_deterrent_mode_from_string(const char *value, config_deterrent_mode_t *out);
+
+/**
+ * Persist deterrent mode.
+ *
+ * @param mode New deterrent mode
+ * @return 0 on success
+ */
+int config_manager_set_deterrent_mode(config_deterrent_mode_t mode);
+
+/**
+ * Get current deterrent mode.
+ */
+config_deterrent_mode_t config_manager_get_deterrent_mode(void);
+
+/**
+ * Persist an API key without changing the current server URL.
+ *
+ * Useful during onboarding when the device should discover the URL after
+ * reboot but the user already has a valid unit API key.
+ *
+ * @param api_key API key
+ * @return 0 on success
+ */
+int config_manager_set_api_key(const char *api_key);
+
+/**
+ * Persist a short-lived one-time claim token for later exchange after Wi-Fi
+ * join or from the local claim page.
+ *
+ * @param claim_token One-time claim token
+ * @return 0 on success
+ */
+int config_manager_set_pending_claim_token(const char *claim_token);
+
+/**
+ * Persist an explicit server URL to use only for a future claim-token exchange.
+ *
+ * This is used when the operator provides a self-hosted server URL during Wi-Fi
+ * onboarding before the device has a real unit API key. The URL is not treated
+ * as the device's persisted home until claim succeeds.
+ *
+ * Pass an empty string to clear the pending URL.
+ *
+ * @param url Server URL or empty string to clear
+ * @return 0 on success
+ */
+int config_manager_set_pending_claim_server_url(const char *url);
+
+/**
+ * Copy the current pending claim token into caller-owned storage.
+ *
+ * @param out Output buffer
+ * @param out_size Output buffer size
+ * @return 0 when a token is present, -1 otherwise
+ */
+int config_manager_get_pending_claim_token(char *out, size_t out_size);
+
+/**
+ * Copy the current pending claim server URL into caller-owned storage.
+ *
+ * @param out Output buffer
+ * @param out_size Output buffer size
+ * @return 0 when a URL is present, -1 otherwise
+ */
+int config_manager_get_pending_claim_server_url(char *out, size_t out_size);
+
+/**
+ * Return true when a pending claim token is stored.
+ */
+bool config_manager_has_pending_claim_token(void);
+
+/**
+ * Return true when a pending claim server URL is stored.
+ */
+bool config_manager_has_pending_claim_server_url(void);
+
+/**
+ * Clear the pending claim token from persisted config.
+ *
+ * @return 0 on success
+ */
+int config_manager_clear_pending_claim_token(void);
+
+/**
+ * Clear the pending claim server URL from persisted config.
+ *
+ * @return 0 on success
+ */
+int config_manager_clear_pending_claim_server_url(void);
+
+/**
+ * Begin a one-at-a-time claim exchange section.
+ *
+ * Returns false if another claim exchange is already in progress.
+ */
+bool config_manager_begin_claim_exchange(void);
+
+/**
+ * End a previously begun claim exchange section.
+ */
+void config_manager_end_claim_exchange(void);
 
 /**
  * Get default configuration.

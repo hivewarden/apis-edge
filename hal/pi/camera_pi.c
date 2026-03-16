@@ -317,7 +317,9 @@ camera_status_t camera_open(void) {
     return CAMERA_OK;
 }
 
-camera_status_t camera_read(frame_t *frame, uint32_t timeout_ms) {
+camera_status_t camera_read_capture(frame_t *frame,
+                                    camera_jpeg_frame_t *jpeg_frame,
+                                    uint32_t timeout_ms) {
     if (!g_camera.is_open) {
         LOG_ERROR("Camera not open");
         return CAMERA_ERROR_READ_FAILED;
@@ -329,6 +331,12 @@ camera_status_t camera_read(frame_t *frame, uint32_t timeout_ms) {
     }
 
     frame_init(frame);
+    if (jpeg_frame != NULL) {
+        jpeg_frame->size = 0;
+        jpeg_frame->width = 0;
+        jpeg_frame->height = 0;
+        jpeg_frame->valid = false;
+    }
 
     // Wait for frame with select
     fd_set fds;
@@ -448,6 +456,10 @@ camera_status_t camera_read(frame_t *frame, uint32_t timeout_ms) {
     return CAMERA_OK;
 }
 
+camera_status_t camera_read(frame_t *frame, uint32_t timeout_ms) {
+    return camera_read_capture(frame, NULL, timeout_ms);
+}
+
 bool camera_is_open(void) {
     return g_camera.is_open;
 }
@@ -516,3 +528,45 @@ void camera_set_callback(camera_frame_callback_t callback, void *user_data) {
 // No-op on Pi — drain task is ESP32-only (prevents DMA FB-OVF)
 void camera_drain_start(void) {}
 void camera_drain_stop(void) {}
+
+// No-op on Pi — camera reconfiguration is ESP32-only (PSRAM lifecycle)
+camera_status_t camera_reconfigure(camera_mode_t mode) {
+    (void)mode;
+    return CAMERA_OK;
+}
+
+// No-op on Pi — QR scanning uses scan_frame() in capture loop
+camera_status_t camera_read_qr(uint32_t timeout_ms) {
+    (void)timeout_ms;
+    return CAMERA_OK;
+}
+
+void camera_set_qr_profile(camera_qr_profile_t profile) {
+    (void)profile;
+}
+
+camera_qr_profile_t camera_get_qr_profile(void) {
+    return CAMERA_QR_PROFILE_SCREEN_GLARE;
+}
+
+const char *camera_qr_profile_name(camera_qr_profile_t profile) {
+    switch (profile) {
+        case CAMERA_QR_PROFILE_SCREEN_GLARE:
+            return "screen_glare";
+        case CAMERA_QR_PROFILE_SCREEN_BALANCED:
+            return "screen_balanced";
+        case CAMERA_QR_PROFILE_SCREEN_BRIGHT:
+            return "screen_bright";
+        default:
+            return "unknown";
+    }
+}
+
+size_t camera_copy_last_qr_frame(uint8_t *dst, size_t capacity,
+                                 uint16_t *width, uint16_t *height) {
+    (void)dst;
+    (void)capacity;
+    if (width) *width = 0;
+    if (height) *height = 0;
+    return 0;
+}

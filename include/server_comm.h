@@ -123,6 +123,20 @@ bool server_comm_is_running(void);
  */
 int server_comm_validate_key(const char *url, const char *api_key);
 
+/**
+ * Exchange a short-lived claim token for the device API key.
+ * Used during QR onboarding when the QR contains a compact claim token
+ * instead of the raw API key.
+ *
+ * @param url         Server URL (e.g. "https://hivewarden.eu")
+ * @param claim_token Short-lived claim token from QR
+ * @param api_key_out Output buffer for the exchanged API key
+ * @param out_size    Size of api_key_out
+ * @return 0 if exchange succeeded, -1 otherwise
+ */
+int server_comm_exchange_claim_token(const char *url, const char *claim_token,
+                                     char *api_key_out, size_t out_size);
+
 // ============================================================================
 // Configuration Constants
 // ============================================================================

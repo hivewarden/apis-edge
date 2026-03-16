@@ -22,15 +22,26 @@
 static config_t g_config = {
     .camera = {
         .device_path = "/dev/video0",
+#ifdef APIS_PLATFORM_ESP32
+        .width = FRAME_WIDTH,
+        .height = FRAME_HEIGHT,
+#else
         .width = 640,
         .height = 480,
+#endif
         .fps = 10,
         .focus_distance = 1.5f,
     },
     .storage = {
+#ifdef APIS_PLATFORM_ESP32
+        .data_dir = "/data",
+        .clips_dir = "/data/clips",
+        .db_path = "/data/detections.db",
+#else
         .data_dir = "./data",
         .clips_dir = "./data/clips",
         .db_path = "./data/detections.db",
+#endif
         .max_storage_mb = 0,           // Unlimited
         .clip_retention_days = 30,
     },

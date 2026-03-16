@@ -6,7 +6,7 @@
  * - Connects as station (STA) if credentials exist
  * - Falls back to AP mode ("HiveWarden-XXXX") for initial setup
  *
- * AP mode creates a WPA2 hotspot. Users connect via phone and
+ * AP mode currently creates an open hotspot. Users connect via phone and
  * the captive portal setup page appears automatically.
  */
 
@@ -45,7 +45,7 @@
 #define WIFI_AP_CHANNEL         1
 #define WIFI_AP_MAX_CONNECTIONS  4
 #define WIFI_AP_SSID_PREFIX     "HiveWarden-"
-#define WIFI_AP_PASS_PREFIX     "HW-"  // WPA2 password = "HW-" + full MAC hex
+#define WIFI_AP_PASS_PREFIX     "HW-"  // Legacy WPA2 prefix if AP auth is re-enabled
 
 // Event group bits
 #define WIFI_CONNECTED_BIT  BIT0
@@ -60,7 +60,7 @@ static EventGroupHandle_t s_wifi_event_group = NULL;
 static int s_retry_count = 0;
 static bool g_initialized = false;
 static char g_ap_ssid[32] = {0};
-static char g_ap_password[32] = {0};  // WPA2 password for AP mode
+static char g_ap_password[32] = {0};  // Legacy derived password for custom AP builds
 
 // ============================================================================
 // Forward Declarations
@@ -68,12 +68,25 @@ static char g_ap_password[32] = {0};  // WPA2 password for AP mode
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data);
+static void configure_sta_runtime(void);
 static int start_sta_mode(const char *ssid, const char *password);
 static int start_ap_mode(void);
 static bool load_wifi_credentials(char *ssid, size_t ssid_len,
                                   char *password, size_t pass_len);
 static void build_ap_ssid(void);
 static void build_ap_password(void);
+
+static void configure_sta_runtime(void) {
+    esp_err_t ret = esp_wifi_set_ps(WIFI_PS_NONE);
+    if (ret != ESP_OK) {
+        LOG_WARN("esp_wifi_set_ps STA failed: %s", esp_err_to_name(ret));
+    }
+
+    ret = esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
+    if (ret != ESP_OK) {
+        LOG_WARN("esp_wifi_set_bandwidth STA failed: %s", esp_err_to_name(ret));
+    }
+}
 
 // ============================================================================
 // Event Handler
@@ -133,6 +146,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     } else if (event_base == IP_EVENT) {
         if (event_id == IP_EVENT_STA_GOT_IP) {
             ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+            configure_sta_runtime();
             LOG_INFO("WiFi connected! IP: " IPSTR, IP2STR(&event->ip_info.ip));
             s_retry_count = 0;
             xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
@@ -150,7 +164,7 @@ int wifi_provision_init(void) {
         return 0;
     }
 
-    // Build AP SSID and WPA2 password from MAC address
+    // Build AP SSID and a legacy derived password from MAC address.
     build_ap_ssid();
     build_ap_password();
 
@@ -223,7 +237,7 @@ int wifi_provision_init(void) {
     if (start_ap_mode() == 0) {
         g_mode = WIFI_PROV_MODE_AP;
         LOG_INFO("WiFi started in AP mode: %s", g_ap_ssid);
-        LOG_INFO("AP Password: %s", g_ap_password);
+        LOG_INFO("AP is open (no password required)");
         LOG_INFO("Connect to this network — setup page will appear automatically");
         return 0;
     }
@@ -295,6 +309,20 @@ void wifi_provision_get_ap_password(char *buf, size_t buf_size) {
     snprintf(buf, buf_size, "%s", g_ap_password);
 }
 
+void wifi_provision_stop_ap(void) {
+    if (g_mode != WIFI_PROV_MODE_AP) {
+        return;
+    }
+    esp_err_t ret = esp_wifi_stop();
+    if (ret == ESP_OK || ret == ESP_ERR_WIFI_NOT_STARTED) {
+        g_mode = WIFI_PROV_MODE_NONE;
+        LOG_INFO("WiFi AP stopped");
+        return;
+    }
+
+    LOG_ERROR("Failed to stop WiFi AP: %s", esp_err_to_name(ret));
+}
+
 // ============================================================================
 // Internal Functions
 // ============================================================================
@@ -307,9 +335,8 @@ static void build_ap_ssid(void) {
 }
 
 static void build_ap_password(void) {
-    // WPA2 password = "HW-" + full MAC in hex (e.g., "HW-B8F862F9D38C")
-    // 15 chars total — meets WPA2 minimum of 8 chars
-    // Unique per device, printed on serial at boot
+    // Legacy WPA2 password = "HW-" + full MAC in hex (e.g., "HW-B8F862F9D38C").
+    // This is retained for custom builds that want an authenticated AP.
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
     snprintf(g_ap_password, sizeof(g_ap_password),
@@ -371,6 +398,11 @@ static int start_sta_mode(const char *ssid, const char *password) {
         LOG_ERROR("esp_wifi_start STA failed: %s", esp_err_to_name(ret));
         return -1;
     }
+
+    // Raw camera capture is much less tolerant of WiFi sleep and wide-channel
+    // timing variance than the AP onboarding path, so keep STA in HT20 with
+    // modem sleep disabled from the moment the interface starts.
+    configure_sta_runtime();
 
     s_retry_count = 0;
     return 0;

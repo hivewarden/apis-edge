@@ -23,6 +23,25 @@
 
 #include "test_framework.h"
 
+static clip_upload_request_t make_request(const char *clip_path,
+                                          const char *detection_id,
+                                          const char *recorded_at) {
+    clip_upload_request_t request;
+    memset(&request, 0, sizeof(request));
+
+    if (clip_path) {
+        snprintf(request.clip_path, sizeof(request.clip_path), "%s", clip_path);
+    }
+    if (detection_id) {
+        snprintf(request.detection_id, sizeof(request.detection_id), "%s", detection_id);
+    }
+    if (recorded_at) {
+        snprintf(request.recorded_at, sizeof(request.recorded_at), "%s", recorded_at);
+    }
+
+    return request;
+}
+
 // ============================================================================
 // Test: Initialization
 // ============================================================================
@@ -127,17 +146,23 @@ static void test_queue_operations(void) {
     TEST_ASSERT(clip_uploader_pending_count() == 0, "Queue empty initially");
 
     // Add a clip
-    int result = clip_uploader_queue("/data/clips/test1.mp4", "evt_001");
+    clip_upload_request_t request = make_request("/data/clips/test1.mp4", "evt_001",
+                                                 "2026-03-07T12:00:00Z");
+    int result = clip_uploader_queue(&request);
     TEST_ASSERT(result == 0, "Queue first clip succeeds");
     TEST_ASSERT(clip_uploader_pending_count() == 1, "Pending count is 1");
 
     // Add another clip
-    result = clip_uploader_queue("/data/clips/test2.mp4", "evt_002");
+    request = make_request("/data/clips/test2.mp4", "evt_002",
+                           "2026-03-07T12:00:03Z");
+    result = clip_uploader_queue(&request);
     TEST_ASSERT(result == 0, "Queue second clip succeeds");
     TEST_ASSERT(clip_uploader_pending_count() == 2, "Pending count is 2");
 
     // Duplicate clip is ignored
-    result = clip_uploader_queue("/data/clips/test1.mp4", "evt_001");
+    request = make_request("/data/clips/test1.mp4", "evt_001",
+                           "2026-03-07T12:00:00Z");
+    result = clip_uploader_queue(&request);
     TEST_ASSERT(result == 0, "Duplicate queue returns 0");
     TEST_ASSERT(clip_uploader_pending_count() == 2, "Pending count still 2 after duplicate");
 
@@ -147,6 +172,8 @@ static void test_queue_operations(void) {
     TEST_ASSERT(result == 0, "Get entry 0 succeeds");
     TEST_ASSERT(strcmp(entry.clip_path, "/data/clips/test1.mp4") == 0, "Entry 0 path correct");
     TEST_ASSERT(strcmp(entry.detection_id, "evt_001") == 0, "Entry 0 detection_id correct");
+    TEST_ASSERT(strcmp(entry.recorded_at, "2026-03-07T12:00:00Z") == 0,
+                "Entry 0 recorded_at correct");
     TEST_ASSERT(entry.retry_count == 0, "Entry 0 retry count is 0");
     TEST_ASSERT(!entry.uploaded, "Entry 0 not uploaded");
 
@@ -181,14 +208,19 @@ static void test_queue_limit(void) {
     for (int i = 0; i < MAX_UPLOAD_QUEUE; i++) {
         snprintf(path, sizeof(path), "/data/clips/clip_%03d.mp4", i);
         snprintf(det_id, sizeof(det_id), "evt_%03d", i);
-        int result = clip_uploader_queue(path, det_id);
+        clip_upload_request_t request = make_request(path, det_id,
+                                                     "2026-03-07T12:00:00Z");
+        int result = clip_uploader_queue(&request);
         TEST_ASSERT(result == 0, "Queue clip succeeds");
     }
 
     TEST_ASSERT(clip_uploader_pending_count() == MAX_UPLOAD_QUEUE, "Queue at limit");
 
     // Adding one more should drop oldest
-    int result = clip_uploader_queue("/data/clips/overflow.mp4", "evt_overflow");
+    clip_upload_request_t overflow_request = make_request("/data/clips/overflow.mp4",
+                                                          "evt_overflow",
+                                                          "2026-03-07T12:00:00Z");
+    int result = clip_uploader_queue(&overflow_request);
     TEST_ASSERT(result == 0, "Queue overflow clip succeeds");
     TEST_ASSERT(clip_uploader_pending_count() == MAX_UPLOAD_QUEUE, "Queue still at limit");
 
@@ -219,9 +251,15 @@ static void test_statistics(void) {
     TEST_ASSERT(stats.uploaded_count == 0, "No uploaded initially");
 
     // Add some clips
-    clip_uploader_queue("/data/clips/stat1.mp4", "evt_s1");
-    clip_uploader_queue("/data/clips/stat2.mp4", "evt_s2");
-    clip_uploader_queue("/data/clips/stat3.mp4", "evt_s3");
+    clip_upload_request_t stat1 = make_request("/data/clips/stat1.mp4", "evt_s1",
+                                               "2026-03-07T12:00:00Z");
+    clip_upload_request_t stat2 = make_request("/data/clips/stat2.mp4", "evt_s2",
+                                               "2026-03-07T12:00:01Z");
+    clip_upload_request_t stat3 = make_request("/data/clips/stat3.mp4", "evt_s3",
+                                               "2026-03-07T12:00:02Z");
+    clip_uploader_queue(&stat1);
+    clip_uploader_queue(&stat2);
+    clip_uploader_queue(&stat3);
 
     result = clip_uploader_get_stats(&stats);
     TEST_ASSERT(result == 0, "Get stats after adding succeeds");
@@ -267,7 +305,10 @@ static void test_cleanup(void) {
     clip_uploader_start();
 
     // Add a clip
-    clip_uploader_queue("/data/clips/cleanup_test.mp4", "evt_cleanup");
+    clip_upload_request_t cleanup_request = make_request("/data/clips/cleanup_test.mp4",
+                                                         "evt_cleanup",
+                                                         "2026-03-07T12:00:00Z");
+    clip_uploader_queue(&cleanup_request);
 
     // Wait for thread to start
     usleep(100000);
@@ -295,16 +336,24 @@ static void test_null_params(void) {
     clip_uploader_init();
 
     // NULL clip path
-    int result = clip_uploader_queue(NULL, "evt_null");
+    int result = clip_uploader_queue(NULL);
     TEST_ASSERT(result == -1, "NULL clip path fails");
 
     // Empty clip path
-    result = clip_uploader_queue("", "evt_empty");
+    clip_upload_request_t empty_path = make_request("", "evt_empty", "2026-03-07T12:00:00Z");
+    result = clip_uploader_queue(&empty_path);
     TEST_ASSERT(result == -1, "Empty clip path fails");
 
-    // NULL detection_id is OK (optional)
-    result = clip_uploader_queue("/data/clips/no_det.mp4", NULL);
-    TEST_ASSERT(result == 0, "NULL detection_id succeeds");
+    // Empty detection_id is OK (optional)
+    clip_upload_request_t no_detection = make_request("/data/clips/no_det.mp4", "",
+                                                      "2026-03-07T12:00:00Z");
+    result = clip_uploader_queue(&no_detection);
+    TEST_ASSERT(result == 0, "Empty detection_id succeeds");
+
+    // Missing recorded_at is rejected
+    clip_upload_request_t no_recorded_at = make_request("/data/clips/no_time.mp4", "evt_missing", "");
+    result = clip_uploader_queue(&no_recorded_at);
+    TEST_ASSERT(result == -1, "Missing recorded_at fails");
 
     // NULL stats
     result = clip_uploader_get_stats(NULL);
@@ -328,7 +377,10 @@ static void test_retry_state_reset(void) {
     clip_uploader_clear_queue();
 
     // Add a clip
-    int result = clip_uploader_queue("/data/clips/retry_test.mp4", "evt_retry");
+    clip_upload_request_t retry_request = make_request("/data/clips/retry_test.mp4",
+                                                       "evt_retry",
+                                                       "2026-03-07T12:00:00Z");
+    int result = clip_uploader_queue(&retry_request);
     TEST_ASSERT(result == 0, "Queue clip for retry test");
 
     // Verify initial state (no retries)
@@ -368,11 +420,17 @@ static void test_fifo_ordering(void) {
     clip_uploader_clear_queue();
 
     // Add clips with slight delay to ensure different timestamps
-    clip_uploader_queue("/data/clips/first.mp4", "evt_first");
+    clip_upload_request_t first = make_request("/data/clips/first.mp4", "evt_first",
+                                               "2026-03-07T12:00:00Z");
+    clip_upload_request_t second = make_request("/data/clips/second.mp4", "evt_second",
+                                                "2026-03-07T12:00:01Z");
+    clip_upload_request_t third = make_request("/data/clips/third.mp4", "evt_third",
+                                               "2026-03-07T12:00:02Z");
+    clip_uploader_queue(&first);
     usleep(10000);  // 10ms
-    clip_uploader_queue("/data/clips/second.mp4", "evt_second");
+    clip_uploader_queue(&second);
     usleep(10000);
-    clip_uploader_queue("/data/clips/third.mp4", "evt_third");
+    clip_uploader_queue(&third);
 
     // Verify ordering
     clip_queue_entry_t entry;

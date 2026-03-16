@@ -85,6 +85,7 @@ typedef struct {
  */
 typedef struct {
     pixel_coord_t centroid;         // Center of target
+    uint32_t track_id;              // Tracking ID from vision system
     servo_position_t target_angle;  // Aimed servo position
     servo_position_t sweep_angle;   // Current sweep position
     int32_t area;                   // Bounding box area
@@ -104,6 +105,15 @@ typedef struct {
     uint64_t total_track_time_ms;   // Cumulative tracking time
     uint64_t uptime_ms;             // Time since initialization
 } target_stats_t;
+
+typedef struct {
+    target_state_t state;
+    bool target_active;
+    bool actuation_enabled;
+    bool would_move;
+    bool would_fire;
+    target_info_t target;
+} targeting_snapshot_t;
 
 // ============================================================================
 // Callback Types
@@ -255,6 +265,21 @@ void targeting_set_acquired_callback(target_acquired_callback_t callback, void *
  * @param user_data User data passed to callback
  */
 void targeting_set_lost_callback(target_lost_callback_t callback, void *user_data);
+
+/**
+ * Enable or suppress actuator output while keeping targeting decisions live.
+ */
+void targeting_set_actuation_enabled(bool enabled);
+
+/**
+ * Check whether targeting is currently allowed to move hardware.
+ */
+bool targeting_is_actuation_enabled(void);
+
+/**
+ * Get a thread-safe snapshot of current targeting decisions.
+ */
+target_status_t targeting_get_snapshot(targeting_snapshot_t *snapshot);
 
 /**
  * Get targeting statistics.

@@ -56,7 +56,11 @@ static int g_uploaded_count = 0;
 storage_manager_config_t storage_manager_config_defaults(void) {
     storage_manager_config_t config;
     memset(&config, 0, sizeof(config));
+#ifdef APIS_PLATFORM_ESP32
+    snprintf(config.clips_dir, sizeof(config.clips_dir), "/data/clips");
+#else
     snprintf(config.clips_dir, sizeof(config.clips_dir), "./data/clips");
+#endif
     config.max_size_mb = DEFAULT_MAX_STORAGE_MB;
     config.target_free_mb = DEFAULT_TARGET_FREE_MB;
     return config;

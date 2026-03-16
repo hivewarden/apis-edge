@@ -49,9 +49,11 @@ typedef struct {
  */
 typedef enum {
     HTTP_OK = 200,
+    HTTP_ACCEPTED = 202,
     HTTP_BAD_REQUEST = 400,
     HTTP_UNAUTHORIZED = 401,    // COMM-001-7: Added for auth failures
     HTTP_NOT_FOUND = 404,
+    HTTP_CONFLICT = 409,
     HTTP_TOO_MANY_REQUESTS = 429,  // Rate limiting
     HTTP_METHOD_NOT_ALLOWED = 405,
     HTTP_INTERNAL_ERROR = 500,

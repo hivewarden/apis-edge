@@ -35,6 +35,10 @@ static void test_defaults(void) {
                 "needs_setup defaults to true");
     TEST_ASSERT(defaults.armed == false,
                 "armed defaults to false");
+    TEST_ASSERT(defaults.deterrent_mode == CONFIG_DETERRENT_MODE_SHADOW,
+                "deterrent_mode defaults to shadow");
+    TEST_ASSERT(defaults.install_profile == INSTALL_PROFILE_HIGH_MOUNT_THREE_HIVE_V1,
+                "install_profile defaults to high_mount_three_hive_v1");
     TEST_ASSERT(defaults.detection.enabled == true,
                 "detection enabled by default");
     TEST_ASSERT(defaults.detection.min_size_px == 18,
@@ -45,6 +49,10 @@ static void test_defaults(void) {
                 "laser max duration default is 10");
     TEST_ASSERT(defaults.server.heartbeat_interval_seconds == 60,
                 "heartbeat interval default is 60");
+    TEST_ASSERT(strlen(defaults.pending_claim_token) == 0,
+                "pending claim token defaults to empty");
+    TEST_ASSERT(strlen(defaults.pending_claim_server_url) == 0,
+                "pending claim server URL defaults to empty");
     TEST_ASSERT(strlen(defaults.updated_at) > 0,
                 "updated_at timestamp set");
 }
@@ -110,6 +118,9 @@ static void test_json_serialization(void) {
     strcpy(config.device.id, "test-unit-001");
     strcpy(config.device.name, "Test Unit");
     strcpy(config.server.api_key, "sk_test_12345");
+    strcpy(config.pending_claim_token, "HWCLOCALTOKEN");
+    strcpy(config.pending_claim_server_url, "https://pending.example.com");
+    config.install_profile = INSTALL_PROFILE_HIGH_MOUNT_THREE_HIVE_V1;
     config.armed = true;
 
     char json[4096];
@@ -121,6 +132,10 @@ static void test_json_serialization(void) {
                 "Device ID in JSON");
     TEST_ASSERT(strstr(json, "sk_test_12345") != NULL,
                 "API key in JSON (sensitive mode)");
+    TEST_ASSERT(strstr(json, "HWCLOCALTOKEN") != NULL,
+                "Pending claim token in JSON (sensitive mode)");
+    TEST_ASSERT(strstr(json, "https://pending.example.com") != NULL,
+                "Pending claim server URL in JSON (sensitive mode)");
 
     // Serialize without sensitive data
     TEST_ASSERT(config_manager_to_json(&config, json, sizeof(json), false) == 0,
@@ -129,6 +144,10 @@ static void test_json_serialization(void) {
                 "API key masked (public mode)");
     TEST_ASSERT(strstr(json, "***") != NULL,
                 "API key shows mask");
+    TEST_ASSERT(strstr(json, "HWCLOCALTOKEN") == NULL,
+                "Pending claim token hidden in public mode");
+    TEST_ASSERT(strstr(json, "https://pending.example.com") == NULL,
+                "Pending claim server URL hidden in public mode");
 
     // Deserialize
     runtime_config_t parsed;
@@ -148,6 +167,8 @@ static void test_json_roundtrip(void) {
     strcpy(original.device.name, "Roundtrip Test Device");
     strcpy(original.server.url, "https://test.example.com");
     strcpy(original.server.api_key, "sk_roundtrip_key");
+    strcpy(original.pending_claim_token, "HWCROUNDTRIPTOKEN");
+    strcpy(original.pending_claim_server_url, "https://pending.roundtrip.example");
     original.server.heartbeat_interval_seconds = 120;
     original.detection.enabled = false;
     original.detection.min_size_px = 25;
@@ -156,6 +177,8 @@ static void test_json_roundtrip(void) {
     original.laser.enabled = false;
     original.laser.max_duration_seconds = 15;
     original.laser.cooldown_seconds = 10;
+    original.install_profile = INSTALL_PROFILE_LEGACY;
+    original.deterrent_mode = CONFIG_DETERRENT_MODE_LIVE;
     original.armed = true;
     original.needs_setup = false;
 
@@ -176,6 +199,10 @@ static void test_json_roundtrip(void) {
                 "server.url matches");
     TEST_ASSERT(strcmp(parsed.server.api_key, original.server.api_key) == 0,
                 "server.api_key matches");
+    TEST_ASSERT(strcmp(parsed.pending_claim_token, original.pending_claim_token) == 0,
+                "pending_claim_token matches");
+    TEST_ASSERT(strcmp(parsed.pending_claim_server_url, original.pending_claim_server_url) == 0,
+                "pending_claim_server_url matches");
     TEST_ASSERT(parsed.server.heartbeat_interval_seconds ==
                 original.server.heartbeat_interval_seconds,
                 "server.heartbeat_interval_seconds matches");
@@ -196,6 +223,10 @@ static void test_json_roundtrip(void) {
     TEST_ASSERT(parsed.laser.cooldown_seconds ==
                 original.laser.cooldown_seconds,
                 "laser.cooldown_seconds matches");
+    TEST_ASSERT(parsed.install_profile == original.install_profile,
+                "install_profile matches");
+    TEST_ASSERT(parsed.deterrent_mode == original.deterrent_mode,
+                "deterrent_mode matches");
     TEST_ASSERT(parsed.armed == original.armed,
                 "armed matches");
     TEST_ASSERT(parsed.needs_setup == original.needs_setup,
@@ -226,6 +257,8 @@ static void test_init_and_persistence(void) {
                 "Set server succeeds");
     TEST_ASSERT(config_manager_set_armed(true) == 0,
                 "Set armed succeeds");
+    TEST_ASSERT(config_manager_set_deterrent_mode(CONFIG_DETERRENT_MODE_LIVE) == 0,
+                "Set deterrent mode succeeds");
 
     // Cleanup and reinit (should load persisted values)
     config_manager_cleanup();
@@ -241,6 +274,10 @@ static void test_init_and_persistence(void) {
                 "API key persisted");
     TEST_ASSERT(config->armed == true,
                 "Armed state persisted");
+    TEST_ASSERT(config->deterrent_mode == CONFIG_DETERRENT_MODE_LIVE,
+                "Deterrent mode persisted");
+    TEST_ASSERT(config->install_profile == INSTALL_PROFILE_HIGH_MOUNT_THREE_HIVE_V1,
+                "Install profile persisted");
 
     config_manager_cleanup();
 }
@@ -268,6 +305,11 @@ static void test_partial_update(void) {
                 "hover_threshold_ms unchanged");
     TEST_ASSERT(config->detection.enabled == true,
                 "enabled unchanged");
+
+    TEST_ASSERT(config_manager_update("{\"install_profile\":\"legacy\"}", &validation) == 0,
+                "Install profile update succeeds");
+    TEST_ASSERT(config->install_profile == INSTALL_PROFILE_LEGACY,
+                "Install profile updated to legacy");
 
     // Try invalid update
     const char *invalid_json = "{\"detection\": {\"fps\": 200}}";
@@ -379,6 +421,177 @@ static void test_armed_toggle(void) {
     config_manager_cleanup();
 }
 
+static void test_deterrent_mode_toggle(void) {
+    printf("\n--- Test: Deterrent Mode Toggle ---\n");
+
+    unlink("./data/apis/config.json");
+    config_manager_init(true);
+
+    TEST_ASSERT(config_manager_get_deterrent_mode() == CONFIG_DETERRENT_MODE_SHADOW,
+                "Initially shadow mode");
+
+    TEST_ASSERT(config_manager_set_deterrent_mode(CONFIG_DETERRENT_MODE_LIVE) == 0,
+                "Switch to live succeeds");
+    TEST_ASSERT(config_manager_get_deterrent_mode() == CONFIG_DETERRENT_MODE_LIVE,
+                "Now live mode");
+
+    config_manager_cleanup();
+    config_manager_init(true);
+
+    TEST_ASSERT(config_manager_get_deterrent_mode() == CONFIG_DETERRENT_MODE_LIVE,
+                "Live mode persisted");
+
+    cfg_validation_t validation;
+    TEST_ASSERT(config_manager_update("{\"deterrent_mode\":\"shadow\"}", &validation) == 0,
+                "Shadow mode update via JSON succeeds");
+    TEST_ASSERT(config_manager_get_deterrent_mode() == CONFIG_DETERRENT_MODE_SHADOW,
+                "JSON update restored shadow mode");
+    TEST_ASSERT(config_manager_update("{\"install_profile\":\"high_mount_three_hive_v1\"}", &validation) == 0,
+                "High-mount install profile update via JSON succeeds");
+    TEST_ASSERT(config_manager_get_install_profile() == INSTALL_PROFILE_HIGH_MOUNT_THREE_HIVE_V1,
+                "JSON update restored high-mount install profile");
+    TEST_ASSERT(config_manager_update("{\"deterrent_mode\":\"invalid\"}", &validation) != 0,
+                "Invalid deterrent mode rejected");
+    TEST_ASSERT(config_manager_update("{\"install_profile\":\"invalid\"}", &validation) != 0,
+                "Invalid install profile rejected");
+
+    config_manager_cleanup();
+}
+
+static void test_runtime_server_selection(void) {
+    printf("\n--- Test: Runtime Server Selection ---\n");
+
+    unlink("./data/apis/config.json");
+    unlink("./data/apis/config.json.tmp");
+
+    TEST_ASSERT(config_manager_init(true) == 0,
+                "Init succeeds for runtime server test");
+    TEST_ASSERT(config_manager_set_api_key("sk_runtime_only") == 0,
+                "API key can be persisted without a server URL");
+    TEST_ASSERT(config_manager_set_runtime_server_url("http://mdns.local:8080") == 0,
+                "Runtime server URL set succeeds");
+
+    const runtime_config_t *stored = config_manager_get();
+    TEST_ASSERT(stored->server.url[0] == '\0',
+                "Persisted server URL remains empty");
+
+    runtime_config_t effective;
+    config_manager_get_effective_snapshot(&effective);
+    TEST_ASSERT(strcmp(effective.server.url, "http://mdns.local:8080") == 0,
+                "Effective snapshot uses runtime server URL");
+    TEST_ASSERT(config_manager_get_effective_server_source() == CONFIG_HOME_SOURCE_RUNTIME,
+                "Generic runtime selection reports runtime source");
+
+    config_manager_cleanup();
+
+    TEST_ASSERT(config_manager_init(true) == 0,
+                "Reinit succeeds after runtime-only selection");
+    stored = config_manager_get();
+    TEST_ASSERT(strcmp(stored->server.api_key, "sk_runtime_only") == 0,
+                "API key persisted across restart");
+    TEST_ASSERT(stored->server.url[0] == '\0',
+                "Runtime-only server URL was not persisted");
+    config_manager_get_effective_snapshot(&effective);
+    TEST_ASSERT(effective.server.url[0] == '\0',
+                "No effective runtime server URL after restart");
+    TEST_ASSERT(config_manager_get_effective_server_source() == CONFIG_HOME_SOURCE_NONE,
+                "No home source is reported after restart");
+
+    TEST_ASSERT(config_manager_set_runtime_server_choice("http://mdns.local:8080",
+                                                         CONFIG_HOME_SOURCE_MDNS) == 0,
+                "Explicit mDNS runtime source can be set");
+    TEST_ASSERT(config_manager_get_effective_server_source() == CONFIG_HOME_SOURCE_MDNS,
+                "mDNS runtime source is reported");
+
+    TEST_ASSERT(config_manager_set_server("https://claimed.example.com", NULL) == 0,
+                "Persisted server URL can still be set explicitly");
+    TEST_ASSERT(config_manager_set_runtime_server_url("http://ignored.local:8080") == 0,
+                "Runtime server URL can still be updated");
+
+    config_manager_get_effective_snapshot(&effective);
+    TEST_ASSERT(strcmp(effective.server.url, "https://claimed.example.com") == 0,
+                "Persisted server URL overrides runtime selection");
+    TEST_ASSERT(config_manager_get_effective_server_source() == CONFIG_HOME_SOURCE_PERSISTED,
+                "Persisted server URL reports persisted source");
+
+    config_manager_cleanup();
+
+    TEST_ASSERT(config_manager_init(true) == 0,
+                "Reinit succeeds after explicit server selection");
+    stored = config_manager_get();
+    TEST_ASSERT(strcmp(stored->server.api_key, "sk_runtime_only") == 0,
+                "API key still persisted after explicit server selection");
+    TEST_ASSERT(strcmp(stored->server.url, "https://claimed.example.com") == 0,
+                "Explicitly persisted server URL survives restart");
+
+    TEST_ASSERT(config_manager_update("{\"server\":{\"url\":\"\"}}", NULL) == 0,
+                "Stored server URL can be cleared explicitly");
+    config_manager_get_effective_snapshot(&effective);
+    TEST_ASSERT(effective.server.url[0] == '\0',
+                "Clearing persisted URL also clears runtime selection");
+    TEST_ASSERT(config_manager_get_effective_server_source() == CONFIG_HOME_SOURCE_NONE,
+                "Clearing persisted URL resets home source");
+
+    config_manager_cleanup();
+}
+
+static void test_pending_claim_token_flow(void) {
+    printf("\n--- Test: Pending Claim Token Flow ---\n");
+
+    unlink("./data/apis/config.json");
+    unlink("./data/apis/config.json.tmp");
+    config_manager_init(true);
+
+    TEST_ASSERT(config_manager_set_pending_claim_token("HWCPENDINGTOKEN") == 0,
+                "Pending claim token can be stored");
+    TEST_ASSERT(config_manager_set_pending_claim_server_url("https://pending-claim.example") == 0,
+                "Pending claim server URL can be stored");
+    TEST_ASSERT(config_manager_has_pending_claim_token(),
+                "Pending claim token is reported");
+    TEST_ASSERT(config_manager_has_pending_claim_server_url(),
+                "Pending claim server URL is reported");
+
+    char token[64];
+    TEST_ASSERT(config_manager_get_pending_claim_token(token, sizeof(token)) == 0,
+                "Pending claim token can be copied out");
+    TEST_ASSERT(strcmp(token, "HWCPENDINGTOKEN") == 0,
+                "Pending claim token matches");
+    char pending_server_url[CFG_MAX_URL_LEN];
+    TEST_ASSERT(config_manager_get_pending_claim_server_url(
+                    pending_server_url, sizeof(pending_server_url)) == 0,
+                "Pending claim server URL can be copied out");
+    TEST_ASSERT(strcmp(pending_server_url, "https://pending-claim.example") == 0,
+                "Pending claim server URL matches");
+
+    TEST_ASSERT(config_manager_finalize_claim("https://claimed.example.com",
+                                              "apis_claimed_key") == 0,
+                "Finalize claim succeeds");
+
+    runtime_config_t snapshot;
+    config_manager_get_snapshot(&snapshot);
+    TEST_ASSERT(strcmp(snapshot.server.url, "https://claimed.example.com") == 0,
+                "Finalize claim persists explicit server URL");
+    TEST_ASSERT(strcmp(snapshot.server.api_key, "apis_claimed_key") == 0,
+                "Finalize claim persists API key");
+    TEST_ASSERT(snapshot.needs_setup == false,
+                "Finalize claim marks setup complete");
+    TEST_ASSERT(!config_manager_has_pending_claim_token(),
+                "Finalize claim clears pending token");
+    TEST_ASSERT(!config_manager_has_pending_claim_server_url(),
+                "Finalize claim clears pending claim server URL");
+
+    TEST_ASSERT(config_manager_begin_claim_exchange(),
+                "First claim exchange lock can be acquired");
+    TEST_ASSERT(!config_manager_begin_claim_exchange(),
+                "Second concurrent claim exchange is rejected");
+    config_manager_end_claim_exchange();
+    TEST_ASSERT(config_manager_begin_claim_exchange(),
+                "Claim exchange lock can be reacquired after release");
+    config_manager_end_claim_exchange();
+
+    config_manager_cleanup();
+}
+
 static void test_invalid_json(void) {
     printf("\n--- Test: Invalid JSON Handling ---\n");
 
@@ -426,6 +639,9 @@ int main(void) {
     test_api_key_protection();
     test_setup_completion();
     test_armed_toggle();
+    test_deterrent_mode_toggle();
+    test_runtime_server_selection();
+    test_pending_claim_token_flow();
     test_invalid_json();
 
     printf("\n=== Results: %d passed, %d failed ===\n",

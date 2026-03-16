@@ -1,6 +1,7 @@
 # Pi 5 Assembly Manual
 
 > **Note:** This document serves as a navigation guide to the Pi 5 assembly content in the main hardware specification.
+> **Current repo note:** Pi 5 is the development/legacy path now. The production firmware target is ESP32-S3/XIAO, so start with the top-level docs before investing in Pi-specific setup.
 
 ## Quick Navigation
 

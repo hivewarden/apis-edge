@@ -11,8 +11,13 @@
 
 #include "http_server.h"
 #include "config_manager.h"
+#include "deterrent_state.h"
+#include "manual_capture.h"
 #include "log.h"
 #include "platform.h"
+#include "camera.h"
+#include "vision_runtime.h"
+#include "qr_scanner.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +31,8 @@
 #include "cJSON.h"
 #include "event_logger.h"
 
+static char g_last_exchange_url[CFG_MAX_URL_LEN] = {0};
+
 // ============================================================================
 // Stubs for event_logger (avoid pulling in sqlite3 dependency)
 // ============================================================================
@@ -34,6 +41,53 @@ bool event_logger_is_initialized(void) { return false; }
 int event_logger_get_status(storage_status_t *status) {
     (void)status;
     return -1;
+}
+
+size_t camera_copy_last_qr_frame(uint8_t *dst, size_t capacity,
+                                 uint16_t *width, uint16_t *height) {
+    (void)dst;
+    (void)capacity;
+    if (width) {
+        *width = 0;
+    }
+    if (height) {
+        *height = 0;
+    }
+    return 0;
+}
+
+void camera_set_qr_profile(camera_qr_profile_t profile) {
+    (void)profile;
+}
+
+camera_qr_profile_t camera_get_qr_profile(void) {
+    return CAMERA_QR_PROFILE_SCREEN_GLARE;
+}
+
+const char *camera_qr_profile_name(camera_qr_profile_t profile) {
+    switch (profile) {
+        case CAMERA_QR_PROFILE_SCREEN_GLARE:
+            return "screen_glare";
+        case CAMERA_QR_PROFILE_SCREEN_BALANCED:
+            return "screen_balanced";
+        case CAMERA_QR_PROFILE_SCREEN_BRIGHT:
+            return "screen_bright";
+        default:
+            return "unknown";
+    }
+}
+
+int server_comm_exchange_claim_token(const char *url, const char *claim_token,
+                                     char *api_key_out, size_t out_size) {
+    if (!url || !claim_token || !api_key_out || out_size == 0) {
+        return -1;
+    }
+    snprintf(g_last_exchange_url, sizeof(g_last_exchange_url), "%s", url);
+    if (strcmp(claim_token, "HWCVALIDTOKEN") != 0) {
+        return -1;
+    }
+    snprintf(api_key_out, out_size, "%s", "apis_test_claimed_key");
+    return 0;
 }
 
 // ============================================================================
@@ -94,7 +148,7 @@ static int read_auth_token(void) {
 
 typedef struct {
     int status_code;
-    char body[4096];
+    char body[8192];
     size_t body_len;
     char content_type[128];
 } http_response_t;
@@ -163,15 +217,28 @@ static int http_request(uint16_t port, const char *method, const char *path,
         return -1;
     }
 
-    // Receive response
+    // Receive response until the server closes the connection.
     char buffer[8192];
-    ssize_t received = recv(sock, buffer, sizeof(buffer) - 1, 0);
+    size_t total_received = 0;
+    while (total_received < sizeof(buffer) - 1) {
+        ssize_t received = recv(sock, buffer + total_received,
+                                sizeof(buffer) - 1 - total_received, 0);
+        if (received < 0) {
+            perror("recv");
+            close(sock);
+            return -1;
+        }
+        if (received == 0) {
+            break;
+        }
+        total_received += (size_t)received;
+    }
     close(sock);
 
-    if (received <= 0) {
+    if (total_received == 0) {
         return -1;
     }
-    buffer[received] = '\0';
+    buffer[total_received] = '\0';
 
     // Parse response
     memset(response, 0, sizeof(*response));
@@ -201,7 +268,7 @@ static int http_request(uint16_t port, const char *method, const char *path,
     const char *body_start = strstr(buffer, "\r\n\r\n");
     if (body_start) {
         body_start += 4;
-        size_t body_len = received - (body_start - buffer);
+        size_t body_len = total_received - (size_t)(body_start - buffer);
         if (body_len >= sizeof(response->body)) {
             body_len = sizeof(response->body) - 1;
         }
@@ -249,6 +316,118 @@ static void test_status_endpoint(uint16_t port) {
 
         cJSON *version = cJSON_GetObjectItem(json, "firmware_version");
         TEST_ASSERT(version != NULL && cJSON_IsString(version), "firmware_version field is string");
+
+        cJSON *home_source = cJSON_GetObjectItem(json, "home_source");
+        TEST_ASSERT(home_source != NULL && cJSON_IsString(home_source), "home_source field is string");
+
+        cJSON *install_profile = cJSON_GetObjectItem(json, "install_profile");
+        TEST_ASSERT(install_profile != NULL && cJSON_IsString(install_profile),
+                    "install_profile field is string");
+
+        cJSON *qr = cJSON_GetObjectItem(json, "qr");
+        TEST_ASSERT(qr != NULL && cJSON_IsObject(qr), "qr object is present");
+        if (qr) {
+            cJSON *active = cJSON_GetObjectItem(qr, "active");
+            TEST_ASSERT(active != NULL && cJSON_IsBool(active),
+                        "qr.active field is boolean");
+            cJSON *last_code_count = cJSON_GetObjectItem(qr, "last_code_count");
+            TEST_ASSERT(last_code_count != NULL && cJSON_IsNumber(last_code_count),
+                        "qr.last_code_count field is number");
+            cJSON *last_decode_error = cJSON_GetObjectItem(qr, "last_decode_error");
+            TEST_ASSERT(last_decode_error != NULL && cJSON_IsString(last_decode_error),
+                        "qr.last_decode_error field is string");
+            cJSON *last_decode_pass = cJSON_GetObjectItem(qr, "last_decode_pass");
+            TEST_ASSERT(last_decode_pass != NULL && cJSON_IsString(last_decode_pass),
+                        "qr.last_decode_pass field is string");
+            cJSON *operator_hint = cJSON_GetObjectItem(qr, "operator_hint");
+            TEST_ASSERT(operator_hint != NULL && cJSON_IsString(operator_hint),
+                        "qr.operator_hint field is string");
+            cJSON *profile = cJSON_GetObjectItem(qr, "profile");
+            TEST_ASSERT(profile != NULL && cJSON_IsString(profile),
+                        "qr.profile field is string");
+        }
+
+        cJSON *claim = cJSON_GetObjectItem(json, "claim");
+        TEST_ASSERT(claim != NULL && cJSON_IsObject(claim), "claim object is present");
+        if (claim) {
+            cJSON *available = cJSON_GetObjectItem(claim, "available");
+            TEST_ASSERT(available != NULL && cJSON_IsBool(available),
+                        "claim.available field is boolean");
+            cJSON *pending = cJSON_GetObjectItem(claim, "pending_token");
+            TEST_ASSERT(pending != NULL && cJSON_IsBool(pending),
+                        "claim.pending_token field is boolean");
+            cJSON *server_url = cJSON_GetObjectItem(claim, "server_url");
+            TEST_ASSERT(server_url != NULL && cJSON_IsString(server_url),
+                        "claim.server_url field is string");
+        }
+
+        cJSON *manual_capture = cJSON_GetObjectItem(json, "manual_capture");
+        TEST_ASSERT(manual_capture != NULL && cJSON_IsObject(manual_capture),
+                    "manual_capture object is present");
+        if (manual_capture) {
+            cJSON *state = cJSON_GetObjectItem(manual_capture, "state");
+            TEST_ASSERT(state != NULL && cJSON_IsString(state),
+                        "manual_capture.state field is string");
+
+            cJSON *upload_state = cJSON_GetObjectItem(manual_capture, "upload_state");
+            TEST_ASSERT(upload_state != NULL && cJSON_IsString(upload_state),
+                        "manual_capture.upload_state field is string");
+        }
+
+        cJSON *deterrent = cJSON_GetObjectItem(json, "deterrent");
+        TEST_ASSERT(deterrent != NULL && cJSON_IsObject(deterrent),
+                    "deterrent object is present");
+        if (deterrent) {
+            cJSON *mode = cJSON_GetObjectItem(deterrent, "mode");
+            TEST_ASSERT(mode != NULL && cJSON_IsString(mode),
+                        "deterrent.mode field is string");
+
+            cJSON *state = cJSON_GetObjectItem(deterrent, "state");
+            TEST_ASSERT(state != NULL && cJSON_IsString(state),
+                        "deterrent.state field is string");
+
+            cJSON *would_move = cJSON_GetObjectItem(deterrent, "would_move");
+            TEST_ASSERT(would_move != NULL && cJSON_IsBool(would_move),
+                        "deterrent.would_move field is boolean");
+
+            cJSON *annotated = cJSON_GetObjectItem(deterrent, "last_annotated_frame_path");
+            TEST_ASSERT(annotated != NULL && cJSON_IsString(annotated),
+                        "deterrent.last_annotated_frame_path field is string");
+        }
+
+        cJSON *vision = cJSON_GetObjectItem(json, "vision");
+        TEST_ASSERT(vision != NULL && cJSON_IsObject(vision),
+                    "vision object is present");
+        if (vision) {
+            cJSON *watch_mode_state = cJSON_GetObjectItem(vision, "watch_mode_state");
+            TEST_ASSERT(watch_mode_state != NULL && cJSON_IsString(watch_mode_state),
+                        "vision.watch_mode_state field is string");
+
+            cJSON *sensor_mode = cJSON_GetObjectItem(vision, "sensor_mode");
+            TEST_ASSERT(sensor_mode != NULL && cJSON_IsString(sensor_mode),
+                        "vision.sensor_mode field is string");
+
+            cJSON *lanes = cJSON_GetObjectItem(vision, "lanes");
+            TEST_ASSERT(lanes != NULL && cJSON_IsArray(lanes),
+                        "vision.lanes field is an array");
+        }
+
+        cJSON *business_sync = cJSON_GetObjectItem(json, "business_sync");
+        TEST_ASSERT(business_sync != NULL && cJSON_IsObject(business_sync),
+                    "business_sync object is present");
+        if (business_sync) {
+            cJSON *pending_entries = cJSON_GetObjectItem(business_sync, "pending_entries");
+            TEST_ASSERT(pending_entries != NULL && cJSON_IsNumber(pending_entries),
+                        "business_sync.pending_entries field is numeric");
+
+            cJSON *last_status = cJSON_GetObjectItem(business_sync, "last_journal_sync_status");
+            TEST_ASSERT(last_status != NULL && cJSON_IsString(last_status),
+                        "business_sync.last_journal_sync_status field is string");
+
+            cJSON *active_encounter = cJSON_GetObjectItem(business_sync, "active_encounter");
+            TEST_ASSERT(active_encounter != NULL && cJSON_IsObject(active_encounter),
+                        "business_sync.active_encounter object is present");
+        }
 
         cJSON_Delete(json);
     }
@@ -370,11 +549,16 @@ static void test_config_endpoints(uint16_t port) {
                 TEST_ASSERT(masked_or_empty, "API key is masked or empty");
             }
         }
+        cJSON *install_profile = cJSON_GetObjectItem(json, "install_profile");
+        TEST_ASSERT(install_profile != NULL && cJSON_IsString(install_profile),
+                    "Config has install_profile field");
         cJSON_Delete(json);
     }
 
     // Test POST /config with valid update (with auth)
-    const char *update_json = "{\"detection\": {\"fps\": 15}}";
+    const char *update_json =
+        "{\"detection\": {\"fps\": 15}, \"deterrent_mode\": \"live\", "
+        "\"install_profile\": \"legacy\"}";
     result = http_request(port, "POST", "/config", update_json, g_auth_token, &response);
     TEST_ASSERT(result == 0, "Update config request succeeded");
     TEST_ASSERT(response.status_code == 200, "Update config status code is 200");
@@ -388,6 +572,16 @@ static void test_config_endpoints(uint16_t port) {
             cJSON *fps = cJSON_GetObjectItem(detection, "fps");
             TEST_ASSERT(fps != NULL && fps->valueint == 15, "FPS was updated to 15");
         }
+
+        cJSON *mode = cJSON_GetObjectItem(json, "deterrent_mode");
+        TEST_ASSERT(mode != NULL && cJSON_IsString(mode) &&
+                    strcmp(mode->valuestring, "live") == 0,
+                    "Deterrent mode was updated to live");
+
+        cJSON *install_profile = cJSON_GetObjectItem(json, "install_profile");
+        TEST_ASSERT(install_profile != NULL && cJSON_IsString(install_profile) &&
+                    strcmp(install_profile->valuestring, "legacy") == 0,
+                    "Install profile was updated to legacy");
         cJSON_Delete(json);
     }
 
@@ -407,6 +601,184 @@ static void test_config_endpoints(uint16_t port) {
     // Test POST /config with empty body (with auth)
     result = http_request(port, "POST", "/config", "", g_auth_token, &response);
     TEST_ASSERT(result == 0 && response.status_code == 400, "Empty body returns 400");
+}
+
+static void test_manual_capture_state_machine(void) {
+    printf("\n--- Test: Manual Capture State Machine ---\n");
+
+    manual_capture_cleanup();
+    manual_capture_init();
+
+    manual_capture_snapshot_t snapshot;
+    TEST_ASSERT(manual_capture_request(1, false, &snapshot) == 0,
+                "Manual capture request succeeds");
+    TEST_ASSERT(snapshot.state == MANUAL_CAPTURE_STATE_QUEUED,
+                "Manual capture enters queued state");
+    TEST_ASSERT(snapshot.duration_seconds == 2,
+                "Manual capture duration is clamped to 2 seconds");
+    TEST_ASSERT(snapshot.upload_state == MANUAL_CAPTURE_UPLOAD_SKIPPED,
+                "Upload skipped is recorded immediately for upload=false");
+    TEST_ASSERT(!snapshot.upload_requested,
+                "Upload flag is preserved");
+
+    TEST_ASSERT(manual_capture_request(3, true, NULL) == -1,
+                "Second request is rejected while capture is queued");
+
+    manual_capture_mark_recording("/data/clips/manual-1.avi", "2026-03-07T12:00:00Z");
+    manual_capture_get_snapshot(&snapshot);
+    TEST_ASSERT(snapshot.state == MANUAL_CAPTURE_STATE_RECORDING,
+                "Manual capture enters recording state");
+
+    clip_result_t result;
+    memset(&result, 0, sizeof(result));
+    snprintf(result.filepath, sizeof(result.filepath), "%s", "/data/clips/manual-1.avi");
+    snprintf(result.recorded_at, sizeof(result.recorded_at), "%s", "2026-03-07T12:00:03Z");
+    manual_capture_mark_recorded(&result);
+    manual_capture_get_snapshot(&snapshot);
+    TEST_ASSERT(snapshot.state == MANUAL_CAPTURE_STATE_RECORDED,
+                "Manual capture enters recorded state");
+    TEST_ASSERT(snapshot.upload_state == MANUAL_CAPTURE_UPLOAD_SKIPPED,
+                "Upload state remains skipped for upload=false");
+
+    TEST_ASSERT(manual_capture_request(3, true, &snapshot) == 0,
+                "New manual capture request succeeds after previous one completed");
+    TEST_ASSERT(snapshot.duration_seconds == 3,
+                "Manual capture preserves 3 second duration");
+    TEST_ASSERT(snapshot.upload_state == MANUAL_CAPTURE_UPLOAD_PENDING,
+                "Upload requested starts in pending state");
+
+    manual_capture_mark_recording("/data/clips/manual-2.avi", "2026-03-07T12:00:10Z");
+    memset(&result, 0, sizeof(result));
+    snprintf(result.filepath, sizeof(result.filepath), "%s", "/data/clips/manual-2.avi");
+    snprintf(result.recorded_at, sizeof(result.recorded_at), "%s", "2026-03-07T12:00:13Z");
+    manual_capture_mark_recorded(&result);
+    manual_capture_mark_upload_queued();
+    manual_capture_mark_upload_complete("/data/clips/manual-2.avi", UPLOAD_STATUS_SUCCESS);
+    manual_capture_get_snapshot(&snapshot);
+    TEST_ASSERT(snapshot.upload_state == MANUAL_CAPTURE_UPLOAD_UPLOADED,
+                "Successful upload is reflected in manual capture state");
+
+    manual_capture_cleanup();
+    manual_capture_init();
+}
+
+static void test_capture_endpoint(uint16_t port) {
+    printf("\n--- Test: Capture Endpoint ---\n");
+
+    manual_capture_cleanup();
+    manual_capture_init();
+
+    http_response_t response;
+    int result = http_request(port, "POST", "/capture",
+                              "{\"duration_seconds\":3,\"upload\":true}",
+                              g_auth_token, &response);
+    TEST_ASSERT(result == 0, "Capture request succeeded");
+    TEST_ASSERT(response.status_code == 202, "Capture request returns 202");
+
+    cJSON *json = cJSON_Parse(response.body);
+    TEST_ASSERT(json != NULL, "Capture response is valid JSON");
+    if (json) {
+        cJSON *request_id = cJSON_GetObjectItem(json, "request_id");
+        TEST_ASSERT(request_id != NULL && cJSON_IsString(request_id) &&
+                    strlen(request_id->valuestring) > 0,
+                    "Capture response includes request_id");
+
+        cJSON *state = cJSON_GetObjectItem(json, "state");
+        TEST_ASSERT(state != NULL && cJSON_IsString(state) &&
+                    strcmp(state->valuestring, "queued") == 0,
+                    "Capture response state is queued");
+        cJSON_Delete(json);
+    }
+
+    manual_capture_snapshot_t snapshot;
+    manual_capture_get_snapshot(&snapshot);
+    TEST_ASSERT(snapshot.state == MANUAL_CAPTURE_STATE_QUEUED,
+                "Manual capture module received queued request");
+    TEST_ASSERT(snapshot.upload_requested,
+                "Capture endpoint preserves upload=true");
+
+    result = http_request(port, "GET", "/status", NULL, NULL, &response);
+    TEST_ASSERT(result == 0, "Status request after capture succeeded");
+    json = cJSON_Parse(response.body);
+    TEST_ASSERT(json != NULL, "Status after capture is valid JSON");
+    if (json) {
+        cJSON *manual_capture = cJSON_GetObjectItem(json, "manual_capture");
+        cJSON *state = manual_capture ? cJSON_GetObjectItem(manual_capture, "state") : NULL;
+        cJSON *upload_state = manual_capture ? cJSON_GetObjectItem(manual_capture, "upload_state") : NULL;
+
+        TEST_ASSERT(state != NULL && cJSON_IsString(state) &&
+                    strcmp(state->valuestring, "queued") == 0,
+                    "Status exposes queued manual capture state");
+        TEST_ASSERT(upload_state != NULL && cJSON_IsString(upload_state) &&
+                    strcmp(upload_state->valuestring, "pending") == 0,
+                    "Status exposes pending upload state");
+        cJSON_Delete(json);
+    }
+
+    result = http_request(port, "POST", "/capture", NULL, g_auth_token, &response);
+    TEST_ASSERT(result == 0, "Conflicting capture request completed");
+    TEST_ASSERT(response.status_code == 409, "Second capture request returns 409");
+
+    manual_capture_cleanup();
+    manual_capture_init();
+}
+
+static void test_claim_endpoint(uint16_t port) {
+    printf("\n--- Test: Claim Endpoint ---\n");
+
+    qr_scanner_cleanup();
+    qr_scanner_init_with_size(320, 240);
+    config_manager_clear_api_key();
+    http_response_t response;
+    int result;
+
+    config_manager_set_needs_setup(true);
+    result = http_request(port, "GET", "/claim", NULL, NULL, &response);
+    TEST_ASSERT(result == 0, "Claim page request during setup succeeded");
+    TEST_ASSERT(response.status_code == 409,
+                "Claim page is unavailable while captive setup is active");
+
+    config_manager_set_needs_setup(false);
+    config_manager_set_server("http://127.0.0.1:3000", NULL);
+
+    result = http_request(port, "GET", "/claim", NULL, NULL, &response);
+    TEST_ASSERT(result == 0, "Claim page request succeeded");
+    TEST_ASSERT(response.status_code == 200, "Claim page returns 200 while unclaimed");
+    TEST_ASSERT(strstr(response.content_type, "text/html") != NULL,
+                "Claim page content type is HTML");
+
+    result = http_request(port, "POST", "/claim",
+                          "claim_token=HWCINVALIDTOKEN&server_url=http%3A%2F%2Fevil.example",
+                          NULL, &response);
+    TEST_ASSERT(result == 0, "Invalid claim submit completed");
+    TEST_ASSERT(response.status_code == 400, "Invalid claim submit returns 400");
+
+    runtime_config_t snapshot;
+    config_manager_get_snapshot(&snapshot);
+    TEST_ASSERT(strcmp(snapshot.server.url, "http://127.0.0.1:3000") == 0,
+                "Failed claim does not poison persisted server URL");
+
+    result = http_request(port, "POST", "/claim",
+                          "claim_token=HWCVALIDTOKEN&server_url=http%3A%2F%2F127.0.0.1%3A3000",
+                          NULL, &response);
+    TEST_ASSERT(result == 0, "Claim submit succeeded");
+    TEST_ASSERT(response.status_code == 200, "Claim submit returns 200");
+    TEST_ASSERT(strstr(response.body, "Claim Complete") != NULL,
+                "Claim success page is returned");
+
+    config_manager_get_snapshot(&snapshot);
+    TEST_ASSERT(strcmp(snapshot.server.api_key, "apis_test_claimed_key") == 0,
+                "Claim submit persisted exchanged API key");
+    TEST_ASSERT(strcmp(g_last_exchange_url, "http://127.0.0.1:3000") == 0,
+                "Claim exchange uses the intended server URL");
+    TEST_ASSERT(snapshot.needs_setup == false,
+                "Claim submit leaves setup complete");
+    TEST_ASSERT(!config_manager_has_pending_claim_token(),
+                "Claim submit clears pending claim token");
+    TEST_ASSERT(!config_manager_has_pending_claim_server_url(),
+                "Claim submit clears pending claim server URL");
+
+    qr_scanner_cleanup();
 }
 
 // ============================================================================
@@ -560,6 +932,9 @@ static void test_server_lifecycle(void) {
     test_auth(port);
     test_arm_disarm_endpoints(port);
     test_config_endpoints(port);
+    test_manual_capture_state_machine();
+    test_capture_endpoint(port);
+    test_claim_endpoint(port);
     test_stream_endpoint(port);
     test_error_handling(port);
 
@@ -582,6 +957,9 @@ int main(void) {
     // Initialize config manager (needed for arm/disarm and config endpoints)
     config_manager_init(true); // Use dev path
     config_manager_complete_setup(); // Mark setup done so 404 works (not redirect to /setup)
+    deterrent_state_init("./data/apis/deterrent");
+    vision_runtime_init();
+    manual_capture_init();
 
     printf("=== HTTP Server Tests ===\n");
 
@@ -591,6 +969,9 @@ int main(void) {
            tests_passed, tests_failed);
 
     config_manager_cleanup();
+    deterrent_state_cleanup();
+    vision_runtime_cleanup();
+    manual_capture_cleanup();
 
     return tests_failed > 0 ? 1 : 0;
 }

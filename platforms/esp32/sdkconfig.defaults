@@ -40,7 +40,7 @@ CONFIG_SPIFFS_MAX_PARTITIONS=3
 # Task Configuration
 # ============================================================================
 # Camera processing requires larger stack
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=32768
 # System event task needs enough stack for WiFi event handler + LOG_INFO formatting
 # Default (2304) causes stack overflow; 4096 gives safe headroom
 CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4096

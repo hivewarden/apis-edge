@@ -1,9 +1,10 @@
 /**
  * Hive Warden — Default Onboarding Configuration
  *
- * ┌────────────────────────────────────────────────────────────────┐
- * │  SELF-HOSTERS: Edit this file before building the firmware!   │
- * └────────────────────────────────────────────────────────────────┘
+ * ┌──────────────────────────────────────────────────────────────────────┐
+ * │  SELF-HOSTERS: Prefer compiler overrides instead of editing this    │
+ * │  file directly.                                                     │
+ * └──────────────────────────────────────────────────────────────────────┘
  *
  * When a device connects to WiFi for the first time, it needs to know
  * where the Hive Warden server is. This file controls the default
@@ -23,11 +24,13 @@
  *      Hive Warden cloud at hivewarden.eu.
  *
  * FOR SELF-HOSTERS:
- *   Change ONBOARDING_DEFAULT_URL to your own server address.
+ *   Override ONBOARDING_DEFAULT_URL to your own server address.
  *   Example: "https://bees.myclub.be"
+ *   Example build flag:
+ *     -DONBOARDING_DEFAULT_URL=\"https://bees.myclub.be\"
  *
  *   If you also want a fallback (e.g., the official cloud as backup),
- *   set ONBOARDING_FALLBACK_URL. Leave it empty ("") to disable.
+ *   override ONBOARDING_FALLBACK_URL. Leave it empty ("") to disable.
  */
 
 #ifndef APIS_ONBOARDING_DEFAULTS_H
@@ -42,7 +45,9 @@
  * Default: Official Hive Warden cloud (free tier available)
  * Self-host: Change to your server's public URL
  */
+#ifndef ONBOARDING_DEFAULT_URL
 #define ONBOARDING_DEFAULT_URL   "https://hivewarden.eu"
+#endif
 
 /**
  * Fallback server URL (optional).
@@ -55,6 +60,8 @@
  *   "https://hivewarden.eu"         — Fall back to official cloud
  *   "http://192.168.1.100:3000"     — Fall back to a local server
  */
+#ifndef ONBOARDING_FALLBACK_URL
 #define ONBOARDING_FALLBACK_URL  ""
+#endif
 
 #endif // APIS_ONBOARDING_DEFAULTS_H

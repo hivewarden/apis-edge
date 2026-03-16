@@ -14,6 +14,23 @@
 #include <stdint.h>
 
 /**
+ * Camera operating mode for reconfiguration.
+ * Used to switch between QR scanning and detection phases.
+ */
+typedef enum {
+    CAMERA_MODE_QVGA_GRAY,  // 320x240 grayscale, fb_count=1 (QR scanning, ~77KB)
+    CAMERA_MODE_VGA_GRAY,   // 640x480 grayscale, fb_count=1 (high-detail mode)
+    CAMERA_MODE_XGA_GRAY,   // 1024x768 grayscale, fb_count=1 (high-detail QR scan)
+    CAMERA_MODE_HD_JPEG,    // 1280x720 JPEG sensor, 640x360 analysis surface
+} camera_mode_t;
+
+typedef enum {
+    CAMERA_QR_PROFILE_SCREEN_GLARE = 0,
+    CAMERA_QR_PROFILE_SCREEN_BALANCED,
+    CAMERA_QR_PROFILE_SCREEN_BRIGHT,
+} camera_qr_profile_t;
+
+/**
  * Camera status codes.
  */
 typedef enum {
@@ -36,6 +53,15 @@ typedef struct {
     uint32_t uptime_s;            // Seconds since open
     uint32_t reconnect_count;     // Number of reconnections
 } camera_stats_t;
+
+typedef struct {
+    uint8_t *data;
+    size_t capacity;
+    size_t size;
+    uint16_t width;
+    uint16_t height;
+    bool valid;
+} camera_jpeg_frame_t;
 
 /**
  * Initialize the camera subsystem.
@@ -63,6 +89,10 @@ camera_status_t camera_open(void);
  */
 camera_status_t camera_read(frame_t *frame, uint32_t timeout_ms);
 
+camera_status_t camera_read_capture(frame_t *frame,
+                                    camera_jpeg_frame_t *jpeg_frame,
+                                    uint32_t timeout_ms);
+
 /**
  * Check if camera is currently open and streaming.
  *
@@ -84,6 +114,52 @@ float camera_get_fps(void);
  * @param stats Output statistics structure
  */
 void camera_get_stats(camera_stats_t *stats);
+
+/**
+ * Reconfigure camera to a different mode (resolution/buffer count).
+ *
+ * On ESP32: deinits camera, changes config, reinits. Stops drain task first.
+ * On Pi/test: no-op (returns CAMERA_OK).
+ *
+ * @param mode Target camera mode
+ * @return CAMERA_OK on success
+ */
+camera_status_t camera_reconfigure(camera_mode_t mode);
+
+/**
+ * Lightweight camera read for QR scanning phase (ESP32 only).
+ *
+ * Gets a QVGA grayscale frame, feeds it directly to qr_scanner via
+ * qr_scanner_feed_grayscale(), and returns the frame buffer immediately.
+ * No BGR conversion, no frame_t allocation needed.
+ *
+ * On Pi/test: no-op (returns CAMERA_OK).
+ *
+ * @param timeout_ms Maximum wait time for frame
+ * @return CAMERA_OK on success
+ */
+camera_status_t camera_read_qr(uint32_t timeout_ms);
+
+void camera_set_qr_profile(camera_qr_profile_t profile);
+camera_qr_profile_t camera_get_qr_profile(void);
+const char *camera_qr_profile_name(camera_qr_profile_t profile);
+
+/**
+ * Copy the most recent QR-scanning grayscale frame into a caller buffer.
+ *
+ * This is a debug/operator-feedback path used during onboarding so the
+ * current camera framing can be inspected without leaving QR mode.
+ *
+ * If dst is NULL, the function reports the required byte count only.
+ *
+ * @param dst Destination buffer for raw 8-bit grayscale pixels (optional)
+ * @param capacity Size of destination buffer in bytes
+ * @param width Output frame width (optional)
+ * @param height Output frame height (optional)
+ * @return Number of grayscale bytes copied or required, 0 if no preview exists
+ */
+size_t camera_copy_last_qr_frame(uint8_t *dst, size_t capacity,
+                                 uint16_t *width, uint16_t *height);
 
 /**
  * Close camera and release resources.

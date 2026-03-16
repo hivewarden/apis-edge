@@ -31,6 +31,12 @@ typedef enum {
  */
 typedef struct {
     uint8_t *data;           // BGR pixel data (allocated separately)
+    uint16_t width;
+    uint16_t height;
+    uint8_t *jpeg_data;
+    size_t jpeg_size;
+    uint16_t jpeg_width;
+    uint16_t jpeg_height;
     uint32_t timestamp_ms;
     uint32_t sequence;
     bool valid;
@@ -61,6 +67,12 @@ rolling_buffer_status_t rolling_buffer_init(const rolling_buffer_config_t *confi
  * @return ROLLING_BUFFER_OK on success
  */
 rolling_buffer_status_t rolling_buffer_add(const frame_t *frame);
+
+rolling_buffer_status_t rolling_buffer_add_capture(const frame_t *frame,
+                                                   const uint8_t *jpeg_data,
+                                                   size_t jpeg_size,
+                                                   uint16_t jpeg_width,
+                                                   uint16_t jpeg_height);
 
 /**
  * Get all frames currently in the buffer.

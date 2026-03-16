@@ -5,22 +5,24 @@
 		"name":	"APIS Unit"
 	},
 	"server":	{
-		"url":	"https://apis.honeybeegood.be",
-		"api_key":	"",
+		"url":	"",
+		"api_key":	"test_key",
 		"heartbeat_interval_seconds":	60
 	},
 	"detection":	{
 		"enabled":	true,
 		"min_size_px":	18,
 		"hover_threshold_ms":	1000,
-		"fps":	15
+		"fps":	10
 	},
 	"laser":	{
 		"enabled":	true,
 		"max_duration_seconds":	10,
 		"cooldown_seconds":	5
 	},
+	"install_profile":	"high_mount_three_hive_v1",
+	"deterrent_mode":	"shadow",
 	"armed":	false,
-	"needs_setup":	false,
-	"updated_at":	"2026-02-19T02:24:30Z"
+	"needs_setup":	true,
+	"updated_at":	"2026-03-16T01:37:26Z"
 }

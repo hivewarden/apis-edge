@@ -32,6 +32,19 @@ logs/
 
 # Test data output
 data/output/
+data/apis/
+data/clips/
+data/*.db
+data/*.sqlite
+
+# Local build directories used by agents/reviews
+build-codex/
+build-review/
+build.unixmake.backup.*/
+
+# Local agent caches
+.agents/
+.cache/
 
 # AI assistant tooling (local/generated)
 .claude/audio/

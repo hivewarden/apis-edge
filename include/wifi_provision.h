@@ -74,14 +74,22 @@ bool wifi_provision_has_credentials(void);
 void wifi_provision_get_ap_ssid(char *buf, size_t buf_size);
 
 /**
- * Get the AP mode WPA2 password (e.g., "HW-B8F862F9D38C").
+ * Get the legacy AP password value derived from the MAC address.
  *
- * Password is derived from the device MAC address.
- * Printed on serial at boot; in production, printed on device label.
+ * Current provisioning uses an open AP for easy first-time setup, so this
+ * password is not normally shown to users. It is retained as a helper in case
+ * AP authentication is re-enabled for a custom build.
  *
  * @param buf Output buffer
  * @param buf_size Buffer size (recommend >= 32)
  */
 void wifi_provision_get_ap_password(char *buf, size_t buf_size);
+
+/**
+ * Stop the AP radio.
+ * Used when AP timeout expires (no client connected within 5 minutes)
+ * to shut down WiFi and allow the device to enter standalone detection mode.
+ */
+void wifi_provision_stop_ap(void);
 
 #endif // APIS_WIFI_PROVISION_H

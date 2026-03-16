@@ -51,6 +51,53 @@ static void test_lifecycle(void) {
 }
 
 // ============================================================================
+// Test: Init With Size (QVGA for ESP32 QR phase)
+// ============================================================================
+
+static void test_init_with_size(void) {
+    printf("\n--- Test: Init With Size ---\n");
+
+    // QVGA resolution (ESP32 QR scanning phase)
+    qr_scanner_status_t status = qr_scanner_init_with_size(320, 240);
+    TEST_ASSERT(status == QR_SCANNER_OK, "Init at QVGA succeeds");
+    TEST_ASSERT(qr_scanner_is_initialized(), "Is initialized after QVGA init");
+    qr_scanner_cleanup();
+
+    // VGA resolution (same as qr_scanner_init default)
+    status = qr_scanner_init_with_size(640, 480);
+    TEST_ASSERT(status == QR_SCANNER_OK, "Init at VGA succeeds");
+    TEST_ASSERT(qr_scanner_is_initialized(), "Is initialized after VGA init");
+    qr_scanner_cleanup();
+
+    // Invalid dimensions
+    status = qr_scanner_init_with_size(0, 0);
+    TEST_ASSERT(status == QR_SCANNER_ERROR_INIT, "Init at 0x0 fails");
+    TEST_ASSERT(!qr_scanner_is_initialized(), "Not initialized after 0x0");
+
+    status = qr_scanner_init_with_size(-1, 240);
+    TEST_ASSERT(status == QR_SCANNER_ERROR_INIT, "Init with negative width fails");
+
+    status = qr_scanner_init_with_size(320, -1);
+    TEST_ASSERT(status == QR_SCANNER_ERROR_INIT, "Init with negative height fails");
+
+    // Feed grayscale at matching QVGA dimensions
+    status = qr_scanner_init_with_size(320, 240);
+    TEST_ASSERT(status == QR_SCANNER_OK, "QVGA init for feed test");
+
+    // Feed with correct dimensions should succeed
+    uint8_t gray_buf[320 * 240];
+    memset(gray_buf, 128, sizeof(gray_buf));
+    status = qr_scanner_feed_grayscale(gray_buf, 320, 240);
+    TEST_ASSERT(status == QR_SCANNER_OK, "Feed at QVGA dimensions succeeds");
+
+    // Feed with mismatched dimensions should fail
+    status = qr_scanner_feed_grayscale(gray_buf, 640, 480);
+    TEST_ASSERT(status == QR_SCANNER_ERROR_INIT, "Feed at VGA dimensions on QVGA init fails");
+
+    qr_scanner_cleanup();
+}
+
+// ============================================================================
 // Test: Valid JSON Payload Parsing
 // ============================================================================
 
@@ -90,6 +137,64 @@ static void test_parse_valid_payload(void) {
 }
 
 // ============================================================================
+// Test: Compact Claim Payloads
+// ============================================================================
+
+static void test_parse_compact_payloads(void) {
+    printf("\n--- Test: Compact Claim Payloads ---\n");
+
+    qr_scan_result_t result;
+
+    const char *key_only_json = "{\"k\":\"apis_test_123\"}";
+    qr_scanner_status_t status = qr_scanner_parse_payload(
+        key_only_json, strlen(key_only_json), &result);
+    TEST_ASSERT(status == QR_SCANNER_OK, "Key-only JSON payload returns OK");
+    TEST_ASSERT(result.found == true, "Key-only JSON sets found=true");
+    TEST_ASSERT(strcmp(result.api_key, "apis_test_123") == 0,
+                "Key-only JSON extracts api_key");
+    TEST_ASSERT(strlen(result.server_url) == 0,
+                "Key-only JSON leaves server_url empty");
+
+    const char *raw_key = "apis_live_abc123";
+    status = qr_scanner_parse_payload(raw_key, strlen(raw_key), &result);
+    TEST_ASSERT(status == QR_SCANNER_OK, "Raw API key payload returns OK");
+    TEST_ASSERT(result.found == true, "Raw API key sets found=true");
+    TEST_ASSERT(strcmp(result.api_key, "apis_live_abc123") == 0,
+                "Raw API key extracts api_key");
+    TEST_ASSERT(strlen(result.server_url) == 0,
+                "Raw API key leaves server_url empty");
+
+    const char *hex_suffix = "1234567890ABCDEF1234567890ABCDEF";
+    status = qr_scanner_parse_payload(hex_suffix, strlen(hex_suffix), &result);
+    TEST_ASSERT(status == QR_SCANNER_OK, "Hex suffix payload returns OK");
+    TEST_ASSERT(result.found == true, "Hex suffix payload sets found=true");
+    TEST_ASSERT(result.claim_type == QR_CLAIM_API_KEY,
+                "Hex suffix payload sets API key claim type");
+    TEST_ASSERT(strcmp(result.api_key, "apis_1234567890abcdef1234567890abcdef") == 0,
+                "Hex suffix payload reconstructs api_key");
+    TEST_ASSERT(strlen(result.server_url) == 0,
+                "Hex suffix payload leaves server_url empty");
+
+    const char *claim_token = "HWC1ABCD2345EFGH6789";
+    status = qr_scanner_parse_payload(claim_token, strlen(claim_token), &result);
+    TEST_ASSERT(status == QR_SCANNER_OK, "Raw claim token payload returns OK");
+    TEST_ASSERT(result.found == true, "Raw claim token sets found=true");
+    TEST_ASSERT(result.claim_type == QR_CLAIM_TOKEN,
+                "Raw claim token sets token claim type");
+    TEST_ASSERT(strcmp(result.claim_token, claim_token) == 0,
+                "Raw claim token extracts claim_token");
+
+    const char *token_json = "{\"t\":\"HWC1ABCD2345EFGH6789\"}";
+    status = qr_scanner_parse_payload(token_json, strlen(token_json), &result);
+    TEST_ASSERT(status == QR_SCANNER_OK, "Token JSON payload returns OK");
+    TEST_ASSERT(result.found == true, "Token JSON sets found=true");
+    TEST_ASSERT(result.claim_type == QR_CLAIM_TOKEN,
+                "Token JSON sets token claim type");
+    TEST_ASSERT(strcmp(result.claim_token, "HWC1ABCD2345EFGH6789") == 0,
+                "Token JSON extracts claim_token");
+}
+
+// ============================================================================
 // Test: Invalid / Missing Fields
 // ============================================================================
 
@@ -98,25 +203,24 @@ static void test_parse_missing_fields(void) {
 
     qr_scan_result_t result;
 
-    // Missing "s" field
-    const char *no_server = "{\"k\":\"sk_test_123\"}";
-    qr_scanner_status_t status = qr_scanner_parse_payload(
-        no_server, strlen(no_server), &result);
-    TEST_ASSERT(status == QR_SCANNER_ERROR_DECODE, "Missing 's' returns DECODE_ERROR");
-    TEST_ASSERT(result.found == false, "Missing 's': found is false");
-
     // Missing "k" field
     const char *no_key = "{\"s\":\"http://localhost:3000\"}";
-    status = qr_scanner_parse_payload(
+    qr_scanner_status_t status = qr_scanner_parse_payload(
         no_key, strlen(no_key), &result);
     TEST_ASSERT(status == QR_SCANNER_ERROR_DECODE, "Missing 'k' returns DECODE_ERROR");
     TEST_ASSERT(result.found == false, "Missing 'k': found is false");
 
-    // Empty "s" field
+    // Empty "s" field is treated as an omitted server URL so local-first
+    // onboarding can use a compact key-only claim payload.
     const char *empty_server = "{\"s\":\"\",\"k\":\"sk_test_123\"}";
     status = qr_scanner_parse_payload(
         empty_server, strlen(empty_server), &result);
-    TEST_ASSERT(status == QR_SCANNER_ERROR_DECODE, "Empty 's' returns DECODE_ERROR");
+    TEST_ASSERT(status == QR_SCANNER_OK, "Empty 's' falls back to key-only payload");
+    TEST_ASSERT(result.found == true, "Empty 's': found is true");
+    TEST_ASSERT(strcmp(result.api_key, "sk_test_123") == 0,
+                "Empty 's' still extracts api_key");
+    TEST_ASSERT(strlen(result.server_url) == 0,
+                "Empty 's' leaves server_url empty");
 
     // Empty "k" field
     const char *empty_key = "{\"s\":\"http://localhost:3000\",\"k\":\"\"}";
@@ -295,7 +399,9 @@ int main(void) {
     log_init(NULL, LOG_LEVEL_WARN, false);
 
     test_lifecycle();
+    test_init_with_size();
     test_parse_valid_payload();
+    test_parse_compact_payloads();
     test_parse_missing_fields();
     test_parse_bad_url_scheme();
     test_parse_oversized_strings();

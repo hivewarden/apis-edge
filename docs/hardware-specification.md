@@ -1,5 +1,7 @@
 # APIS Hardware Specification
 
+> Current repo note: use `README.md`, `docs/README.md`, `docs/esp32-usb-flashing.md`, `docs/hardware-manual.md`, `docs/firmware-architecture.md`, and `docs/onboarding-and-connectivity.md` for the current post-split source of truth. This document remains the large hardware compendium across Pi, ESP32-CAM, and XIAO paths.
+
 **Version:** 1.4
 
 **Document Purpose:** Complete hardware build guide for the APIS (Anti-Predator Interference System). Written for someone with minimal electronics experience — every concept is explained, every decision has rationale.

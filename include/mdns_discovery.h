@@ -12,7 +12,7 @@
  * Discovery sequence (matches CLAUDE.md boot sequence):
  * 1. Check saved config → use if exists
  * 2. Try mDNS: query for _hivewarden._tcp → THIS MODULE
- * 3. Try default: apis.honeybeegood.be
+ * 3. Try build-time onboarding defaults from onboarding_defaults.h
  * 4. No server → operate standalone
  *
  * ESP32-only module. Requires espressif/mdns component.

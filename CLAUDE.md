@@ -1,17 +1,19 @@
 # APIS Edge — Anti-Predator Interference System
 
+> Current repo note: prefer `AGENTS.md`, `README.md`, `docs/README.md`, `docs/firmware-architecture.md`, and `docs/onboarding-and-connectivity.md` for the current post-split source of truth. This file contains useful context but may lag the latest onboarding or server-contract details.
+
 Edge device firmware for the Hive Warden hornet detection system. Detects Asian hornets via motion detection, tracks with servo, deters with laser. Runs on ESP32 (production) and Raspberry Pi (development). Written in C with a hardware abstraction layer.
 
 ## Companion Project: Hive Warden SaaS Platform
 
 The server and dashboard that edge devices connect to are maintained separately:
-- **GitHub**: https://github.com/hivewarden/hivewarden-saas
-- **Local**: ../hivewarden-saas/ (sibling directory)
+- **GitHub**: https://github.com/hivewarden/hivewarden-saas.git
+- **Local**: /Users/jermodelaruelle/Projects/hivewarden-saas
 
 ### API Contract
 This device communicates with the Hive Warden server via REST API:
-- `POST /api/devices/{id}/heartbeat` — Device health (every 60s)
-- `POST /api/clips` — Upload detection clips
+- `POST /api/units/heartbeat` — Device health (every 60s)
+- `POST /api/units/clips` — Upload detection clips
 - Auth: `X-API-Key` header
 - QR claiming payload: `{"s":"server_url","k":"api_key"}`
 - mDNS: `_hivewarden._tcp` service discovery
@@ -72,7 +74,9 @@ apis-edge/
 ├── tests/                # Unit tests
 ├── hardware/             # Wiring diagrams, STL files
 ├── docs/                 # Hardware specification and assembly guides
-├── data/                 # Test data (QR images, etc.)
+├── scripts/              # ESP32 bring-up helpers
+├── data/                 # Local runtime/test output only
+├── archive/              # Moved historical prototype/mockup/review material
 └── CMakeLists.txt        # Top-level CMake (test platform build)
 ```
 

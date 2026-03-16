@@ -48,8 +48,8 @@
 #define GPIO_SERVO_PAN      18      // PWM0 capable
 #define GPIO_SERVO_TILT     19      // PWM1 capable
 #elif defined(APIS_PLATFORM_ESP32)
-#define GPIO_SERVO_PAN      13      // Available on ESP32-CAM
-#define GPIO_SERVO_TILT     15      // Available on ESP32-CAM
+#define GPIO_SERVO_PAN      1       // XIAO D0 (documented pan servo signal)
+#define GPIO_SERVO_TILT     (-1)    // Pan-only XIAO build leaves tilt virtual
 #define LEDC_CHANNEL_PAN    LEDC_CHANNEL_0
 #define LEDC_CHANNEL_TILT   LEDC_CHANNEL_1
 #define LEDC_TIMER          LEDC_TIMER_0
@@ -420,21 +420,27 @@ static void pwm_init(void) {
     };
     ledc_channel_config(&pan_conf);
 
-    // Configure tilt channel
-    ledc_channel_config_t tilt_conf = {
-        .gpio_num = GPIO_SERVO_TILT,
-        .speed_mode = LEDC_MODE,
-        .channel = LEDC_CHANNEL_TILT,
-        .timer_sel = LEDC_TIMER,
-        .duty = 0,
-        .hpoint = 0
-    };
-    ledc_channel_config(&tilt_conf);
+    if (GPIO_SERVO_TILT >= 0) {
+        ledc_channel_config_t tilt_conf = {
+            .gpio_num = GPIO_SERVO_TILT,
+            .speed_mode = LEDC_MODE,
+            .channel = LEDC_CHANNEL_TILT,
+            .timer_sel = LEDC_TIMER,
+            .duty = 0,
+            .hpoint = 0
+        };
+        ledc_channel_config(&tilt_conf);
+    }
 
-    LOG_DEBUG("PWM initialized (ESP32)");
+    LOG_DEBUG("PWM initialized (ESP32 XIAO pan=%d tilt=%d)",
+              GPIO_SERVO_PAN, GPIO_SERVO_TILT);
 }
 
 static void pwm_set_pulse(servo_axis_t axis, uint32_t pulse_us) {
+    if (axis == SERVO_AXIS_TILT && GPIO_SERVO_TILT < 0) {
+        return;
+    }
+
     ledc_channel_t channel = (axis == SERVO_AXIS_PAN) ?
                              LEDC_CHANNEL_PAN : LEDC_CHANNEL_TILT;
 
@@ -449,7 +455,9 @@ static void pwm_set_pulse(servo_axis_t axis, uint32_t pulse_us) {
 
 static void pwm_cleanup(void) {
     ledc_stop(LEDC_MODE, LEDC_CHANNEL_PAN, 0);
-    ledc_stop(LEDC_MODE, LEDC_CHANNEL_TILT, 0);
+    if (GPIO_SERVO_TILT >= 0) {
+        ledc_stop(LEDC_MODE, LEDC_CHANNEL_TILT, 0);
+    }
     LOG_DEBUG("PWM cleanup (ESP32)");
 }
 

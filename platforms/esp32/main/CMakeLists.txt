@@ -11,9 +11,18 @@ set(APIS_SOURCES
 
     # Core initialization and configuration
     "${APIS_EDGE_DIR}/src/main.c"
+    "${APIS_EDGE_DIR}/src/capture/manual_capture.c"
     "${APIS_EDGE_DIR}/src/config.c"
     "${APIS_EDGE_DIR}/src/log.c"
     "${APIS_EDGE_DIR}/src/config/config_manager.c"
+    "${APIS_EDGE_DIR}/src/telemetry/edge_telemetry.c"
+    "${APIS_EDGE_DIR}/src/telemetry/sync_pipeline.c"
+    "${APIS_EDGE_DIR}/src/telemetry/telemetry_journal.c"
+    "${APIS_EDGE_DIR}/src/deterrent/deterrent_state.c"
+    "${APIS_EDGE_DIR}/src/deterrent/shadow_lane_gate.c"
+    "${APIS_EDGE_DIR}/src/vision/install_profile.c"
+    "${APIS_EDGE_DIR}/src/vision/profile_scoring.c"
+    "${APIS_EDGE_DIR}/src/vision/vision_runtime.c"
 
     # Motion detection pipeline
     "${APIS_EDGE_DIR}/src/detection/motion.c"
@@ -29,6 +38,7 @@ set(APIS_SOURCES
 
     # Server communication
     "${APIS_EDGE_DIR}/src/server/server_comm.c"
+    "${APIS_EDGE_DIR}/src/server/journal_sync.c"
     "${APIS_EDGE_DIR}/src/upload/clip_uploader.c"
     "${APIS_EDGE_DIR}/src/http/http_server.c"
     "${APIS_EDGE_DIR}/src/http/http_utils.c"
