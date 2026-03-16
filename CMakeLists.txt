@@ -9,15 +9,13 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Platform detection
-# Use -DAPIS_PLATFORM=test for building tests on macOS/Linux without Pi dependencies
+# Default to the host test build unless the ESP-IDF toolchain is driving the build.
+# The Pi path is still available explicitly via -DAPIS_PLATFORM=pi.
 if(NOT DEFINED APIS_PLATFORM)
     if(ESP_PLATFORM)
         set(APIS_PLATFORM "esp32")
-    elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-        # macOS - default to test mode for local development
-        set(APIS_PLATFORM "test")
     else()
-        set(APIS_PLATFORM "pi")
+        set(APIS_PLATFORM "test")
     endif()
 endif()
 
@@ -51,18 +49,35 @@ set(QUIRC_SOURCES
 # Common sources
 set(COMMON_SOURCES
     src/main.c
+    src/capture/manual_capture.c
     src/config.c
     src/log.c
     src/config/config_manager.c
+    src/telemetry/edge_telemetry.c
+    src/telemetry/sync_pipeline.c
+    src/telemetry/telemetry_journal.c
+    src/deterrent/deterrent_state.c
+    src/deterrent/shadow_lane_gate.c
+    src/vision/install_profile.c
+    src/vision/profile_scoring.c
+    src/vision/vision_runtime.c
     src/detection/motion.c
     src/detection/tracker.c
     src/detection/classifier.c
+    src/button/button_handler.c
+    src/laser/coordinate_mapper.c
+    src/laser/laser_controller.c
+    src/laser/targeting.c
+    src/safety/safety_layer.c
+    src/servo/servo_controller.c
+    src/led/led_controller.c
     src/storage/event_logger.c
     src/storage/schema.c
     src/storage/rolling_buffer.c
     src/storage/clip_recorder.c
     src/storage/storage_manager.c
     src/qr/qr_scanner.c
+    src/server/journal_sync.c
     ${CJSON_SOURCES}
     ${QUIRC_SOURCES}
 )
@@ -313,6 +328,7 @@ endif()
 add_executable(test_config_manager
     tests/test_config_manager.c
     src/config/config_manager.c
+    src/vision/install_profile.c
     src/config.c
     src/log.c
     lib/cJSON/cJSON.c
@@ -338,11 +354,83 @@ target_include_directories(test_config_manager PRIVATE
     ${CMAKE_SOURCE_DIR}/lib/cJSON
 )
 
+add_executable(test_deterrent_state
+    tests/test_deterrent_state.c
+    src/deterrent/deterrent_state.c
+    src/config/config_manager.c
+    src/vision/install_profile.c
+    src/config.c
+    src/log.c
+    lib/cJSON/cJSON.c
+)
+
+if(APIS_PLATFORM STREQUAL "pi")
+    target_link_libraries(test_deterrent_state
+        ${YAML_LIBRARIES}
+        pthread
+        m
+    )
+    target_include_directories(test_deterrent_state PRIVATE
+        ${YAML_INCLUDE_DIRS}
+    )
+elseif(APIS_PLATFORM STREQUAL "test")
+    target_link_libraries(test_deterrent_state pthread)
+endif()
+
+target_include_directories(test_deterrent_state PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/hal
+    ${CMAKE_SOURCE_DIR}/lib/cJSON
+)
+
+add_executable(test_profile_scoring
+    tests/test_profile_scoring.c
+    src/vision/install_profile.c
+    src/vision/profile_scoring.c
+)
+
+if(APIS_PLATFORM STREQUAL "pi")
+    target_link_libraries(test_profile_scoring pthread m)
+elseif(APIS_PLATFORM STREQUAL "test")
+    target_link_libraries(test_profile_scoring pthread m)
+endif()
+
+target_include_directories(test_profile_scoring PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/hal
+)
+
+add_executable(test_shadow_lane_gate
+    tests/test_shadow_lane_gate.c
+    src/deterrent/shadow_lane_gate.c
+)
+
+if(APIS_PLATFORM STREQUAL "pi")
+    target_link_libraries(test_shadow_lane_gate pthread m)
+elseif(APIS_PLATFORM STREQUAL "test")
+    target_link_libraries(test_shadow_lane_gate pthread m)
+endif()
+
+target_include_directories(test_shadow_lane_gate PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/hal
+)
+
 # HTTP server test executable (can build without hardware dependencies)
 add_executable(test_http_server
     tests/test_http_server.c
+    src/capture/manual_capture.c
+    src/deterrent/deterrent_state.c
+    src/telemetry/sync_pipeline.c
+    src/telemetry/edge_telemetry.c
+    src/telemetry/telemetry_journal.c
+    src/server/journal_sync.c
+    src/upload/clip_uploader.c
+    src/vision/install_profile.c
+    src/vision/vision_runtime.c
     src/http/http_server.c
     src/http/http_rate_limit.c
+    src/http/http_recv.c
     src/http/http_utils.c
     src/led/led_controller.c
     src/config/config_manager.c
@@ -351,6 +439,7 @@ add_executable(test_http_server
     src/laser/laser_controller.c
     src/servo/servo_controller.c
     src/storage/storage_manager.c
+    src/tls/tls_client.c
     src/qr/qr_scanner.c
     src/config.c
     src/log.c
@@ -411,12 +500,16 @@ target_include_directories(test_led_controller PRIVATE
 add_executable(test_server_comm
     tests/test_server_comm.c
     src/server/server_comm.c
+    src/server/journal_sync.c
+    src/telemetry/telemetry_journal.c
     src/upload/clip_uploader.c
+    src/http/http_recv.c
     src/http/http_utils.c
     src/tls/tls_client.c
     src/storage/storage_manager.c
     src/led/led_controller.c
     src/config/config_manager.c
+    src/vision/install_profile.c
     src/config.c
     src/log.c
     lib/cJSON/cJSON.c
@@ -451,10 +544,13 @@ target_include_directories(test_server_comm PRIVATE
 add_executable(test_clip_uploader
     tests/test_clip_uploader.c
     src/upload/clip_uploader.c
+    src/telemetry/telemetry_journal.c
+    src/http/http_recv.c
     src/http/http_utils.c
     src/tls/tls_client.c
     src/storage/storage_manager.c
     src/config/config_manager.c
+    src/vision/install_profile.c
     src/config.c
     src/log.c
     lib/cJSON/cJSON.c
@@ -480,6 +576,36 @@ if(MbedTLS_FOUND)
 endif()
 
 target_include_directories(test_clip_uploader PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/hal
+    ${CMAKE_SOURCE_DIR}/lib/cJSON
+)
+
+add_executable(test_edge_telemetry
+    tests/test_edge_telemetry.c
+    src/telemetry/edge_telemetry.c
+    src/telemetry/telemetry_journal.c
+    src/config/config_manager.c
+    src/vision/install_profile.c
+    src/config.c
+    src/log.c
+    lib/cJSON/cJSON.c
+)
+
+if(APIS_PLATFORM STREQUAL "pi")
+    target_link_libraries(test_edge_telemetry
+        ${YAML_LIBRARIES}
+        pthread
+        m
+    )
+    target_include_directories(test_edge_telemetry PRIVATE
+        ${YAML_INCLUDE_DIRS}
+    )
+elseif(APIS_PLATFORM STREQUAL "test")
+    target_link_libraries(test_edge_telemetry pthread)
+endif()
+
+target_include_directories(test_edge_telemetry PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/hal
     ${CMAKE_SOURCE_DIR}/lib/cJSON
@@ -771,10 +897,14 @@ target_include_directories(test_qr_scanner PRIVATE
 
 # Platform-agnostic tests (always built)
 add_test(NAME test_config_manager COMMAND test_config_manager)
+add_test(NAME test_deterrent_state COMMAND test_deterrent_state)
+add_test(NAME test_profile_scoring COMMAND test_profile_scoring)
+add_test(NAME test_shadow_lane_gate COMMAND test_shadow_lane_gate)
 add_test(NAME test_http_server COMMAND test_http_server)
 add_test(NAME test_led_controller COMMAND test_led_controller)
 add_test(NAME test_server_comm COMMAND test_server_comm)
 add_test(NAME test_clip_uploader COMMAND test_clip_uploader)
+add_test(NAME test_edge_telemetry COMMAND test_edge_telemetry)
 add_test(NAME test_servo_controller COMMAND test_servo_controller)
 add_test(NAME test_coordinate_mapper COMMAND test_coordinate_mapper)
 add_test(NAME test_laser_controller COMMAND test_laser_controller)
@@ -785,11 +915,34 @@ add_test(NAME test_safety_interlock COMMAND test_safety_interlock)
 add_test(NAME test_targeting_threadsafe COMMAND test_targeting_threadsafe)
 add_test(NAME test_qr_scanner COMMAND test_qr_scanner)
 
+set_tests_properties(
+    test_config_manager
+    test_deterrent_state
+    test_profile_scoring
+    test_shadow_lane_gate
+    test_http_server
+    test_led_controller
+    test_server_comm
+    test_clip_uploader
+    test_edge_telemetry
+    test_servo_controller
+    test_coordinate_mapper
+    test_laser_controller
+    test_targeting
+    test_button_handler
+    test_safety_layer
+    test_safety_interlock
+    test_targeting_threadsafe
+    test_qr_scanner
+    PROPERTIES WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
+
 # Priority labels for selective execution
 set_tests_properties(test_safety_layer test_laser_controller test_targeting
     test_safety_interlock test_targeting_threadsafe
     PROPERTIES LABELS "P0;safety")
 set_tests_properties(test_http_server test_server_comm test_config_manager
+    test_deterrent_state test_profile_scoring test_shadow_lane_gate test_edge_telemetry
     PROPERTIES LABELS "P1;core")
 set_tests_properties(test_clip_uploader test_servo_controller test_coordinate_mapper
     test_led_controller test_button_handler test_qr_scanner

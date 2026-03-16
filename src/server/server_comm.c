@@ -28,6 +28,7 @@
 #include "led_controller.h"
 #include "clip_uploader.h"
 #include "storage_manager.h"
+#include "http_recv.h"
 #include "http_utils.h"
 #include "tls_client.h"
 #include "log.h"
@@ -227,18 +228,13 @@ static int http_post(const char *host, uint16_t port, const char *path,
             return -1;
         }
 
-        // Receive response over TLS
-        int received = tls_read(tls_ctx, response, response_size - 1);
+        // Receive full response over TLS (handles TCP fragmentation)
+        int received = tls_recv_full(tls_ctx, response, response_size);
         tls_close(tls_ctx);
 
         if (received <= 0) {
-            if (received < 0) {
-                LOG_ERROR("Failed to receive TLS response");
-            }
             return -1;
         }
-
-        response[received] = '\0';
 
         // Parse HTTP status
         if (sscanf(response, "HTTP/1.1 %d", http_status) != 1 &&
