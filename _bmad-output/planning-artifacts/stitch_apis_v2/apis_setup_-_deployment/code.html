@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Setup - Deployment</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a22b",
+                        "background-light": "#fbf9e7", 
+                        "background-dark": "#221b10",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen flex flex-col font-display text-[#1c160d] overflow-x-hidden transition-colors duration-200">
+<header class="flex items-center justify-between whitespace-nowrap px-10 py-6 w-full max-w-[1200px] mx-auto">
+<div class="flex items-center gap-3">
+<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-[#f7a42d] shadow-sm">
+<span class="material-symbols-outlined text-white text-2xl">hive</span>
+</div>
+<h2 class="text-[#662604] dark:text-white text-xl font-bold leading-tight tracking-[-0.015em]">APIS</h2>
+</div>
+<button class="flex items-center text-sm font-medium text-[#9d7a48] hover:text-primary transition-colors">
+            Help &amp; Support
+        </button>
+</header>
+<main class="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 pb-20">
+<div class="w-full max-w-[1000px] flex flex-col bg-white dark:bg-[#1c1c1c] rounded-3xl shadow-lg overflow-hidden border border-[#f4eee7] dark:border-[#333]">
+<div class="px-8 pt-8 pb-4">
+<div class="flex items-center justify-between mb-3">
+<p class="text-[#1c160d] dark:text-white text-sm font-bold uppercase tracking-wider">Deployment Setup</p>
+<span class="bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full">Step 2 of 2</span>
+</div>
+<div class="h-2 w-full bg-[#f4eee7] dark:bg-[#333] rounded-full overflow-hidden">
+<div class="h-full bg-primary w-full rounded-full"></div>
+</div>
+</div>
+<div class="px-8 py-6 md:px-12 md:py-10 flex flex-col gap-10">
+<div class="text-center max-w-2xl mx-auto space-y-3">
+<h1 class="text-3xl md:text-4xl font-black text-[#1c160d] dark:text-white leading-tight tracking-tight">How will you use APIS?</h1>
+<p class="text-[#6b5d4d] dark:text-[#a0a0a0] text-lg">Select the environment that best fits your apiary workflow. You can change this later in settings.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<label class="group relative flex flex-col h-full cursor-pointer">
+<input class="peer sr-only" name="deployment_mode" type="radio" value="local"/>
+<div class="flex-1 flex flex-col items-center text-center p-6 rounded-2xl border-2 border-[#f4eee7] dark:border-[#333] bg-[#fcfaf8] dark:bg-[#252525] transition-all duration-300 peer-checked:border-primary peer-checked:bg-white dark:peer-checked:bg-[#2a2a2a] peer-checked:shadow-xl hover:border-primary/50 hover:shadow-md">
+<div class="mb-5 p-4 rounded-full bg-[#fef5e9] dark:bg-primary/20 text-primary group-hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined text-4xl">laptop_mac</span>
+</div>
+<h3 class="text-lg font-bold text-[#1c160d] dark:text-white mb-2">Just Me</h3>
+<p class="text-sm text-[#6b5d4d] dark:text-[#a0a0a0] leading-relaxed">
+                                Run locally on this device only. Best for solo beekeepers and offline logging.
+                            </p>
+<div class="absolute top-4 right-4 opacity-0 peer-checked:opacity-100 transition-opacity text-primary">
+<span class="material-symbols-outlined filled">check_circle</span>
+</div>
+</div>
+</label>
+<label class="group relative flex flex-col h-full cursor-pointer">
+<input checked="" class="peer sr-only" name="deployment_mode" type="radio" value="network"/>
+<div class="flex-1 flex flex-col items-center text-center p-6 rounded-2xl border-2 border-[#f4eee7] dark:border-[#333] bg-[#fcfaf8] dark:bg-[#252525] transition-all duration-300 peer-checked:border-primary peer-checked:bg-white dark:peer-checked:bg-[#2a2a2a] peer-checked:shadow-xl hover:border-primary/50 hover:shadow-md">
+<div class="mb-5 p-4 rounded-full bg-[#fef5e9] dark:bg-primary/20 text-primary group-hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined text-4xl">wifi</span>
+</div>
+<h3 class="text-lg font-bold text-[#1c160d] dark:text-white mb-2">Home Network</h3>
+<p class="text-sm text-[#6b5d4d] dark:text-[#a0a0a0] leading-relaxed">
+                                Accessible via WiFi for tablets and phones in your home. Perfect for family operations.
+                            </p>
+<div class="absolute top-4 right-4 opacity-0 peer-checked:opacity-100 transition-opacity text-primary">
+<span class="material-symbols-outlined filled">check_circle</span>
+</div>
+</div>
+</label>
+<label class="group relative flex flex-col h-full cursor-pointer">
+<input class="peer sr-only" id="remoteOption" name="deployment_mode" type="radio" value="remote"/>
+<div class="flex-1 flex flex-col items-center text-center p-6 rounded-2xl border-2 border-[#f4eee7] dark:border-[#333] bg-[#fcfaf8] dark:bg-[#252525] transition-all duration-300 peer-checked:border-primary peer-checked:bg-white dark:peer-checked:bg-[#2a2a2a] peer-checked:shadow-xl hover:border-primary/50 hover:shadow-md">
+<div class="mb-5 p-4 rounded-full bg-[#fef5e9] dark:bg-primary/20 text-primary group-hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined text-4xl">public</span>
+</div>
+<h3 class="text-lg font-bold text-[#1c160d] dark:text-white mb-2">Remote Access</h3>
+<p class="text-sm text-[#6b5d4d] dark:text-[#a0a0a0] leading-relaxed">
+                                Access your hives from anywhere in the world. Manage multiple apiaries on the go.
+                            </p>
+<div class="absolute top-4 right-4 opacity-0 peer-checked:opacity-100 transition-opacity text-primary">
+<span class="material-symbols-outlined filled">check_circle</span>
+</div>
+</div>
+</label>
+</div>
+<div class="hidden has-[:checked]:flex peer-has-[:checked]:flex rounded-xl bg-amber-50 border border-amber-100 p-4 gap-3 items-start animate-fade-in" id="remote-warning">
+<span class="material-symbols-outlined text-amber-600 mt-0.5">lock_person</span>
+<div>
+<p class="text-sm font-bold text-amber-900">Security Requirement</p>
+<p class="text-sm text-amber-800/80">Remote access requires configuring SSL certificates and port forwarding. We'll guide you through the secure setup process.</p>
+</div>
+</div>
+<div class="w-full flex justify-center">
+<div class="hidden peer-checked/remote:flex w-full max-w-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl p-4 flex gap-4 items-start shadow-sm">
+<div class="p-2 bg-amber-100 dark:bg-amber-800/40 rounded-full text-amber-600 dark:text-amber-400 shrink-0">
+<span class="material-symbols-outlined text-xl">encrypted</span>
+</div>
+<div>
+<h4 class="font-bold text-amber-900 dark:text-amber-100 text-sm">Security Notice for Remote Access</h4>
+<p class="text-sm text-amber-800 dark:text-amber-200/80 mt-1">
+                                Enabling remote access will expose your dashboard to the internet. We highly recommend setting up a strong password and enabling 2FA in the next step.
+                            </p>
+</div>
+</div>
+</div>
+<div class="flex flex-col-reverse sm:flex-row items-center justify-between gap-4 mt-4 pt-6 border-t border-[#f4eee7] dark:border-[#333]">
+<button class="w-full sm:w-auto px-8 py-3 rounded-full text-[#6b5d4d] dark:text-[#a0a0a0] font-bold text-sm hover:bg-[#f4eee7] dark:hover:bg-[#333] transition-colors">
+                        Back
+                    </button>
+<button class="group w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-full bg-primary hover:bg-amber-500 text-[#1c160d] font-bold text-sm transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+<span>Complete Setup</span>
+<span class="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<p class="mt-8 text-sm text-[#9d7a48] dark:text-[#a0a0a0] opacity-80 flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">emoji_nature</span>
+            Creating buzz since 2024
+        </p>
+</main>
+<style>input[type="radio"]:checked + div {
+            border-color: #f7a22b;
+            background-color: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .dark input[type="radio"]:checked + div {
+            background-color: #2a2a2a;
+        }@keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        main {
+            animation: fadeIn 0.6s ease-out;
+        }
+    </style>
+
+</body></html>

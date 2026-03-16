@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS BeeBrain System Config</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#f7a42d", // Sea Buckthorn
+                        "coconut-cream": "#fbf9e7",
+                        "brown-bramble": "#662604",
+                        "salomie": "#fcd483",
+                        "sea-buckthorn": "#f7a42d",
+                        "pure-white": "#ffffff",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    boxShadow: {
+                        'soft': '0 12px 32px -4px rgba(102, 38, 4, 0.08), 0 4px 12px -2px rgba(102, 38, 4, 0.04)',
+                        'glow': '0 0 15px rgba(247, 164, 45, 0.3)',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: "Space Grotesk", "Noto Sans", sans-serif;
+        }::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d4c5b0;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #bfa07d;
+        }
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 300,'GRAD' 0,
+            'opsz' 24
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 300;
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream text-brown-bramble antialiased min-h-screen flex overflow-hidden">
+<aside class="hidden md:flex flex-col w-[240px] bg-pure-white border-r border-[#ece5d9] h-screen overflow-y-auto shrink-0 shadow-[4px_0_24px_-12px_rgba(102,38,4,0.05)] z-20">
+<div class="p-6">
+<div class="flex items-center gap-3 mb-10">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-10 shadow-sm ring-1 ring-[#ece5d9]" data-alt="Abstract honeycomb pattern representing beekeeping technology" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDk_D-rMwXXYKkIhJ3Pxow-ja_XOg-mpCB9-hPXBwS3okGUQq6ZUuKA5d--9z4v1eqyZBj49LFJJ-6pvPX-Rh9Vaty5N5YNiNQQRNYmR4KUG52I5WgOsYrQ3lhPx1xv3aL__nspecCs03AIzAPEcJIfMkUN2DgVcsR7ywzYZE0bopWKKeN6-yXHqI5HA6osctLZzpsgK4kE4b_M_nvkWPGMiHxv5bQNMHZQ2ET505vprdtb9A5FaOjNxxEqK7m71lb1UK4ravjgQ9I");'></div>
+<div class="flex flex-col">
+<h1 class="text-base font-bold leading-tight tracking-tight text-brown-bramble">APIS Admin</h1>
+<p class="text-brown-bramble/60 text-xs font-medium uppercase tracking-wide">Super Admin</p>
+</div>
+</div>
+<nav class="flex flex-col gap-1.5">
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream/50 transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/60 group-hover:text-brown-bramble transition-colors">dashboard</span>
+<span class="text-sm font-medium text-brown-bramble/80 group-hover:text-brown-bramble">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream/50 transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/60 group-hover:text-brown-bramble transition-colors">group</span>
+<span class="text-sm font-medium text-brown-bramble/80 group-hover:text-brown-bramble">Tenant Mgmt</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full bg-salomie shadow-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-brown-bramble fill">settings</span>
+<span class="text-brown-bramble font-bold text-sm">System Config</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream/50 transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/60 group-hover:text-brown-bramble transition-colors">credit_card</span>
+<span class="text-sm font-medium text-brown-bramble/80 group-hover:text-brown-bramble">Billing</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full hover:bg-coconut-cream/50 transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/60 group-hover:text-brown-bramble transition-colors">receipt_long</span>
+<span class="text-sm font-medium text-brown-bramble/80 group-hover:text-brown-bramble">Logs</span>
+</a>
+</nav>
+</div>
+<div class="mt-auto p-6 border-t border-[#ece5d9]">
+<div class="flex items-center justify-between text-brown-bramble/70 hover:text-brown-bramble cursor-pointer transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+<span class="text-sm font-medium">Sign Out</span>
+</div>
+<span class="text-xs opacity-60">v4.0.2</span>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+<header class="bg-coconut-cream/95 backdrop-blur-sm z-10 px-8 py-8 shrink-0">
+<div class="max-w-[1000px] mx-auto w-full">
+<div class="flex flex-col gap-2">
+<h2 class="text-3xl font-bold text-brown-bramble tracking-tight">BeeBrain Configuration</h2>
+<p class="text-brown-bramble/70 text-base font-normal max-w-2xl leading-relaxed">Configure global AI settings, inference backends, and tenant access rules for the hive mind.</p>
+</div>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto px-8 pb-32">
+<div class="max-w-[1000px] mx-auto w-full flex flex-col gap-10">
+<section>
+<div class="flex items-center justify-between mb-5">
+<h3 class="text-lg font-bold text-brown-bramble flex items-center gap-2">
+<span class="material-symbols-outlined text-sea-buckthorn">psychology</span>
+                            Backend Strategy
+                        </h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="relative group cursor-pointer flex flex-col gap-4 p-6 rounded-[16px] bg-white shadow-soft hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 border border-transparent hover:border-salomie/50">
+<div class="flex justify-between items-start">
+<div class="bg-coconut-cream p-3 rounded-2xl text-brown-bramble/80 group-hover:text-brown-bramble transition-colors">
+<span class="material-symbols-outlined text-3xl">account_tree</span>
+</div>
+<div class="size-5 rounded-full border border-brown-bramble/20"></div>
+</div>
+<div>
+<h4 class="text-lg font-bold text-brown-bramble mb-2">Rules Only</h4>
+<p class="text-sm text-brown-bramble/70 leading-relaxed">Deterministic logic engines. No probabilistic inference. 100% predictable results.</p>
+</div>
+</div>
+<div class="relative group cursor-pointer flex flex-col gap-4 p-6 rounded-[16px] bg-white shadow-soft hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 border border-transparent hover:border-salomie/50">
+<div class="flex justify-between items-start">
+<div class="bg-coconut-cream p-3 rounded-2xl text-brown-bramble/80 group-hover:text-brown-bramble transition-colors">
+<span class="material-symbols-outlined text-3xl">hard_drive</span>
+</div>
+<div class="size-5 rounded-full border border-brown-bramble/20"></div>
+</div>
+<div>
+<h4 class="text-lg font-bold text-brown-bramble mb-2">Local Model</h4>
+<p class="text-sm text-brown-bramble/70 leading-relaxed">Self-hosted LLM running on-premise. Maximum privacy for sensitive apiary data.</p>
+</div>
+</div>
+<div class="relative cursor-pointer flex flex-col gap-4 p-6 rounded-[16px] bg-white shadow-soft ring-2 ring-sea-buckthorn transition-all duration-300">
+<div class="absolute -top-3 -right-3 bg-sea-buckthorn text-white text-[10px] uppercase font-bold px-3 py-1.5 rounded-full shadow-md tracking-wider">Active</div>
+<div class="flex justify-between items-start">
+<div class="bg-salomie/20 p-3 rounded-2xl text-sea-buckthorn">
+<span class="material-symbols-outlined text-3xl fill">cloud_sync</span>
+</div>
+<div class="size-5 rounded-full border-[6px] border-sea-buckthorn bg-white"></div>
+</div>
+<div>
+<h4 class="text-lg font-bold text-brown-bramble mb-2">External API</h4>
+<p class="text-sm text-brown-bramble/80 leading-relaxed">Cloud provider integration. Maximum reasoning performance and scalability.</p>
+</div>
+</div>
+</div>
+</section>
+<section class="bg-white rounded-[16px] p-8 shadow-soft border border-transparent animate-in fade-in slide-in-from-bottom-4 duration-500">
+<div class="flex items-center gap-3 mb-8 pb-4 border-b border-coconut-cream">
+<span class="material-symbols-outlined text-sea-buckthorn">tune</span>
+<h3 class="text-lg font-bold text-brown-bramble">API Configuration</h3>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<label class="flex flex-col gap-2">
+<span class="text-sm font-semibold text-brown-bramble">AI Provider</span>
+<div class="relative">
+<select class="w-full h-12 pl-4 pr-10 rounded-xl bg-coconut-cream border-none text-brown-bramble focus:ring-2 focus:ring-salomie appearance-none cursor-pointer text-base font-medium transition-shadow hover:bg-[#f2edda]">
+<option selected="" value="openai">OpenAI (GPT-4)</option>
+<option value="anthropic">Anthropic (Claude 3)</option>
+<option value="azure">Azure OpenAI</option>
+</select>
+<div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-brown-bramble/60">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+<p class="text-xs text-brown-bramble/60">Select the upstream inference provider.</p>
+</label>
+<label class="flex flex-col gap-2">
+<span class="text-sm font-semibold text-brown-bramble">API Key</span>
+<div class="flex items-stretch gap-3">
+<div class="relative flex-1 group">
+<input class="w-full h-12 pl-10 pr-12 rounded-xl bg-coconut-cream border-none text-brown-bramble placeholder-brown-bramble/40 focus:ring-2 focus:ring-salomie font-mono text-sm tracking-wide transition-shadow hover:bg-[#f2edda]" type="password" value="sk-s8d7f6s8d7f6s8d7f6s8d7f6"/>
+<div class="absolute inset-y-0 left-0 flex items-center px-3 text-brown-bramble/50">
+<span class="material-symbols-outlined text-[20px]">key</span>
+</div>
+<button class="absolute inset-y-0 right-0 flex items-center px-3 text-brown-bramble/50 hover:text-sea-buckthorn transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-[20px]">visibility_off</span>
+</button>
+</div>
+<button class="h-12 px-6 bg-coconut-cream hover:bg-salomie/30 text-brown-bramble rounded-xl font-semibold text-sm transition-colors whitespace-nowrap flex items-center gap-2 group border-none">
+<span class="material-symbols-outlined text-[18px] text-sea-buckthorn">bolt</span>
+                                    Test Connection
+                                </button>
+</div>
+<p class="text-xs text-brown-bramble/60">Keys are encrypted at rest using AES-256.</p>
+</label>
+</div>
+</section>
+<section>
+<div class="flex items-center justify-between mb-5">
+<h3 class="text-lg font-bold text-brown-bramble flex items-center gap-2">
+<span class="material-symbols-outlined text-sea-buckthorn">hive</span>
+                            Tenant AI Access
+                        </h3>
+<span class="px-3 py-1 rounded-full bg-salomie/20 text-xs font-bold text-brown-bramble uppercase tracking-wider">3 Active</span>
+</div>
+<div class="bg-white rounded-[16px] shadow-soft overflow-hidden">
+<div class="flex items-center justify-between p-6 border-b border-coconut-cream">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-full bg-coconut-cream flex items-center justify-center text-brown-bramble/80">
+<span class="material-symbols-outlined">agriculture</span>
+</div>
+<div>
+<h5 class="text-base font-bold text-brown-bramble">HoneyCo Farms</h5>
+<p class="text-sm text-brown-bramble/60">Enterprise Plan • Last active 2m ago</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sea-buckthorn"></div>
+</label>
+</div>
+<div class="flex items-center justify-between p-6 border-b border-coconut-cream">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-full bg-coconut-cream flex items-center justify-center text-brown-bramble/80">
+<span class="material-symbols-outlined">location_city</span>
+</div>
+<div>
+<h5 class="text-base font-bold text-brown-bramble">Urban Bees Ltd.</h5>
+<p class="text-sm text-brown-bramble/60">Pro Plan • Last active 1d ago</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sea-buckthorn"></div>
+</label>
+</div>
+<div class="flex items-center justify-between p-6">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-full bg-coconut-cream flex items-center justify-center text-brown-bramble/80">
+<span class="material-symbols-outlined">science</span>
+</div>
+<div>
+<h5 class="text-base font-bold text-brown-bramble">Apiary One</h5>
+<p class="text-sm text-brown-bramble/60">Starter Plan • Last active 5h ago</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sea-buckthorn"></div>
+</label>
+</div>
+</div>
+</section>
+</div>
+</div>
+<div class="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md p-6 z-20 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.05)]">
+<div class="max-w-[1000px] mx-auto flex justify-between items-center">
+<p class="text-sm text-brown-bramble/70 hidden sm:block">
+<span class="material-symbols-outlined align-middle text-sm mr-1">info</span>
+                    Changes will propagate to tenants immediately.
+                </p>
+<div class="flex gap-4 ml-auto">
+<button class="px-6 py-3 rounded-full font-bold text-brown-bramble/70 hover:bg-coconut-cream hover:text-brown-bramble transition-colors">Discard</button>
+<button class="px-8 py-3 rounded-full font-bold text-white bg-sea-buckthorn hover:bg-[#e09121] shadow-glow transition-all flex items-center gap-2 transform hover:scale-[1.02]">
+<span class="material-symbols-outlined text-[20px] fill">save</span>
+                        Save Configuration
+                    </button>
+</div>
+</div>
+</div>
+</main>
+
+</body></html>

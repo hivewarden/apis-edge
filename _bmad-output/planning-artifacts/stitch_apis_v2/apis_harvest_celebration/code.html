@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Harvest Celebration Refined</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "coconut-cream": "#fbf9e7",
+                        "brown-bramble": "#662604",
+                        "sea-buckthorn": "#f7a42d",
+                        "sea-buckthorn-dark": "#d98810",
+                        "primary": "#f7a42d", 
+                        "primary-dark": "#d98810",
+                        "background-light": "#fbf9e7", 
+                        "surface-light": "#ffffff",
+                        "text-main": "#662604",
+                        "text-sub": "#9d7b48",
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" },
+                    boxShadow: {
+                        "deep-diffused": "0 25px 50px -12px rgba(102, 38, 4, 0.25)"
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        confetti: {
+                            '0%': { transform: 'translateY(-10px) rotate(0deg)', opacity: '1' },
+                            '100%': { transform: 'translateY(100vh) rotate(360deg)', opacity: '0' },
+                        }
+                    },
+                    animation: {
+                        float: 'float 3s ease-in-out infinite',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .confetti-piece {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f7a426;
+            top: -20px;
+            opacity: 0;
+            animation: confetti 4s ease-in-out infinite;
+        }
+        .confetti-piece:nth-child(1) { left: 10%; animation-delay: 0s; background-color: #f7a42d; }
+        .confetti-piece:nth-child(2) { left: 20%; animation-delay: 1.5s; background-color: #d98810; }
+        .confetti-piece:nth-child(3) { left: 30%; animation-delay: 2.5s; background-color: #fcecd4; }
+        .confetti-piece:nth-child(4) { left: 40%; animation-delay: 0.5s; background-color: #f7a42d; }
+        .confetti-piece:nth-child(5) { left: 50%; animation-delay: 3s; background-color: #d98810; }
+        .confetti-piece:nth-child(6) { left: 60%; animation-delay: 1s; background-color: #f7a42d; }
+        .confetti-piece:nth-child(7) { left: 70%; animation-delay: 2s; background-color: #fcecd4; }
+        .confetti-piece:nth-child(8) { left: 80%; animation-delay: 0.2s; background-color: #d98810; }
+        .confetti-piece:nth-child(9) { left: 90%; animation-delay: 3.5s; background-color: #f7a42d; }
+        @keyframes confetti {
+            0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(600px) rotate(720deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream text-brown-bramble font-display overflow-hidden h-screen w-full relative">
+<div class="flex h-full w-full absolute inset-0 z-0 blur-sm pointer-events-none opacity-60">
+<div class="w-72 flex-shrink-0 flex flex-col justify-between bg-surface-light border-r border-[#e9dece] p-6 h-full">
+<div class="flex flex-col gap-8">
+<div class="flex gap-3 items-center">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Abstract honeycomb pattern logo" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA-DzOVs-0FU5IbfPgHAQE37yhJipY-mXsiPSAdH4EsgfBIypuap7DgocG0lwha1y1MXCWBuG9dJUCinRJ05RZXdrjQltOPtzgb1NBe3UQqXwDErIWiGcpffnL9IvcclWo-17uI-8jSxZi8WqczmwAzwaD94J8s8OTvS8zSe0nP4OcjKZ5Z3QJ_djX4O2RYjt9ERqQMUAOsnOI-MNO5bAkaBKFRxIQLnHHXKg0SaAVca-F8CRbkKRb9__nlvZ0D_4QmyUDHLZ69Au4");'></div>
+<div class="flex flex-col">
+<h1 class="text-brown-bramble text-base font-bold leading-normal">APIS Platform</h1>
+<p class="text-text-sub text-sm font-normal leading-normal">Artisan Beekeeping</p>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-3 px-3 py-2 rounded-full">
+<span class="material-symbols-outlined text-brown-bramble">dashboard</span>
+<p class="text-brown-bramble text-sm font-medium">Dashboard</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-full">
+<span class="material-symbols-outlined text-brown-bramble">hexagon</span>
+<p class="text-brown-bramble text-sm font-medium">Hives</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-full bg-sea-buckthorn/10">
+<span class="material-symbols-outlined text-sea-buckthorn-dark">water_drop</span>
+<p class="text-sea-buckthorn-dark text-sm font-medium">Harvests</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-full">
+<span class="material-symbols-outlined text-brown-bramble">storefront</span>
+<p class="text-brown-bramble text-sm font-medium">Marketplace</p>
+</div>
+</div>
+</div>
+</div>
+<div class="flex-1 flex flex-col p-10 gap-8">
+<div class="h-48 w-full bg-cover bg-center rounded-xl opacity-80" data-alt="Blurry view of apiary in a field" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAmRrdYA7i_npE177nYohee5NyKHb_R7oTaxMbxZwayDGMKiN_BT9mD7m1-_qG5qN19JZSLJVkwlguqSp7Mz6VC_UzhTvesiZx4vQXI19kcU-5HTzLkH1bjAteRW1sc-xqruPZTZF_8jzB9swW5xtGD9QV1v6UsY7NQscjeYJHdGTom1sBfyA2rGTMo887flkYcuYSEuaeerESSY1Xx_nSt4mKnZRsagHpUzFBcixpSM9IYU_bWb-1ohgi1DUXA84n7eqkTWzY6i7w");'></div>
+<div class="grid grid-cols-3 gap-6">
+<div class="h-32 bg-white rounded-xl border border-[#e9dece]"></div>
+<div class="h-32 bg-white rounded-xl border border-[#e9dece]"></div>
+<div class="h-32 bg-white rounded-xl border border-[#e9dece]"></div>
+</div>
+</div>
+</div>
+<div class="absolute inset-0 z-50 flex items-center justify-center p-4 bg-[#662604]/20 backdrop-blur-sm">
+<div class="relative w-full max-w-[560px] bg-surface-light rounded-2xl shadow-deep-diffused flex flex-col overflow-hidden animate-float-in">
+<div class="absolute inset-0 pointer-events-none overflow-hidden h-full w-full z-0">
+<div class="confetti-piece"></div>
+<div class="confetti-piece"></div>
+<div class="confetti-piece"></div>
+<div class="confetti-piece"></div>
+<div class="confetti-piece"></div>
+<div class="confetti-piece"></div>
+<div class="confetti-piece"></div>
+<div class="confetti-piece"></div>
+<div class="confetti-piece"></div>
+</div>
+<div class="relative z-10 flex flex-col items-center p-8 md:p-10 text-center">
+<div class="relative mb-6 w-full flex justify-center">
+<div class="relative w-32 h-32 md:w-40 md:h-40 flex items-center justify-center">
+<div class="absolute inset-0 bg-[#fff5e0] rounded-full"></div>
+<div class="relative w-24 h-24 md:w-32 md:h-32 bg-contain bg-no-repeat bg-center animate-float drop-shadow-sm" data-alt="Cute vector bee illustration with happy expression" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAfxfLjvOky2tQBRyMxFPTfjKL4CjKhgtyh5KOI6pmGZFz1Y9mDrPzUhsAzvyt3coITqY44A1JSeTAAxhakJgt-bLzwMue75D8Fo1Zk0sQiRgKolvjQ9B4Aml6_R9o5-31BxlNDRQxAC32CVemNumgCGeA4SoxJ2WZAWOtuSCYoAWJJn96ZRdWeZAePZYkDn4Y0hZyy34l8jyt0FL4gR556SUQRpPqOAV-K9nbjNqrzdb5IJpr0ILVGCSfxPKVWNEhSlQGQ2BIjYoI");'>
+</div>
+</div>
+</div>
+<h2 class="text-brown-bramble text-3xl md:text-4xl font-extrabold leading-tight mb-3 tracking-tight">
+                    Congratulations on your <span class="text-sea-buckthorn">first harvest!</span>
+</h2>
+<p class="text-brown-bramble/80 text-base md:text-lg font-medium leading-normal max-w-sm mb-8">
+                    You've reached a major milestone in your beekeeping journey.
+                </p>
+<div class="w-full bg-[#fcfaf8] border border-[#e9dece] rounded-xl p-6 mb-8 shadow-sm">
+<div class="flex flex-wrap items-center justify-between gap-4 text-center">
+<div class="flex-1 min-w-[100px] flex flex-col gap-1">
+<span class="text-xs font-bold uppercase tracking-wider text-text-sub">Source</span>
+<span class="text-xl font-bold text-brown-bramble">Hive #04</span>
+</div>
+<div class="hidden sm:block w-px h-10 bg-[#e9dece]"></div>
+<div class="flex-1 min-w-[100px] flex flex-col gap-1">
+<span class="text-xs font-bold uppercase tracking-wider text-text-sub">Yield</span>
+<span class="text-2xl font-extrabold text-sea-buckthorn">12.5kg</span>
+</div>
+<div class="hidden sm:block w-px h-10 bg-[#e9dece]"></div>
+<div class="flex-1 min-w-[100px] flex flex-col gap-1">
+<span class="text-xs font-bold uppercase tracking-wider text-text-sub">Date</span>
+<span class="text-xl font-bold text-brown-bramble">Oct 12</span>
+</div>
+</div>
+</div>
+<div class="w-full mb-8">
+<label class="group flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-sea-buckthorn/30 hover:border-sea-buckthorn rounded-xl cursor-pointer bg-sea-buckthorn/5 hover:bg-sea-buckthorn/10 transition-colors">
+<div class="flex flex-col items-center justify-center pt-5 pb-6">
+<div class="bg-white p-3 rounded-full mb-3 shadow-sm group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-sea-buckthorn text-3xl">add_a_photo</span>
+</div>
+<p class="text-sm text-brown-bramble font-semibold">Add a photo to remember this moment</p>
+</div>
+<input class="hidden" type="file"/>
+</label>
+</div>
+<button class="w-full bg-sea-buckthorn hover:bg-sea-buckthorn-dark text-white font-bold text-lg py-4 px-8 rounded-full shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2">
+<span>Thanks!</span>
+<span class="material-symbols-outlined text-xl">celebration</span>
+</button>
+</div>
+</div>
+</div>
+</body></html>

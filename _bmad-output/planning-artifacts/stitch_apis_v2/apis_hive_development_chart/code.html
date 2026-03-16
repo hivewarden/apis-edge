@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Hive Analytics Refined</title>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;500;700&amp;family=Noto+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a42d", // Sea Buckthorn
+                        "secondary": "#fcd483", // Salomie
+                        "accent": "#662604", // Brown Bramble
+                        "background-light": "#fbf9e7", // Coconut Cream
+                        "background-dark": "#231a0f",
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px" },
+                    boxShadow: {
+                        "soft": "0 20px 40px -10px rgba(102, 38, 4, 0.08)", // Warm diffused shadow
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .custom-tooltip-arrow {
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 6px solid #231a0f;
+        }
+        .thin-icon {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light font-display text-[#181511] overflow-hidden">
+<div class="flex h-screen w-full overflow-hidden">
+<aside class="hidden md:flex flex-col w-72 bg-white border-r border-[#eceadd] h-full shrink-0">
+<div class="p-6 pb-2">
+<div class="flex gap-3 items-center mb-8">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-12 shadow-sm" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDfztukgCnDG66oUhhVYDJxL2hzChpln25iCQApJwipKRhgKob8yCVBa7NV9hF2nOCBd7fmIZ6L5Ndy6K2O_jGjk19C2C3UbqWP8t3W_TDK6FdQ8h_1sRVWP6nAVilM0Evv-Elr5BLrNWEYG9S1e9BEZEtnz2FF7bu6KyBt1aVwdZx2mSOaEeAmiQ_BJy2_XudxVkMlTNzgqy9sn-zuPwa_k21lTSR_7u5BFaBLxk4OCuklWkHeSEJc0UgUpFxLIlZePFnHmTWOKFY");'></div>
+<div class="flex flex-col">
+<h1 class="text-accent text-lg font-bold leading-tight">APIS Platform</h1>
+<p class="text-[#8c785f] text-sm font-normal">Artisan Beekeeping</p>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#fbf9e7] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[#8c785f] group-hover:text-accent">home</span>
+<p class="text-[#5c5042] group-hover:text-accent text-sm font-medium">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#fbf9e7] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[#8c785f] group-hover:text-accent">grid_view</span>
+<p class="text-[#5c5042] group-hover:text-accent text-sm font-medium">Apiaries</p>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#fbf9e7] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[#8c785f] group-hover:text-accent">assignment</span>
+<p class="text-[#5c5042] group-hover:text-accent text-sm font-medium">Inspections</p>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl bg-secondary text-accent shadow-sm" href="#">
+<span class="material-symbols-outlined text-accent" data-weight="fill">bar_chart</span>
+<p class="text-accent text-sm font-bold">Analytics</p>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#fbf9e7] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[#8c785f] group-hover:text-accent">settings</span>
+<p class="text-[#5c5042] group-hover:text-accent text-sm font-medium">Settings</p>
+</a>
+</div>
+</div>
+<div class="mt-auto p-6 border-t border-[#eceadd]">
+<div class="flex items-center gap-3">
+<div class="size-10 rounded-full bg-gray-200 bg-center bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDvxmgF5HQSyyEkbzVqq-kvpGFNWHy9PgPGC85h5iT1YdFWl0efTPrwy9zs_dtwfdwnsxOZHkvUWjw5oY0eRnhFaFhcmlVXHynOeR5xhwsR6CibnNBjmm6fVfWVeusGU1r8uYwIAy0gDKAX3spSqA0eYQ8xqXELE2T_1s2meK679ftq4eDSdFElQh4PGauW4aPr40CivK4RmKpoAEO0K6Q2pH_hVyiZFs9XB70J23VTWmJKPowXTd18FUH6Gs-hmpgOXjhb-rMHxSI");'></div>
+<div class="flex flex-col">
+<p class="text-sm font-bold text-accent">Mateo Ricci</p>
+<p class="text-xs text-[#8c785f]">Head Beekeeper</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full overflow-y-auto relative bg-background-light">
+<header class="w-full px-8 py-8 flex flex-wrap justify-between items-end gap-4">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2 text-[#8c785f] text-sm mb-1">
+<span>Apiary A</span>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span>Hive #42</span>
+</div>
+<h2 class="text-accent text-3xl font-bold leading-tight">Hive #42 - Colony Health</h2>
+<p class="text-[#8c785f] text-sm font-normal mt-1">Monitoring frame usage and resource accumulation over time.</p>
+</div>
+<div class="flex gap-3">
+<button class="flex h-10 items-center justify-center gap-2 rounded-lg bg-white border border-[#eceadd] px-4 shadow-sm hover:bg-[#fefce8] transition-colors text-accent">
+<span class="material-symbols-outlined text-[#8c785f]" style="font-size: 20px;">download</span>
+<span class="text-sm font-medium">Export Data</span>
+</button>
+<button class="flex h-10 items-center justify-center gap-2 rounded-lg bg-accent text-white px-4 shadow-sm hover:bg-[#4d1d03] transition-colors">
+<span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+<span class="text-sm font-medium">Log Inspection</span>
+</button>
+</div>
+</header>
+<div class="px-8 pb-12 w-full max-w-[1200px]">
+<div class="bg-white rounded-2xl shadow-soft border border-white/50 overflow-hidden">
+<div class="flex flex-wrap items-center justify-between p-6 border-b border-[#f0ebe6] gap-4">
+<div>
+<h3 class="text-accent text-xl font-bold">Frame Progression</h3>
+<p class="text-[#8c785f] text-sm mt-1">Distribution of comb resources across frames</p>
+</div>
+<div class="flex bg-[#fbf9e7] p-1 rounded-lg">
+<button class="px-3 py-1.5 rounded-md bg-white shadow-sm text-xs font-semibold text-accent border border-[#eceadd]">Last 30 Days</button>
+<button class="px-3 py-1.5 rounded-md text-xs font-medium text-[#8c785f] hover:text-accent transition-colors">Season</button>
+<button class="px-3 py-1.5 rounded-md text-xs font-medium text-[#8c785f] hover:text-accent transition-colors">Year</button>
+</div>
+</div>
+<div class="p-6 md:p-8">
+<div class="flex justify-end gap-6 mb-4">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+<span class="text-xs font-medium text-[#5c5042]">Pollen</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-primary"></span>
+<span class="text-xs font-medium text-[#5c5042]">Honey</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-accent"></span>
+<span class="text-xs font-medium text-[#5c5042]">Brood</span>
+</div>
+</div>
+<div class="relative w-full h-[360px] select-none">
+<div class="absolute z-20 top-[60px] left-[50%] -translate-x-1/2 flex flex-col items-center">
+<div class="bg-[#231a0f] text-white text-xs rounded-lg py-2 px-3 shadow-xl w-max flex flex-col gap-1">
+<span class="font-bold border-b border-gray-600 pb-1 mb-1 block text-secondary">Jun 15 Inspection</span>
+<div class="flex items-center gap-2 justify-between">
+<div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-accent"></span><span>Brood</span></div>
+<span class="font-mono">6</span>
+</div>
+<div class="flex items-center gap-2 justify-between">
+<div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-primary"></span><span>Honey</span></div>
+<span class="font-mono">4</span>
+</div>
+<div class="flex items-center gap-2 justify-between">
+<div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-secondary"></span><span>Pollen</span></div>
+<span class="font-mono">2</span>
+</div>
+<div class="mt-1 pt-1 border-t border-gray-600 flex justify-between font-bold text-gray-300">
+<span>Total</span>
+<span>12</span>
+</div>
+</div>
+<div class="custom-tooltip-arrow"></div>
+<div class="w-px h-[230px] border-l-2 border-dashed border-[#d1ccc7] mt-0"></div>
+<div class="w-3 h-3 bg-white border-2 border-primary rounded-full -mt-[1.5px] z-10"></div>
+</div>
+<svg class="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 800 300">
+<g class="stroke-[#eceadd]" stroke-dasharray="4 4" stroke-width="1">
+<line x1="0" x2="800" y1="240" y2="240"></line>
+<line x1="0" x2="800" y1="180" y2="180"></line>
+<line x1="0" x2="800" y1="120" y2="120"></line>
+<line x1="0" x2="800" y1="60" y2="60"></line>
+<line x1="0" x2="800" y1="0" y2="0"></line>
+</g>
+<defs>
+<linearGradient id="broodGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#662604" stop-opacity="0.9"></stop>
+<stop offset="100%" stop-color="#662604" stop-opacity="0.6"></stop>
+</linearGradient>
+<linearGradient id="honeyGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#f7a42d" stop-opacity="0.9"></stop>
+<stop offset="100%" stop-color="#f7a42d" stop-opacity="0.6"></stop>
+</linearGradient>
+<linearGradient id="pollenGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#fcd483" stop-opacity="0.9"></stop>
+<stop offset="100%" stop-color="#fcd483" stop-opacity="0.6"></stop>
+</linearGradient>
+</defs>
+<path d="M0,240 
+                                         C100,240 100,195 200,195 
+                                         C300,195 300,120 400,120
+                                         C500,120 500,75 600,75
+                                         C700,75 700,30 800,30
+                                         L800,90
+                                         C700,90 700,120 600,120
+                                         C500,120 500,150 400,150
+                                         C300,150 300,210 200,210
+                                         C100,210 100,255 0,255
+                                         Z" fill="url(#pollenGradient)"></path>
+<path d="M0,255 
+                                         C100,255 100,210 200,210
+                                         C300,210 300,150 400,150
+                                         C500,150 500,120 600,120
+                                         C700,120 700,90 800,90
+                                         L800,180
+                                         C700,180 700,195 600,195
+                                         C500,195 500,210 400,210
+                                         C300,210 300,240 200,240
+                                         C100,240 100,270 0,270
+                                         Z" fill="url(#honeyGradient)"></path>
+<path d="M0,270 
+                                         C100,270 100,240 200,240 
+                                         C300,240 300,210 400,210
+                                         C500,210 500,195 600,195
+                                         C700,195 700,180 800,180
+                                         L800,300 L0,300 Z" fill="url(#broodGradient)"></path>
+</svg>
+<div class="absolute top-0 bottom-0 left-[-30px] flex flex-col justify-between text-xs text-[#8c785f] py-0">
+<span class="-mt-2">20</span>
+<span class="-mt-1">16</span>
+<span class="-mt-1">12</span>
+<span class="-mt-1">8</span>
+<span class="-mt-1">4</span>
+<span class="mb-0">0</span>
+</div>
+<div class="absolute -bottom-6 w-full flex justify-between text-xs font-medium text-[#8c785f]">
+<span>Jun 01</span>
+<span>Jun 08</span>
+<span class="text-accent font-bold">Jun 15</span>
+<span>Jun 22</span>
+<span>Jun 29</span>
+</div>
+</div>
+</div>
+<div class="px-6 py-5 bg-[#fffdf5] border-t border-[#f0ebe6] flex items-start gap-4">
+<div class="p-2 rounded-full bg-secondary/20 text-accent shrink-0">
+<span class="material-symbols-outlined thin-icon text-2xl">tips_and_updates</span>
+</div>
+<div>
+<p class="text-sm font-bold text-accent">Mentor's Note</p>
+<p class="text-sm text-[#5c5042] mt-1 leading-relaxed">Brood production has increased by 50% since Jun 01. This indicates a very healthy queen! Ensure you have enough supers ready, as honey stores are accumulating rapidly before the dearth.</p>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+<div class="bg-white rounded-xl p-5 shadow-sm border border-[#eceadd] flex items-center justify-between">
+<div>
+<p class="text-[#8c785f] text-xs font-medium uppercase tracking-wide">Total Frames</p>
+<p class="text-accent text-2xl font-bold mt-1">18/20</p>
+</div>
+<div class="size-10 rounded-full bg-[#fbf9e7] flex items-center justify-center text-accent">
+<span class="material-symbols-outlined">grid_4x4</span>
+</div>
+</div>
+<div class="bg-white rounded-xl p-5 shadow-sm border border-[#eceadd] flex items-center justify-between">
+<div>
+<p class="text-[#8c785f] text-xs font-medium uppercase tracking-wide">Brood Health</p>
+<p class="text-accent text-2xl font-bold mt-1">Excellent</p>
+</div>
+<div class="size-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
+<span class="material-symbols-outlined">favorite</span>
+</div>
+</div>
+<div class="bg-white rounded-xl p-5 shadow-sm border border-[#eceadd] flex items-center justify-between">
+<div>
+<p class="text-[#8c785f] text-xs font-medium uppercase tracking-wide">Next Inspection</p>
+<p class="text-accent text-2xl font-bold mt-1">Jun 30</p>
+</div>
+<div class="size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">calendar_today</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

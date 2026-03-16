@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS - Treatment History</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "coconut-cream": "#fbf9e7",
+                        "brown-bramble": "#662604",
+                        "salomie": "#fcd483",
+                        "sea-buckthorn": "#f7a42d",
+                        "soft-sage": "#7c9082",
+                        "soft-blue": "#93c5fd",
+                        "sidebar-bg": "#ffffff",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "xl": "0.75rem", 
+                        "2xl": "1rem", // 16px
+                    },
+                },
+            },
+        }
+    </script>
+<style>.scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream text-brown-bramble font-display antialiased overflow-hidden">
+<div class="flex h-screen w-full overflow-hidden">
+<aside class="hidden w-64 flex-col border-r border-stone-200 bg-sidebar-bg lg:flex">
+<div class="flex h-20 items-center gap-3 px-6">
+<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-sea-buckthorn text-white shadow-sm">
+<span class="material-symbols-outlined text-2xl">hexagon</span>
+</div>
+<h1 class="text-xl font-bold tracking-tight text-brown-bramble">APIS</h1>
+</div>
+<div class="flex flex-1 flex-col gap-2 px-4 py-4">
+<a class="flex items-center gap-3 rounded-full px-4 py-3 text-sm font-medium text-stone-500 hover:bg-stone-50 transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 rounded-full px-4 py-3 text-sm font-medium text-stone-500 hover:bg-stone-50 transition-colors" href="#">
+<span class="material-symbols-outlined">hive</span>
+                Hives
+            </a>
+<a class="flex items-center gap-3 rounded-full bg-salomie px-4 py-3 text-sm font-bold text-brown-bramble shadow-sm" href="#">
+<span class="material-symbols-outlined fill-1">history_edu</span>
+                History
+            </a>
+<a class="flex items-center gap-3 rounded-full px-4 py-3 text-sm font-medium text-stone-500 hover:bg-stone-50 transition-colors" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                Inventory
+            </a>
+<a class="flex items-center gap-3 rounded-full px-4 py-3 text-sm font-medium text-stone-500 hover:bg-stone-50 transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+                Settings
+            </a>
+</div>
+<div class="border-t border-stone-100 p-4">
+<div class="flex items-center gap-3 rounded-lg p-2 hover:bg-stone-50 cursor-pointer transition-colors">
+<div class="h-10 w-10 overflow-hidden rounded-full bg-stone-200 bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCwuxi08MSFd-GJ9EltPw-1PFTaFQUO8CrRZ96E7oTm2MgWBqPpEEselgjt1Fc1NR1Y3JvHGoXQwRvNGLNvLEaVe2e8zwhb95-p3DshfflAgrTUF6Wo5hFqqGNFDNP2V0bYZCF-BWN7BaCobQuDq1Lt2SWI1cmNTC8cYGRaPAKz3gbFVjpdmJ69JlE2ehuluLrhL3VVImKhEag1AaEEwssHx3Hc1eWTvr3Gijavhvruws2tUqk9f1s4lRNaIwWRibdLp_0soDKM3FI');"></div>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-brown-bramble">Liam Foster</span>
+<span class="text-xs text-stone-500">Head Beekeeper</span>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex flex-1 flex-col overflow-y-auto bg-coconut-cream">
+<div class="container mx-auto max-w-5xl p-6 md:p-10">
+<nav class="mb-6 flex items-center gap-2 text-sm text-stone-500">
+<a class="hover:text-sea-buckthorn transition-colors" href="#">Home</a>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<a class="hover:text-sea-buckthorn transition-colors" href="#">Hives</a>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span class="font-medium text-brown-bramble">Treatments</span>
+</nav>
+<div class="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+<div>
+<h1 class="text-3xl font-black tracking-tight text-brown-bramble md:text-4xl">Treatment History</h1>
+<p class="mt-2 text-brown-bramble/70 max-w-lg font-medium">
+                        Log and track interventions to maintain colony health. Monitor efficacy of treatments over time.
+                    </p>
+</div>
+<button class="group flex items-center justify-center gap-2 rounded-full bg-sea-buckthorn px-6 py-3 text-sm font-bold text-brown-bramble shadow-lg shadow-orange-900/10 transition-all hover:bg-[#faa120] hover:shadow-orange-900/20">
+<span class="material-symbols-outlined">add</span>
+                    Log New Treatment
+                </button>
+</div>
+<div class="mb-8 flex flex-wrap gap-3 overflow-x-auto pb-2 scrollbar-hide">
+<button class="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-brown-bramble shadow-sm transition hover:bg-stone-50 hover:border-stone-300">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+                    All
+                </button>
+<button class="flex items-center gap-2 rounded-full bg-salomie/50 px-4 py-2 text-sm font-bold text-brown-bramble ring-1 ring-salomie">
+                    Chemical
+                </button>
+<button class="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-brown-bramble shadow-sm transition hover:bg-stone-50 hover:border-stone-300">
+                    Organic
+                </button>
+<button class="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-brown-bramble shadow-sm transition hover:bg-stone-50 hover:border-stone-300">
+                    Feed
+                </button>
+<div class="mx-2 h-8 w-px bg-stone-300/50"></div>
+<button class="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-brown-bramble shadow-sm transition hover:bg-stone-50 hover:border-stone-300">
+                    Last 30 Days
+                </button>
+</div>
+<div class="flex flex-col gap-4">
+<div class="group relative flex flex-col gap-6 overflow-hidden rounded-2xl bg-white p-6 shadow-sm ring-1 ring-stone-100 transition-all hover:shadow-md md:flex-row md:items-center md:justify-between border-l-[4px] border-soft-blue">
+<div class="flex items-start gap-4">
+<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-500">
+<span class="material-symbols-outlined">science</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<h3 class="text-lg font-bold text-brown-bramble">Apivar</h3>
+<span class="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-stone-500">Chemical</span>
+</div>
+<span class="text-sm font-medium text-brown-bramble/70">Slow-release Strips</span>
+<div class="mt-1 flex items-center gap-1 text-xs font-medium text-stone-400">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+<span>Oct 12, 2023</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-brown-bramble">Applied to 12 Hives</span>
+<span class="text-xs text-stone-500">North Yard: #04, #08, #12...</span>
+</div>
+<div class="flex flex-wrap items-center gap-3">
+<span class="flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+<span class="material-symbols-outlined text-[14px]">hourglass_top</span>
+                            Pending Count
+                        </span>
+<button class="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-bold text-brown-bramble transition hover:border-sea-buckthorn hover:text-sea-buckthorn">
+<span class="material-symbols-outlined text-[18px]">add_chart</span>
+                            Add follow-up
+                        </button>
+</div>
+</div>
+<div class="group relative flex flex-col gap-6 overflow-hidden rounded-2xl bg-white p-6 shadow-sm ring-1 ring-stone-100 transition-all hover:shadow-md md:flex-row md:items-center md:justify-between border-l-[4px] border-soft-blue">
+<div class="flex items-start gap-4">
+<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-500">
+<span class="material-symbols-outlined">foggy</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<h3 class="text-lg font-bold text-brown-bramble">Formic Pro</h3>
+<span class="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-stone-500">Organic</span>
+</div>
+<span class="text-sm font-medium text-brown-bramble/70">Vapor Pads</span>
+<div class="mt-1 flex items-center gap-1 text-xs font-medium text-stone-400">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+<span>Sep 02, 2023</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-brown-bramble">Applied to 24 Hives</span>
+<span class="text-xs text-stone-500">Home Yard: All active colonies</span>
+</div>
+<div class="flex flex-wrap items-center gap-3">
+<div class="flex items-center gap-2 rounded-full bg-soft-sage px-3 py-1.5 text-xs font-bold text-white">
+<span class="material-symbols-outlined text-[16px]">trending_down</span>
+                            87% Mite Reduction
+                        </div>
+<button class="hidden rounded-lg p-2 text-stone-400 hover:bg-stone-50 hover:text-stone-600 group-hover:block">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+<div class="group relative flex flex-col gap-6 overflow-hidden rounded-2xl bg-white p-6 shadow-sm ring-1 ring-stone-100 transition-all hover:shadow-md md:flex-row md:items-center md:justify-between border-l-[4px] border-soft-blue">
+<div class="flex items-start gap-4">
+<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-500">
+<span class="material-symbols-outlined">water_drop</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<h3 class="text-lg font-bold text-brown-bramble">Sugar Syrup</h3>
+<span class="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-stone-500">Feed</span>
+</div>
+<span class="text-sm font-medium text-brown-bramble/70">2:1 Mix for Winter</span>
+<div class="mt-1 flex items-center gap-1 text-xs font-medium text-stone-400">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+<span>Aug 15, 2023</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-brown-bramble">Fed 120 Liters Total</span>
+<span class="text-xs text-stone-500">Distributed across North &amp; South Yards</span>
+</div>
+<div class="flex flex-wrap items-center gap-3">
+<div class="flex items-center gap-2 rounded-full bg-stone-100 px-3 py-1.5 text-xs font-bold text-stone-600">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+                            Completed
+                        </div>
+<button class="hidden rounded-lg p-2 text-stone-400 hover:bg-stone-50 hover:text-stone-600 group-hover:block">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+<div class="group relative flex flex-col gap-6 overflow-hidden rounded-2xl bg-white p-6 shadow-sm ring-1 ring-stone-100 transition-all hover:shadow-md md:flex-row md:items-center md:justify-between border-l-[4px] border-soft-blue">
+<div class="flex items-start gap-4">
+<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-500">
+<span class="material-symbols-outlined">science</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<h3 class="text-lg font-bold text-brown-bramble">Oxalic Acid</h3>
+<span class="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-stone-500">Organic</span>
+</div>
+<span class="text-sm font-medium text-brown-bramble/70">Dribble Method</span>
+<div class="mt-1 flex items-center gap-1 text-xs font-medium text-stone-400">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+<span>Jan 10, 2023</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-brown-bramble">Applied to 8 Hives</span>
+<span class="text-xs text-stone-500">South Yard (Winter Cluster)</span>
+</div>
+<div class="flex flex-wrap items-center gap-3">
+<div class="flex items-center gap-2 rounded-full bg-soft-sage px-3 py-1.5 text-xs font-bold text-white">
+<span class="material-symbols-outlined text-[16px]">trending_down</span>
+                            92% Mite Reduction
+                        </div>
+<button class="hidden rounded-lg p-2 text-stone-400 hover:bg-stone-50 hover:text-stone-600 group-hover:block">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+<div class="mt-8 flex justify-center">
+<button class="text-sm font-medium text-stone-500 hover:text-brown-bramble transition-colors">
+                    View older treatments
+                </button>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

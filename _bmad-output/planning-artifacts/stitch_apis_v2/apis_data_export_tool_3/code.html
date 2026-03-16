@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Team Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:ital,wght@0,100..900;1,100..900&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a426", // Sea Buckthorn default
+                        "primary-hover": "#e08e12",
+                        "sea-buckthorn": "#f7a42d",
+                        "coconut-cream": "#fbf9e7", // Background
+                        "brown-bramble": "#662604", // Typography
+                        "salomie": "#fcd483", // Highlight
+                        "soft-sage": "#7c9082", // Secondary/Status
+                        "pure-white": "#ffffff",
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"],
+                        "mono": ["Roboto Mono", "monospace"],
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                    boxShadow: {
+                        "soft": "0 4px 24px -4px rgba(102, 38, 4, 0.08)",
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Epilogue', sans-serif;
+        }.custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.02);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(124, 144, 130, 0.3);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(124, 144, 130, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream text-brown-bramble h-screen flex overflow-hidden font-display transition-colors duration-300">
+<aside class="w-[240px] bg-pure-white flex flex-col border-r border-[#efeadd] flex-shrink-0 z-20 shadow-[4px_0_24px_-12px_rgba(102,38,4,0.05)]">
+<div class="h-24 flex items-center px-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-sea-buckthorn flex items-center justify-center text-white shadow-md shadow-sea-buckthorn/30">
+<span class="material-icons-round text-2xl">hexagon</span>
+</div>
+<span class="font-bold text-2xl tracking-tight text-brown-bramble">APIS</span>
+</div>
+</div>
+<nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+<a class="flex items-center gap-3 px-4 py-3 text-brown-bramble/60 hover:bg-coconut-cream hover:text-brown-bramble rounded-xl transition-all duration-200 group" href="#">
+<span class="material-icons-round text-xl group-hover:text-sea-buckthorn transition-colors">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-brown-bramble/60 hover:bg-coconut-cream hover:text-brown-bramble rounded-xl transition-all duration-200 group" href="#">
+<span class="material-icons-round text-xl group-hover:text-sea-buckthorn transition-colors">grid_view</span>
+<span class="font-medium">Hives</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-brown-bramble/60 hover:bg-coconut-cream hover:text-brown-bramble rounded-xl transition-all duration-200 group" href="#">
+<span class="material-icons-round text-xl group-hover:text-sea-buckthorn transition-colors">people</span>
+<span class="font-medium">Community</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-brown-bramble/60 hover:bg-coconut-cream hover:text-brown-bramble rounded-xl transition-all duration-200 group" href="#">
+<span class="material-icons-round text-xl group-hover:text-sea-buckthorn transition-colors">insights</span>
+<span class="font-medium">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-salomie text-brown-bramble rounded-xl transition-all shadow-sm" href="#">
+<span class="material-icons-round text-xl">settings</span>
+<span class="font-bold">Settings</span>
+</a>
+</nav>
+<div class="p-6 border-t border-[#efeadd]">
+<div class="flex items-center gap-3 p-2 rounded-xl hover:bg-coconut-cream transition-colors cursor-pointer">
+<img alt="Profile Picture" class="w-10 h-10 rounded-full object-cover ring-2 ring-sea-buckthorn/20" data-alt="Portrait of a smiling woman with glasses" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0NomVkg3S77X2H1Ppk74j972H5U-9fRqqVqiOoMvcA9UwtEE77AXPJHVtLkW8iXqltMkHb-bps9DBFVULBgrhpe-T06Y-jwgwmGgJmgRX7h3teYrqcKzn_Ngoa-To9jX6soqc-G7jLUSWaE3H0bx4ruhrKVw3vudznkjUSlvjxSQGj9CtKQqHTA9MqUCwbaOw33Njc7NpfvHdrOCaOAkoauifbagZ-m5Glg1CQjikT94ltZMXcExypg5hN-lVMBv6oBGvDuVnBFg"/>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-brown-bramble">Elena R.</span>
+<span class="text-xs text-brown-bramble/50">Master Beekeeper</span>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full overflow-hidden relative">
+<div class="absolute top-0 right-0 w-full h-full opacity-40 pointer-events-none z-0 overflow-hidden">
+<div class="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-white rounded-full blur-[100px]"></div>
+</div>
+<header class="px-10 py-10 z-10 flex items-center justify-between">
+<div>
+<div class="flex items-center gap-2 text-sm text-brown-bramble/50 mb-3 font-medium">
+<span>Settings</span>
+<span class="material-icons-round text-xs">chevron_right</span>
+<span class="text-sea-buckthorn">Team Management</span>
+</div>
+<h1 class="text-4xl font-bold text-brown-bramble tracking-tight mb-2">Team Members</h1>
+<p class="text-brown-bramble/70 max-w-2xl text-lg">Manage user access and collaboration roles for your apiary.</p>
+</div>
+<button class="bg-sea-buckthorn hover:bg-[#e6931d] text-white px-8 py-3 rounded-full font-bold shadow-lg shadow-sea-buckthorn/20 transition-all transform hover:-translate-y-0.5 flex items-center gap-2 text-sm tracking-wide">
+<span class="material-icons-round text-xl">add</span>
+            INVITE USER
+        </button>
+</header>
+<div class="flex-1 px-10 pb-10 overflow-hidden z-10">
+<div class="bg-pure-white rounded-[16px] shadow-soft border border-white/50 h-full flex flex-col overflow-hidden">
+<div class="overflow-auto custom-scrollbar flex-1">
+<table class="w-full text-left border-collapse">
+<thead class="bg-coconut-cream/30 sticky top-0 z-10 backdrop-blur-sm">
+<tr class="text-brown-bramble/60 text-xs border-b border-[#f0ebe0]">
+<th class="px-8 py-6 font-bold uppercase tracking-wider">User</th>
+<th class="px-6 py-6 font-bold uppercase tracking-wider">Email</th>
+<th class="px-6 py-6 font-bold uppercase tracking-wider">Role</th>
+<th class="px-6 py-6 font-bold uppercase tracking-wider">Status</th>
+<th class="px-6 py-6 font-bold uppercase tracking-wider">Last Login</th>
+<th class="px-8 py-6 font-bold uppercase tracking-wider text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#f5f2e9]">
+<tr class="group hover:bg-coconut-cream/30 transition-colors">
+<td class="px-8 py-5">
+<div class="flex items-center gap-4">
+<img alt="Elena R." class="w-11 h-11 rounded-full object-cover ring-2 ring-white shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0NomVkg3S77X2H1Ppk74j972H5U-9fRqqVqiOoMvcA9UwtEE77AXPJHVtLkW8iXqltMkHb-bps9DBFVULBgrhpe-T06Y-jwgwmGgJmgRX7h3teYrqcKzn_Ngoa-To9jX6soqc-G7jLUSWaE3H0bx4ruhrKVw3vudznkjUSlvjxSQGj9CtKQqHTA9MqUCwbaOw33Njc7NpfvHdrOCaOAkoauifbagZ-m5Glg1CQjikT94ltZMXcExypg5hN-lVMBv6oBGvDuVnBFg"/>
+<div>
+<div class="font-bold text-brown-bramble text-base">Elena R.</div>
+<div class="text-xs text-brown-bramble/50 font-medium">Master Beekeeper</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 text-sm text-brown-bramble/70 font-mono">elena.r@apis.com</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-sea-buckthorn/15 text-sea-buckthorn border border-sea-buckthorn/20">
+<span class="material-icons-round text-[14px]">shield</span>
+                                Admin
+                            </span>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-soft-sage shadow-[0_0_8px_rgba(124,144,130,0.5)]"></div>
+<span class="text-sm font-bold text-soft-sage">Active</span>
+</div>
+</td>
+<td class="px-6 py-5 text-sm text-brown-bramble/60">
+                            2 hours ago
+                        </td>
+<td class="px-8 py-5 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+<button class="p-2 text-brown-bramble/40 hover:text-sea-buckthorn hover:bg-sea-buckthorn/10 rounded-lg transition-colors" title="Edit">
+<span class="material-symbols-outlined text-xl">edit</span>
+</button>
+<button class="p-2 text-brown-bramble/40 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="group hover:bg-coconut-cream/30 transition-colors">
+<td class="px-8 py-5">
+<div class="flex items-center gap-4">
+<div class="w-11 h-11 rounded-full bg-[#e8ebe9] text-soft-sage flex items-center justify-center font-bold text-sm ring-2 ring-white shadow-sm">
+                                MC
+                            </div>
+<div>
+<div class="font-bold text-brown-bramble text-base">Marcus Chen</div>
+<div class="text-xs text-brown-bramble/50 font-medium">Apiary Technician</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 text-sm text-brown-bramble/70 font-mono">marcus.c@apis.com</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-soft-sage/15 text-soft-sage border border-soft-sage/20">
+<span class="material-icons-round text-[14px]">person</span>
+                                Member
+                            </span>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-soft-sage shadow-[0_0_8px_rgba(124,144,130,0.5)]"></div>
+<span class="text-sm font-bold text-soft-sage">Active</span>
+</div>
+</td>
+<td class="px-6 py-5 text-sm text-brown-bramble/60">
+                            5 hours ago
+                        </td>
+<td class="px-8 py-5 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+<button class="p-2 text-brown-bramble/40 hover:text-sea-buckthorn hover:bg-sea-buckthorn/10 rounded-lg transition-colors" title="Edit">
+<span class="material-symbols-outlined text-xl">edit</span>
+</button>
+<button class="p-2 text-brown-bramble/40 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="group hover:bg-coconut-cream/30 transition-colors">
+<td class="px-8 py-5">
+<div class="flex items-center gap-4">
+<div class="w-11 h-11 rounded-full bg-[#fcecd9] text-sea-buckthorn flex items-center justify-center font-bold text-sm ring-2 ring-white shadow-sm">
+                                SW
+                            </div>
+<div>
+<div class="font-bold text-brown-bramble text-base">Sarah Wilson</div>
+<div class="text-xs text-brown-bramble/50 font-medium">Honey Analyst</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 text-sm text-brown-bramble/70 font-mono">sarah.w@apis.com</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-soft-sage/15 text-soft-sage border border-soft-sage/20">
+<span class="material-icons-round text-[14px]">person</span>
+                                Member
+                            </span>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-soft-sage shadow-[0_0_8px_rgba(124,144,130,0.5)]"></div>
+<span class="text-sm font-bold text-soft-sage">Active</span>
+</div>
+</td>
+<td class="px-6 py-5 text-sm text-brown-bramble/60">
+                            1 day ago
+                        </td>
+<td class="px-8 py-5 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+<button class="p-2 text-brown-bramble/40 hover:text-sea-buckthorn hover:bg-sea-buckthorn/10 rounded-lg transition-colors" title="Edit">
+<span class="material-symbols-outlined text-xl">edit</span>
+</button>
+<button class="p-2 text-brown-bramble/40 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="group hover:bg-coconut-cream/30 transition-colors">
+<td class="px-8 py-5">
+<div class="flex items-center gap-4">
+<div class="w-11 h-11 rounded-full bg-[#e8ebe9] text-soft-sage flex items-center justify-center font-bold text-sm ring-2 ring-white shadow-sm">
+                                DB
+                            </div>
+<div>
+<div class="font-bold text-brown-bramble text-base">David Brown</div>
+<div class="text-xs text-brown-bramble/50 font-medium">Seasonal Helper</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 text-sm text-brown-bramble/70 font-mono">david.b@apis.com</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-soft-sage/15 text-soft-sage border border-soft-sage/20">
+<span class="material-icons-round text-[14px]">person</span>
+                                Member
+                            </span>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-stone-300"></div>
+<span class="text-sm font-medium text-brown-bramble/40">Inactive</span>
+</div>
+</td>
+<td class="px-6 py-5 text-sm text-brown-bramble/60">
+                            Never
+                        </td>
+<td class="px-8 py-5 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+<button class="p-2 text-brown-bramble/40 hover:text-sea-buckthorn hover:bg-sea-buckthorn/10 rounded-lg transition-colors" title="Edit">
+<span class="material-symbols-outlined text-xl">edit</span>
+</button>
+<button class="p-2 text-brown-bramble/40 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-8 py-5 border-t border-[#f0ebe0] bg-[#fbf9f5] flex items-center justify-between">
+<p class="text-sm text-brown-bramble/60">Showing <span class="font-bold text-brown-bramble">4</span> of <span class="font-bold text-brown-bramble">12</span> users</p>
+<div class="flex gap-2">
+<button class="px-4 py-2 text-sm font-bold text-brown-bramble/60 hover:text-brown-bramble hover:bg-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all" disabled="">Previous</button>
+<button class="px-4 py-2 text-sm font-bold text-brown-bramble/60 hover:text-brown-bramble hover:bg-white rounded-lg transition-all">Next</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

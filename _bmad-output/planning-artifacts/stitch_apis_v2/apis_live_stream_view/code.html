@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Live Stream View</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&amp;family=Noto+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a42d", // Sea Buckthorn
+                        "background-light": "#f8f8f5",
+                        "background-dark": "#221e10",
+                        "card-dark": "#181611",
+                        "overlay-dark": "rgba(0, 0, 0, 0.75)",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "Noto Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display h-screen overflow-hidden flex flex-row">
+<div class="hidden lg:flex w-64 flex-col bg-card-dark border-r border-[#393528] h-full shrink-0 z-0">
+<div class="flex items-center gap-3 p-6 border-b border-[#393528]">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-10" data-alt="Golden hexagonal bee logo" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuANrRARggznWNS__-ryUZX7jAOz1WhzsrgisC5s00Al9Tyz7x3u-gUdvzMWGIvare8qp7vJArdk1hbfcmxFynTOJkQ22fif9BW1F7LiY9lZp5dTybMi-sH9FXCNl3insDvizCT9pnVMb3phOBO53cyaD3tdqswemsF4ZcheQpfVXOrdn6WnGg_m_TzSCnXk2XHlypqE_73ASj94AX0g7x9ObFevavrG7pZFCHZlnf2zsOk5PK3OTq0i5XXBpcU8bKVSCTLsp5eUMjY");'></div>
+<div class="flex flex-col">
+<h1 class="text-white text-base font-bold leading-normal">APIS Platform</h1>
+<p class="text-[#bab29c] text-xs font-normal leading-normal">Pro Plan</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 p-4">
+<div class="flex items-center gap-3 px-3 py-3 rounded-lg text-[#bab29c] hover:bg-[#393528] hover:text-white transition-colors cursor-pointer">
+<span class="material-symbols-outlined">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-3 rounded-lg bg-primary/20 text-primary cursor-pointer">
+<span class="material-symbols-outlined icon-fill">package_2</span>
+<p class="text-sm font-medium">Units Management</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-3 rounded-lg text-[#bab29c] hover:bg-[#393528] hover:text-white transition-colors cursor-pointer">
+<span class="material-symbols-outlined">potted_plant</span>
+<p class="text-sm font-medium">Harvest Logs</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-3 rounded-lg text-[#bab29c] hover:bg-[#393528] hover:text-white transition-colors cursor-pointer">
+<span class="material-symbols-outlined">ecg_heart</span>
+<p class="text-sm font-medium">Health Status</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-3 rounded-lg text-[#bab29c] hover:bg-[#393528] hover:text-white transition-colors cursor-pointer">
+<span class="material-symbols-outlined">settings</span>
+<p class="text-sm font-medium">Settings</p>
+</div>
+</div>
+</div>
+<div class="flex-1 flex flex-col h-full relative z-0">
+<header class="h-20 border-b border-[#393528] bg-card-dark flex items-center justify-between px-8">
+<div class="flex flex-col">
+<h2 class="text-white text-2xl font-bold">Unit 04: North Apiary</h2>
+<div class="flex items-center gap-2">
+<div class="size-2 rounded-full bg-green-500"></div>
+<span class="text-[#bab29c] text-sm">Active Monitoring</span>
+</div>
+</div>
+<button class="flex items-center gap-2 bg-[#393528] hover:bg-[#4a4536] text-white px-4 py-2 rounded-full transition-colors">
+<span class="material-symbols-outlined text-sm">edit</span>
+<span class="text-sm font-bold">Edit Config</span>
+</button>
+</header>
+<main class="flex-1 p-8 bg-background-dark overflow-y-auto filter blur-[2px]">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<div class="bg-card-dark p-6 rounded-xl border border-[#393528]">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-[#bab29c]">thermometer</span>
+<span class="text-primary text-sm font-bold">+2.4%</span>
+</div>
+<h3 class="text-[#bab29c] text-sm font-medium">Internal Temp</h3>
+<p class="text-white text-3xl font-bold mt-1">35.2°C</p>
+</div>
+<div class="bg-card-dark p-6 rounded-xl border border-[#393528]">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-[#bab29c]">water_drop</span>
+<span class="text-primary text-sm font-bold">-0.5%</span>
+</div>
+<h3 class="text-[#bab29c] text-sm font-medium">Humidity</h3>
+<p class="text-white text-3xl font-bold mt-1">58%</p>
+</div>
+<div class="bg-card-dark p-6 rounded-xl border border-[#393528]">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-[#bab29c]">volume_up</span>
+<span class="text-primary text-sm font-bold">Normal</span>
+</div>
+<h3 class="text-[#bab29c] text-sm font-medium">Acoustics</h3>
+<p class="text-white text-3xl font-bold mt-1">45dB</p>
+</div>
+</div>
+<div class="mt-8 bg-card-dark rounded-xl border border-[#393528] h-96 p-6">
+<h3 class="text-white text-lg font-bold mb-4">Activity Log</h3>
+<div class="space-y-4">
+<div class="h-12 bg-[#27241b] rounded w-full animate-pulse"></div>
+<div class="h-12 bg-[#27241b] rounded w-full animate-pulse"></div>
+<div class="h-12 bg-[#27241b] rounded w-full animate-pulse"></div>
+</div>
+</div>
+</main>
+</div>
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-overlay-dark backdrop-blur-sm p-4 animate-in fade-in duration-300">
+<div class="w-full max-w-6xl h-[85vh] bg-[#1a1a1a] rounded-lg shadow-2xl flex flex-col border border-[#393528] overflow-hidden relative">
+<div class="flex items-center justify-between px-6 py-4 bg-[#221e10] border-b border-[#393528] shrink-0">
+<div class="flex items-center gap-4">
+<div class="flex flex-col">
+<h2 class="text-white text-xl font-bold tracking-tight">North Gate Guard - Live Feed</h2>
+<div class="flex items-center gap-2 mt-1">
+<span class="relative flex h-2.5 w-2.5">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+</span>
+<span class="text-[#bab29c] text-xs font-mono font-medium uppercase tracking-wider">Connected • Live Stream</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="hidden md:flex items-center gap-2 px-3 py-1.5 bg-[#2a261c] rounded-lg border border-[#393528]">
+<span class="material-symbols-outlined text-[#bab29c] text-[16px]">signal_cellular_alt</span>
+<span class="text-[#bab29c] text-xs font-mono">Strong Signal</span>
+</div>
+<button class="text-[#bab29c] hover:text-white hover:bg-[#393528] rounded-full p-2 transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</div>
+<div class="flex-1 bg-black relative group overflow-hidden">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Dark close-up of beehive entrance with bees" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA3MZLt0bfMmQT_I3Y7yXm_vKcFF0ycLrpPLtgbwog5GKOvLqXcBDukrveznRp6qvSbP9HLDfZp4145-fuImZKdQ-crgoIsfjZoHPN-EeyzkxdmdxJPk_-gBg0hBIBpi4P5ybWd6UmkE29SBNWovRunw5P_NuwNGFaMXHITqUaMSUuLpuY265Rez0wHwEpy3GaD-nuS5HalApmZEz6aEeDzVxUlr_QmuCFCufvai-b8m-QbTtHpklf7dlOProGc-p_-xNfZ1K6skDY'); opacity: 0.8;"></div>
+<div class="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-3 z-10">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-[14px]">speed</span>
+<span class="text-white text-xs font-mono">12ms Latency</span>
+</div>
+<div class="w-px h-3 bg-white/20"></div>
+<span class="text-white text-xs font-mono">1080p HEVC</span>
+</div>
+<div class="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 z-10">
+<span class="text-white text-xs font-mono tracking-widest">2023-10-27 14:32:09 UTC</span>
+</div>
+<div class="absolute top-1/3 left-1/4 w-16 h-16 border-2 border-primary/70 rounded-sm flex items-start justify-start">
+<span class="bg-primary text-black text-[9px] font-bold px-1 py-0.5">Worker</span>
+</div>
+<div class="absolute bottom-1/3 right-1/3 w-12 h-12 border-2 border-primary/70 rounded-sm flex items-start justify-start">
+<span class="bg-primary text-black text-[9px] font-bold px-1 py-0.5">Worker</span>
+</div>
+<div class="absolute bottom-1/4 left-1/3 w-20 h-20 border-2 border-red-500/70 rounded-sm flex items-start justify-start">
+<span class="bg-red-500 text-white text-[9px] font-bold px-1 py-0.5">Drone</span>
+</div>
+<div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+</div>
+</div>
+<div class="h-20 bg-[#221e10] border-t border-[#393528] px-6 flex items-center justify-between shrink-0">
+<div class="flex items-center gap-6">
+<label class="flex items-center gap-3 cursor-pointer group">
+<div class="relative inline-flex items-center">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-[#393528] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</div>
+<span class="text-white text-sm font-medium group-hover:text-primary transition-colors">AI Overlay</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<div class="relative inline-flex items-center">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-[#393528] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</div>
+<span class="text-[#bab29c] text-sm font-medium group-hover:text-white transition-colors">Audio</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group hidden sm:flex">
+<div class="relative inline-flex items-center">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-[#393528] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</div>
+<span class="text-[#bab29c] text-sm font-medium group-hover:text-white transition-colors">Night Vision</span>
+</label>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 px-6 py-2.5 bg-[#2a261c] hover:bg-[#393528] text-white rounded-full border border-[#393528] transition-all active:scale-95 focus:ring-2 focus:ring-primary/50">
+<span class="material-symbols-outlined text-[20px]">photo_camera</span>
+<span class="text-sm font-bold hidden md:inline">Snapshot</span>
+</button>
+<button aria-label="Fullscreen" class="p-2 text-[#bab29c] hover:text-white hover:bg-[#393528] rounded-full transition-colors">
+<span class="material-symbols-outlined">fullscreen</span>
+</button>
+<button aria-label="Settings" class="p-2 text-[#bab29c] hover:text-white hover:bg-[#393528] rounded-full transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+
+</body></html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Profile Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:ital,wght@0,100..900;1,100..900&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "coconut-cream": "#fbf9e7",
+                        "brown-bramble": "#662604",
+                        "sea-buckthorn": "#f7a42d",
+                        "salomie": "#fcd483",
+                        "soft-sage": "#7c9082",
+                        "pure-white": "#ffffff",
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"],
+                        "mono": ["Roboto Mono", "monospace"],
+                    },
+                    borderRadius: {
+                        "input": "12px",
+                        "card": "16px",
+                    },
+                    boxShadow: {
+                        "soft": "0 4px 20px -2px rgba(102, 38, 4, 0.05)",
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Epilogue', sans-serif;
+            color: #662604;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(102, 38, 4, 0.05);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(247, 164, 45, 0.3);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(247, 164, 45, 0.6);
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream text-brown-bramble h-screen flex overflow-hidden font-display transition-colors duration-300">
+<aside class="w-[240px] bg-pure-white flex flex-col border-r border-[#f0ebd8] flex-shrink-0 z-20 shadow-[4px_0_24px_-4px_rgba(102,38,4,0.02)]">
+<div class="h-24 flex items-center px-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-sea-buckthorn flex items-center justify-center text-white shadow-md shadow-sea-buckthorn/20">
+<span class="material-icons-round text-2xl">hexagon</span>
+</div>
+<span class="font-bold text-2xl tracking-tight text-brown-bramble">APIS</span>
+</div>
+</div>
+<nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+<a class="flex items-center gap-3 px-4 py-3.5 text-brown-bramble/70 hover:bg-coconut-cream hover:text-brown-bramble rounded-xl transition-all duration-200 group font-medium" href="#">
+<span class="material-icons-round text-xl group-hover:text-sea-buckthorn transition-colors">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3.5 text-brown-bramble/70 hover:bg-coconut-cream hover:text-brown-bramble rounded-xl transition-all duration-200 group font-medium" href="#">
+<span class="material-icons-round text-xl group-hover:text-sea-buckthorn transition-colors">grid_view</span>
+<span>Hives</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3.5 text-brown-bramble/70 hover:bg-coconut-cream hover:text-brown-bramble rounded-xl transition-all duration-200 group font-medium" href="#">
+<span class="material-icons-round text-xl group-hover:text-sea-buckthorn transition-colors">yard</span>
+<span>Apiary Map</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3.5 text-brown-bramble/70 hover:bg-coconut-cream hover:text-brown-bramble rounded-xl transition-all duration-200 group font-medium" href="#">
+<span class="material-icons-round text-xl group-hover:text-sea-buckthorn transition-colors">insights</span>
+<span>Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3.5 bg-salomie text-brown-bramble rounded-xl transition-colors relative shadow-sm" href="#">
+<span class="material-icons-round text-xl">settings</span>
+<span class="font-bold">Settings</span>
+</a>
+</nav>
+<div class="p-6 border-t border-[#f0ebd8]">
+<div class="flex items-center gap-3 p-3 rounded-2xl bg-coconut-cream/50">
+<img alt="Profile Picture" class="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm" data-alt="Portrait of a smiling woman with glasses" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0NomVkg3S77X2H1Ppk74j972H5U-9fRqqVqiOoMvcA9UwtEE77AXPJHVtLkW8iXqltMkHb-bps9DBFVULBgrhpe-T06Y-jwgwmGgJmgRX7h3teYrqcKzn_Ngoa-To9jX6soqc-G7jLUSWaE3H0bx4ruhrKVw3vudznkjUSlvjxSQGj9CtKQqHTA9MqUCwbaOw33Njc7NpfvHdrOCaOAkoauifbagZ-m5Glg1CQjikT94ltZMXcExypg5hN-lVMBv6oBGvDuVnBFg"/>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-brown-bramble">Elena R.</span>
+<span class="text-[10px] uppercase tracking-wider text-brown-bramble/60 font-medium">Master Beekeeper</span>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full overflow-hidden relative">
+<div class="absolute top-0 right-0 w-1/3 h-1/3 opacity-40 pointer-events-none z-0">
+<div class="absolute top-[-50px] right-[-50px] w-96 h-96 bg-salomie/20 rounded-full blur-3xl"></div>
+</div>
+<header class="px-10 py-8 z-10 flex-shrink-0">
+<div class="flex items-center gap-2 text-sm text-brown-bramble/50 mb-3 font-medium">
+<span>Settings</span>
+<span class="material-icons-round text-xs">chevron_right</span>
+<span class="text-sea-buckthorn">Profile</span>
+</div>
+<h1 class="text-4xl font-bold text-brown-bramble tracking-tight">Your Profile</h1>
+<p class="text-brown-bramble/60 mt-2 text-lg">Manage your personal information and account security preferences.</p>
+</header>
+<div class="flex-1 overflow-y-auto custom-scrollbar px-10 pb-12 z-10">
+<div class="max-w-4xl mx-auto">
+<div class="bg-pure-white rounded-card shadow-soft border border-[#f0ebd8] overflow-hidden">
+<div class="p-10">
+<h2 class="text-xl font-bold text-brown-bramble mb-8 flex items-center gap-3 pb-4 border-b border-[#f0ebd8]">
+<span class="material-icons-round text-sea-buckthorn bg-sea-buckthorn/10 p-1.5 rounded-lg">badge</span>
+                            Personal Information
+                        </h2>
+<div class="flex flex-col md:flex-row gap-10 items-start mb-12">
+<div class="flex flex-col items-center gap-4 shrink-0">
+<div class="relative group">
+<img alt="Profile Picture Large" class="w-32 h-32 rounded-full object-cover ring-4 ring-coconut-cream shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0NomVkg3S77X2H1Ppk74j972H5U-9fRqqVqiOoMvcA9UwtEE77AXPJHVtLkW8iXqltMkHb-bps9DBFVULBgrhpe-T06Y-jwgwmGgJmgRX7h3teYrqcKzn_Ngoa-To9jX6soqc-G7jLUSWaE3H0bx4ruhrKVw3vudznkjUSlvjxSQGj9CtKQqHTA9MqUCwbaOw33Njc7NpfvHdrOCaOAkoauifbagZ-m5Glg1CQjikT94ltZMXcExypg5hN-lVMBv6oBGvDuVnBFg"/>
+<button class="absolute bottom-1 right-1 bg-pure-white text-brown-bramble p-2 rounded-full shadow-md border border-[#f0ebd8] hover:text-sea-buckthorn transition-colors group-hover:scale-110 duration-200">
+<span class="material-icons-round text-lg">edit</span>
+</button>
+</div>
+<span class="text-xs font-semibold text-brown-bramble/40 uppercase tracking-wide">JPG, PNG</span>
+</div>
+<div class="flex-1 grid grid-cols-1 gap-6 w-full">
+<div>
+<label class="block text-sm font-bold text-brown-bramble mb-2 ml-1">Display Name</label>
+<input class="w-full h-12 bg-coconut-cream border border-transparent hover:border-[#e6e0c0] text-brown-bramble px-5 rounded-input focus:outline-none focus:ring-2 focus:ring-sea-buckthorn/20 focus:border-sea-buckthorn transition-all font-medium placeholder-brown-bramble/30" type="text" value="Elena R."/>
+</div>
+<div>
+<label class="block text-sm font-bold text-brown-bramble mb-2 ml-1">Email Address</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+<span class="material-icons-round text-brown-bramble/30 text-xl">mail</span>
+</span>
+<input class="w-full h-12 bg-[#f4f1e0] border border-transparent text-brown-bramble/60 pl-12 px-5 rounded-input cursor-not-allowed select-none font-medium" readonly="" type="email" value="elena.r@apis-platform.com"/>
+<span class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+<span class="text-xs font-bold bg-soft-sage/20 text-soft-sage px-2.5 py-1 rounded-md">VERIFIED</span>
+</span>
+</div>
+<p class="mt-2 text-xs text-brown-bramble/40 ml-1">Contact support to change your email address.</p>
+</div>
+</div>
+</div>
+<div class="h-px bg-[#f0ebd8] w-full mb-10"></div>
+<h2 class="text-xl font-bold text-brown-bramble mb-8 flex items-center gap-3 pb-4 border-b border-[#f0ebd8]">
+<span class="material-icons-round text-sea-buckthorn bg-sea-buckthorn/10 p-1.5 rounded-lg">lock</span>
+                            Change Password
+                        </h2>
+<div class="max-w-2xl space-y-6">
+<div>
+<label class="block text-sm font-bold text-brown-bramble mb-2 ml-1">Current Password</label>
+<input class="w-full h-12 bg-coconut-cream border border-transparent hover:border-[#e6e0c0] text-brown-bramble px-5 rounded-input focus:outline-none focus:ring-2 focus:ring-sea-buckthorn/20 focus:border-sea-buckthorn transition-all placeholder-brown-bramble/30" placeholder="••••••••••••" type="password"/>
+</div>
+<div class="pt-2">
+<label class="block text-sm font-bold text-brown-bramble mb-2 ml-1">New Password</label>
+<input class="w-full h-12 bg-coconut-cream border border-transparent hover:border-[#e6e0c0] text-brown-bramble px-5 rounded-input focus:outline-none focus:ring-2 focus:ring-sea-buckthorn/20 focus:border-sea-buckthorn transition-all" type="password" value="BeesAreCool2024"/>
+<div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-coconut-cream/50 rounded-xl border border-[#f0ebd8]">
+<div class="flex items-center gap-2 transition-colors duration-300">
+<span class="material-icons-round text-lg text-soft-sage">check_circle</span>
+<span class="text-sm font-medium text-brown-bramble/70">8+ Characters</span>
+</div>
+<div class="flex items-center gap-2 transition-colors duration-300">
+<span class="material-icons-round text-lg text-soft-sage">check_circle</span>
+<span class="text-sm font-medium text-brown-bramble/70">1 Number</span>
+</div>
+<div class="flex items-center gap-2 transition-colors duration-300">
+<span class="material-icons-round text-lg text-brown-bramble/20">radio_button_unchecked</span>
+<span class="text-sm font-medium text-brown-bramble/40">1 Special Character</span>
+</div>
+<div class="flex items-center gap-2 transition-colors duration-300">
+<span class="material-icons-round text-lg text-soft-sage">check_circle</span>
+<span class="text-sm font-medium text-brown-bramble/70">Uppercase Letter</span>
+</div>
+</div>
+</div>
+<div>
+<label class="block text-sm font-bold text-brown-bramble mb-2 ml-1">Confirm New Password</label>
+<input class="w-full h-12 bg-coconut-cream border border-transparent hover:border-[#e6e0c0] text-brown-bramble px-5 rounded-input focus:outline-none focus:ring-2 focus:ring-sea-buckthorn/20 focus:border-sea-buckthorn transition-all" type="password"/>
+</div>
+</div>
+</div>
+<div class="bg-coconut-cream px-10 py-8 border-t border-[#f0ebd8] flex justify-end items-center gap-4">
+<button class="text-brown-bramble/60 font-bold text-sm hover:text-brown-bramble px-6 py-3 rounded-full transition-colors">
+                            Cancel
+                        </button>
+<button class="bg-sea-buckthorn hover:bg-sea-buckthorn/90 text-white px-8 py-3 rounded-full font-bold shadow-lg shadow-sea-buckthorn/20 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+<span>Save Changes</span>
+</button>
+</div>
+</div>
+<div class="mt-8 text-center text-xs text-brown-bramble/40 font-medium">
+<p>Last login: October 24, 2023 at 08:45 AM from IP 192.168.1.1</p>
+</div>
+</div>
+</div>
+</main>
+
+</body></html>

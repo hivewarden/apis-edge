@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Mobile Inspection Refined</title>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a42d", // Sea Buckthorn
+                        "background-light": "#fbf9e7", // Coconut Cream
+                        "background-dark": "#221b10",
+                        "brown-bramble": "#662604",
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem", 
+                        "lg": "1rem", 
+                        "xl": "1.5rem", 
+                        "2xl": "2rem",
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        "soft": "0 4px 20px -2px rgba(102, 38, 4, 0.08)",
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }.nav-icon {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .nav-icon-filled {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-zinc-900 font-display flex items-center justify-center min-h-screen p-4 bg-cover bg-center" data-alt="Blurred apiary background with wooden hives" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDtQKFjCQYa8Fz5-fVpD_P3jerS_tLOIf6inQFCOYVUtT8sVN4m2K9B5_vaC0tESRBsnKlV_NR5NN1P1bOz2AT3UM1qIOHBpHSAAw78JAd6_am53Ew0-DVGw6Nn29Qk5TfY-lFVOmt1NqnT-EpBHccKpugCbPmiriGtR1vUm2WPtec2z16R4E6_MkhhqQk-d5tFzs3N5JQk7XJSJhE8nVqCwBsiZjD2may8uAMdBW6lptSjAc95pJVo3arsD2gTbkOalM84OaUgfV8');">
+<div class="relative w-full max-w-[430px] h-[860px] bg-background-light dark:bg-zinc-950 shadow-2xl rounded-[40px] overflow-hidden border-8 border-white dark:border-zinc-800 flex flex-col">
+<div class="flex justify-between items-center px-6 pt-5 pb-2 text-brown-bramble dark:text-white text-xs font-medium z-10 opacity-80">
+<span>9:41</span>
+<div class="flex gap-1.5">
+<span class="material-symbols-outlined text-[16px]">signal_cellular_alt</span>
+<span class="material-symbols-outlined text-[16px]">wifi</span>
+<span class="material-symbols-outlined text-[16px]">battery_full</span>
+</div>
+</div>
+<header class="flex items-center justify-between px-6 py-4">
+<button class="p-2 -ml-2 rounded-full hover:bg-brown-bramble/5 transition-colors">
+<span class="material-symbols-outlined text-brown-bramble dark:text-white nav-icon">close</span>
+</button>
+<div class="flex flex-col items-center">
+<span class="text-xs uppercase tracking-wider font-bold text-brown-bramble/60 dark:text-gray-400">Hive #402</span>
+<span class="text-sm font-semibold text-brown-bramble dark:text-white">Inspection</span>
+</div>
+<button class="p-2 -mr-2 rounded-full hover:bg-brown-bramble/5 transition-colors">
+<span class="material-symbols-outlined text-brown-bramble dark:text-white nav-icon">more_horiz</span>
+</button>
+</header>
+<div class="px-8 pb-6 flex justify-center gap-3">
+<div class="w-3 h-3 rounded-full bg-primary ring-2 ring-primary ring-offset-2 ring-offset-background-light dark:ring-offset-zinc-900"></div>
+<div class="w-3 h-3 rounded-full bg-brown-bramble/20 dark:bg-gray-700"></div>
+<div class="w-3 h-3 rounded-full bg-brown-bramble/20 dark:bg-gray-700"></div>
+<div class="w-3 h-3 rounded-full bg-brown-bramble/20 dark:bg-gray-700"></div>
+<div class="w-3 h-3 rounded-full bg-brown-bramble/20 dark:bg-gray-700"></div>
+<div class="w-3 h-3 rounded-full bg-brown-bramble/20 dark:bg-gray-700"></div>
+</div>
+<main class="flex-1 flex flex-col px-6 relative overflow-y-auto pb-32">
+<div class="bg-white dark:bg-zinc-900 rounded-[16px] shadow-soft p-6 mb-6">
+<div class="mb-6 text-center">
+<h1 class="text-brown-bramble dark:text-white text-2xl font-semibold leading-tight">Queen Status</h1>
+<p class="text-brown-bramble/60 dark:text-gray-400 mt-2 text-sm">Tap options observed</p>
+</div>
+<div class="flex flex-col gap-4 w-full">
+<label class="group relative flex items-center justify-between w-full h-[72px] bg-primary rounded-xl px-4 shadow-lg shadow-primary/20 cursor-pointer transition-all active:scale-[0.98]">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-[24px] filled">crown</span>
+</div>
+<span class="text-white text-lg font-bold">Queen Seen</span>
+</div>
+<div class="w-8 h-8 rounded-full bg-white text-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[20px] font-bold">check</span>
+</div>
+<input checked="" class="hidden" type="checkbox"/>
+</label>
+<label class="group relative flex items-center justify-between w-full h-[72px] bg-gray-50 dark:bg-zinc-800 rounded-xl px-4 border border-gray-100 dark:border-zinc-700 hover:border-primary/30 cursor-pointer transition-all active:scale-[0.98]">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-white dark:bg-zinc-700 flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-brown-bramble dark:text-gray-300 text-[24px]">egg</span>
+</div>
+<span class="text-brown-bramble dark:text-white text-lg font-medium">Eggs Seen</span>
+</div>
+<div class="w-8 h-8 rounded-full border-2 border-gray-200 dark:border-zinc-600 group-hover:border-primary/50"></div>
+<input class="hidden" type="checkbox"/>
+</label>
+<label class="group relative flex items-center justify-between w-full h-[72px] bg-gray-50 dark:bg-zinc-800 rounded-xl px-4 border border-gray-100 dark:border-zinc-700 hover:border-primary/30 cursor-pointer transition-all active:scale-[0.98]">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-white dark:bg-zinc-700 flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-brown-bramble dark:text-gray-300 text-[24px]">grid_view</span>
+</div>
+<span class="text-brown-bramble dark:text-white text-lg font-medium">Queen Cells</span>
+</div>
+<div class="w-8 h-8 rounded-full border-2 border-gray-200 dark:border-zinc-600 group-hover:border-primary/50"></div>
+<input class="hidden" type="checkbox"/>
+</label>
+</div>
+</div>
+<div class="mt-4 flex justify-center opacity-5">
+<span class="material-symbols-outlined text-[100px] text-brown-bramble">hive</span>
+</div>
+</main>
+<div class="absolute bottom-[96px] left-0 right-0 flex justify-center px-6 z-20 pointer-events-none">
+<button class="pointer-events-auto w-full max-w-[340px] h-[64px] bg-primary hover:bg-primary/90 text-white rounded-full shadow-xl shadow-primary/30 flex items-center justify-center gap-3 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-[28px]">mic</span>
+<span class="text-lg font-bold tracking-wide">SPEAK</span>
+</button>
+</div>
+<nav class="h-[88px] bg-white dark:bg-zinc-950/90 backdrop-blur-md border-t border-gray-100 dark:border-zinc-800 grid grid-cols-4 items-start justify-items-center px-2 pt-4 z-30">
+<a class="flex flex-col items-center gap-1.5 w-full text-brown-bramble hover:text-primary transition-colors group" href="#">
+<span class="material-symbols-outlined text-[26px] nav-icon group-hover:font-normal transition-all">home</span>
+</a>
+<a class="flex flex-col items-center gap-1.5 w-full text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[26px] nav-icon-filled">search_check</span>
+</a>
+<a class="flex flex-col items-center gap-1.5 w-full text-brown-bramble hover:text-primary transition-colors group" href="#">
+<span class="material-symbols-outlined text-[26px] nav-icon group-hover:font-normal transition-all">history</span>
+</a>
+<a class="flex flex-col items-center gap-1.5 w-full text-brown-bramble hover:text-primary transition-colors group" href="#">
+<span class="material-symbols-outlined text-[26px] nav-icon group-hover:font-normal transition-all">settings</span>
+</a>
+</nav>
+<div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-brown-bramble/20 dark:bg-white/20 rounded-full z-40"></div>
+</div>
+
+</body></html>

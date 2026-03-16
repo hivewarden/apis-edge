@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS Voice Input Tool</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:ital,wght@0,100..900;1,100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f7a42d", // Sea Buckthorn
+                        "background-light": "#fbf9e7", // Coconut Cream
+                        "background-dark": "#2e2112",
+                        "text-main": "#662604", // Brown Bramble
+                        "text-subtle": "#915e34", // Lighter brown variant
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "16px", 
+                        "lg": "2rem", 
+                        "xl": "3rem", 
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        'soft': '0 8px 24px -6px rgba(102, 38, 4, 0.06)', // Soft shadow with brown tint
+                        'glow': '0 0 25px rgba(247, 164, 45, 0.4)', // Sea Buckthorn glow
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .thin-icon {
+            font-variation-settings: 'wght' 200;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display min-h-screen flex flex-col items-center justify-center text-text-main dark:text-white transition-colors duration-300">
+<div class="layout-container w-full max-w-[600px] px-6 py-10 flex flex-col gap-10">
+<header class="text-center space-y-3">
+<div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white shadow-sm mb-2 border border-primary/20">
+<span class="material-symbols-outlined text-primary text-3xl thin-icon">hive</span>
+</div>
+<h2 class="text-text-main dark:text-gray-100 tracking-tight text-[32px] font-bold leading-tight">
+                Hive #42 - Inspection
+            </h2>
+<p class="text-text-subtle dark:text-gray-400 text-base font-medium opacity-90">
+                Modern Artisan Beekeeping Log
+            </p>
+</header>
+<div class="relative group">
+<div class="absolute -inset-0.5 bg-gradient-to-b from-primary/10 to-transparent rounded-[16px] blur-md opacity-60"></div>
+<div class="relative bg-white dark:bg-[#2c241b] rounded-[16px] shadow-soft border border-primary/5 dark:border-[#3e3223] overflow-hidden">
+<label class="sr-only" for="transcription">Live Transcription</label>
+<div class="flex flex-col w-full">
+<div class="px-8 pt-6 pb-3 flex justify-between items-center border-b border-[#f3efe8] dark:border-[#3e3223]">
+<span class="text-xs font-bold tracking-widest text-text-subtle uppercase opacity-80">Live Transcript</span>
+<div class="flex items-center gap-2 px-3 py-1 bg-red-50 rounded-full border border-red-100">
+<div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+<span class="text-[10px] font-bold text-red-600 tracking-wide">REC</span>
+</div>
+</div>
+<textarea class="w-full min-h-[140px] resize-none border-none bg-transparent px-8 py-6 text-xl text-text-main dark:text-gray-100 placeholder:text-text-subtle/40 focus:ring-0 leading-relaxed font-medium" id="transcription" placeholder="Start speaking...">Strong brood pattern on frame 4, queen spotted on the bottom bar. Honey stores look sufficient for now...</textarea>
+<div class="px-6 py-4 flex gap-5 text-text-subtle/70 dark:text-gray-500 justify-end bg-gray-50/50 dark:bg-black/10">
+<button aria-label="Edit Note" class="hover:text-primary transition-colors hover:bg-primary/5 p-2 rounded-lg">
+<span class="material-symbols-outlined text-xl thin-icon">edit_note</span>
+</button>
+<button aria-label="Clear" class="hover:text-primary transition-colors hover:bg-primary/5 p-2 rounded-lg">
+<span class="material-symbols-outlined text-xl thin-icon">backspace</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-center justify-center pt-6 pb-4">
+<div class="relative flex items-center justify-center h-[160px] w-full">
+<div class="absolute w-[260px] h-[110px] rounded-full bg-primary/5 dark:bg-primary/10 animate-pulse"></div>
+<div class="absolute w-[220px] h-[90px] rounded-full bg-primary/10 dark:bg-primary/20 transition-all duration-1000"></div>
+<div class="absolute w-[190px] h-[75px] rounded-full bg-primary/20 dark:bg-primary/30"></div>
+<button class="relative z-10 flex h-[64px] min-w-[200px] cursor-pointer items-center justify-center gap-3 overflow-hidden rounded-full bg-primary px-10 text-white shadow-glow hover:bg-[#e6911e] hover:scale-[1.02] transition-all transform active:scale-95 group">
+<span class="material-symbols-outlined text-[28px] thin-icon group-hover:scale-110 transition-transform">mic</span>
+<span class="text-lg font-bold tracking-widest uppercase text-white">Speak</span>
+</button>
+</div>
+<div class="mt-2 text-center space-y-2">
+<p class="text-text-main font-medium text-sm flex items-center justify-center gap-2 animate-pulse">
+<span class="material-symbols-outlined text-lg text-primary">graphic_eq</span>
+<span class="text-primary">Listening...</span>
+</p>
+<p class="text-text-subtle dark:text-gray-500 text-xs text-center max-w-xs opacity-70">
+                    Tap the button to stop or pause recording.
+                </p>
+</div>
+</div>
+</div>
+<div class="fixed top-0 left-0 w-full h-full pointer-events-none -z-10 opacity-[0.05]" style="background-image: radial-gradient(#662604 1.5px, transparent 1.5px); background-size: 40px 40px;">
+</div>
+
+</body></html>

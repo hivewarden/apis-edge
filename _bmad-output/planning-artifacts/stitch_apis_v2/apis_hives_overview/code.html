@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APIS - Hives Overview</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@300;400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#f7a42d", // Sea Buckthorn
+                        "primary-light": "#fcd483", // Salomie
+                        "coconut-cream": "#fbf9e7", 
+                        "brown-bramble": "#662604",
+                        "soft-sage": "#7c9082",
+                        "muted-rose": "#c47e7e", 
+                        "warm-amber": "#ffcc66", // Soft amber for badges
+                        "sidebar-hover": "#fffaf0",
+                    },
+                    fontFamily: {
+                        "display": ["Epilogue", "sans-serif"]
+                    },
+                    boxShadow: {
+                        "soft": "0 8px 24px -4px rgba(102, 38, 4, 0.08), 0 4px 12px -2px rgba(102, 38, 4, 0.04)",
+                    },
+                    borderRadius: {
+                        'xl': '16px', // Overriding xl to be 16px as requested for cards
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.filled {
+            font-variation-settings: 'FILL' 1, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e6dac6;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d4c2a5;
+        }
+    </style>
+</head>
+<body class="bg-coconut-cream text-brown-bramble font-display h-screen flex overflow-hidden">
+<aside class="w-[240px] bg-white flex flex-col h-full border-r border-[#f0ebe6] shrink-0 z-20 shadow-[4px_0_24px_-4px_rgba(102,38,4,0.02)]">
+<div class="p-6 flex items-center gap-3">
+<div class="bg-primary/10 rounded-full p-2">
+<span class="material-symbols-outlined text-primary" style="font-size: 28px; font-variation-settings: 'FILL' 1, 'wght' 400;">hexagon</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-brown-bramble text-xl font-bold leading-none tracking-tight">APIS</h1>
+<p class="text-brown-bramble/60 text-xs font-normal">Beekeeping Platform</p>
+</div>
+</div>
+<nav class="flex-1 px-4 flex flex-col gap-2 mt-4">
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg text-brown-bramble/70 hover:bg-sidebar-hover hover:text-brown-bramble transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/50 group-hover:text-brown-bramble transition-colors">grid_view</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg bg-primary-light text-brown-bramble font-bold shadow-sm" href="#">
+<span class="material-symbols-outlined filled">grid_on</span>
+<span class="text-sm">Hives</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg text-brown-bramble/70 hover:bg-sidebar-hover hover:text-brown-bramble transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/50 group-hover:text-brown-bramble transition-colors">hive</span>
+<span class="text-sm font-medium">Queens</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg text-brown-bramble/70 hover:bg-sidebar-hover hover:text-brown-bramble transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/50 group-hover:text-brown-bramble transition-colors">content_paste</span>
+<span class="text-sm font-medium">Inspections</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg text-brown-bramble/70 hover:bg-sidebar-hover hover:text-brown-bramble transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/50 group-hover:text-brown-bramble transition-colors">water_drop</span>
+<span class="text-sm font-medium">Harvest</span>
+</a>
+<div class="mt-auto mb-4">
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg text-brown-bramble/70 hover:bg-sidebar-hover hover:text-brown-bramble transition-colors group" href="#">
+<span class="material-symbols-outlined text-brown-bramble/50 group-hover:text-brown-bramble transition-colors">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+</div>
+</nav>
+<div class="p-4 border-t border-[#f0ebe6]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-cover bg-center border border-[#e6dac6]" data-alt="Portrait of a smiling woman beekeeper" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCqlSjtqGidWMmrHhv6R06cGFuwuVTgWohvLIKBYUudZnNHsqgEJWCbyOb81iyZQ94roLdupZ1u9ZqSvjimWpSVDtnUXejLP63kTjUCsiUmzRAuYPXZbg-MznJVCaneedDpCpOVYI-V5Bl4rlf3-JY0CfSkP5T6UIzXi5EuY_kTl806kslWcWAhXL6HOExpZJQG8MP7P9mbyV8BHpR5Rhj_EGuWVDpPMBhUonh7kV3vFE__ll27q916UKkEJmTTOA2gaThzU3igAEo');"></div>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-brown-bramble">Maya B.</span>
+<span class="text-xs text-brown-bramble/60">Head Beekeeper</span>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 overflow-y-auto bg-coconut-cream p-8">
+<div class="max-w-[1400px] mx-auto flex flex-col gap-8">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+<div>
+<div class="flex items-center gap-2 text-sm text-brown-bramble/60 mb-1">
+<span>Apiaries</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span class="font-medium text-brown-bramble">Valley Apiary</span>
+</div>
+<h1 class="text-3xl md:text-4xl font-black text-brown-bramble tracking-tight">Hives at Valley Apiary</h1>
+</div>
+<div class="flex flex-wrap items-center gap-3">
+<div class="relative group">
+<button class="flex h-10 items-center gap-2 rounded-full bg-white border border-[#e6dac6] pl-4 pr-3 shadow-sm hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-brown-bramble/60 text-[20px]">location_on</span>
+<span class="text-brown-bramble text-sm font-medium">Valley Apiary</span>
+<span class="material-symbols-outlined text-brown-bramble/60 text-[20px]">expand_more</span>
+</button>
+</div>
+<button class="flex h-10 items-center justify-center gap-2 rounded-full bg-primary hover:bg-[#e09038] text-white px-5 shadow-sm transition-colors">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'wght' 500;">add</span>
+<span class="text-sm font-bold">Add Hive</span>
+</button>
+</div>
+</div>
+<div class="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+<button class="px-4 py-2 rounded-full bg-brown-bramble text-white text-sm font-medium whitespace-nowrap shadow-soft">All Hives (12)</button>
+<button class="px-4 py-2 rounded-full bg-white border border-[#e6dac6] text-brown-bramble/80 text-sm font-medium whitespace-nowrap hover:bg-sidebar-hover hover:text-brown-bramble transition-colors">Healthy (8)</button>
+<button class="px-4 py-2 rounded-full bg-white border border-[#e6dac6] text-brown-bramble/80 text-sm font-medium whitespace-nowrap hover:bg-sidebar-hover hover:text-brown-bramble transition-colors">Needs Inspection (3)</button>
+<button class="px-4 py-2 rounded-full bg-white border border-[#e6dac6] text-brown-bramble/80 text-sm font-medium whitespace-nowrap hover:bg-sidebar-hover hover:text-brown-bramble transition-colors">Critical (1)</button>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+<article class="flex flex-col bg-white rounded-xl shadow-soft border border-transparent overflow-hidden group hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+<div class="h-32 bg-cover bg-center relative" data-alt="Close up of honeycomb texture" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDhDNKY17NorBX4qaSWxMV2sE2ixBZIk9p8w2_DfOc8LYMorIujy3T3Zhh94IdzPrnA8o0OqktgBNizJltpUhR6QCWIbY8JBzt3Qhgb1jXz5XKGUwfjH5vAycvT-9rVrDtDCSRK7hM-AHWdNxTwhitBts5779LWZQDMbc_28fbWtrC_3thktxGsMvT1029qP6rj7Fwqg_xGj-mamsDwODGo39xVZFQjni9mMQqhBs5fazrv3j2RDEwEjVVI7zYjVfvgEFYbRKuk4g4');">
+<div class="absolute top-3 right-3 bg-soft-sage text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm backdrop-blur-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                        Healthy
+                    </div>
+</div>
+<div class="p-5 flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-lg font-bold text-brown-bramble leading-tight">Hive #042 'Bumble'</h3>
+<p class="text-xs text-brown-bramble/60 mt-1 font-medium">ID: APIS-VLY-042</p>
+</div>
+</div>
+<div class="h-px bg-[#f0ebe6]"></div>
+<div class="flex flex-col gap-2.5">
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">crown</span>
+<span>2023 Italian (Marked)</span>
+</div>
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">layers</span>
+<span>2 Deep, 1 Super</span>
+</div>
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">history</span>
+<span>Checked 2 days ago</span>
+</div>
+</div>
+</div>
+</article>
+<article class="flex flex-col bg-white rounded-xl shadow-soft border border-transparent overflow-hidden group hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+<div class="h-32 bg-cover bg-center relative" data-alt="Wooden beehives in a green field" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAHnrzD3_GoQgqCpRuXkLU2bBs44D5Rqd2gFOmSZdFuLfLZWaEyjRlOD9ePpeCnCdFyV2VR6xI6z7dk2DAVd10AbPq2kHWX7AzO3CO58bG9u99yhW0XzYgFlKCp1heF0VoGoxrNFmhHOPvEEJkpQAiwA38z6JR5IVN26-6pKS5ZZx4do5aUQAhGBZQtSXNtvigv9P8GlkjIa1feZgMMj3Ax55BRxwsF7am_rEuibmi_1csSQ1hWtYg1sDLsxOviIEObKFIVv4z3fME');">
+<div class="absolute top-3 right-3 bg-warm-amber text-brown-bramble text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm backdrop-blur-sm">
+<span class="material-symbols-outlined text-[14px] font-bold">warning</span>
+                        Needs Inspection
+                    </div>
+</div>
+<div class="p-5 flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-lg font-bold text-brown-bramble leading-tight">Hive #043 'Sunny'</h3>
+<p class="text-xs text-brown-bramble/60 mt-1 font-medium">ID: APIS-VLY-043</p>
+</div>
+</div>
+<div class="h-px bg-[#f0ebe6]"></div>
+<div class="flex flex-col gap-2.5">
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">crown</span>
+<span>2022 Carniolan</span>
+</div>
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">layers</span>
+<span>2 Deep</span>
+</div>
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">history</span>
+<span class="text-primary font-semibold">14 days ago</span>
+</div>
+</div>
+</div>
+</article>
+<article class="flex flex-col bg-white rounded-xl shadow-soft border border-transparent overflow-hidden group hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+<div class="h-32 bg-cover bg-center relative" data-alt="Worker bees on a frame" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAyyJ-R8mOSWwMOFGtZziKLudrEGpeqssXE7aHHVMd5g0ArYZJ6qQ7p8KWkbdibC8K8SzY_a2LQNTlcJSQHc-zXM3w9nlJ_Hnga-x70UAWQkZZIhOr404gCxZ17ICSCU_I8CDrxY9mYNlZV7gdurQdj-GT8qUmShy-2YbyzkMDnn8BISz0rwchcupcGyemQiQ9xbzH-5vCPs4d45G0l6AOJA6-nOshzF22NsimJiQadDAM-yhX_suJnrtK-JMycC46TrGGptjBjiNo');">
+<div class="absolute top-3 right-3 bg-soft-sage text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm backdrop-blur-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                        Healthy
+                    </div>
+</div>
+<div class="p-5 flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-lg font-bold text-brown-bramble leading-tight">Hive #044 'Orchard'</h3>
+<p class="text-xs text-brown-bramble/60 mt-1 font-medium">ID: APIS-VLY-044</p>
+</div>
+</div>
+<div class="h-px bg-[#f0ebe6]"></div>
+<div class="flex flex-col gap-2.5">
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">crown</span>
+<span>2024 Buckfast</span>
+</div>
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">layers</span>
+<span>1 Deep (Nuc)</span>
+</div>
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">history</span>
+<span>Checked 5 days ago</span>
+</div>
+</div>
+</div>
+</article>
+<article class="flex flex-col bg-white rounded-xl shadow-soft border border-transparent overflow-hidden group hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+<div class="h-32 bg-cover bg-center relative" data-alt="Close up of a queen bee" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCQSkrbM9myN-dQxA0VYunZCW1Cu4BXYTX5GKut_XazUq7d8g5wV71w-QCPbFcKeGkzhk9qYMjlmJYEbXDHeQv5-UngSsusEPESY_4PPp350EDvJeq6H0_XGulQwzn-67dUJZSS9QvsJUBTkcDQQh2TURvk6YTc8GqrFNdt7sr21g3XlcQPuFniJXUrROel-ku6BIolaaFk84peOcJHoLDULcEMVofqvt7EjzgVt_N2htY-9100OHexMIN1a81L8XVtOxEMGvo7YMU');">
+<div class="absolute top-3 right-3 bg-muted-rose text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm backdrop-blur-sm">
+<span class="material-symbols-outlined text-[14px]">error</span>
+                        Critical
+                    </div>
+</div>
+<div class="p-5 flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-lg font-bold text-brown-bramble leading-tight">Hive #045 'River'</h3>
+<p class="text-xs text-brown-bramble/60 mt-1 font-medium">ID: APIS-VLY-045</p>
+</div>
+</div>
+<div class="h-px bg-[#f0ebe6]"></div>
+<div class="flex flex-col gap-2.5">
+<div class="flex items-center gap-3 text-sm text-muted-rose font-semibold">
+<span class="material-symbols-outlined text-[20px]">no_accounts</span>
+<span>Queen Missing</span>
+</div>
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">layers</span>
+<span>2 Deep</span>
+</div>
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">history</span>
+<span>Checked yesterday</span>
+</div>
+</div>
+</div>
+</article>
+<article class="flex flex-col bg-white rounded-xl shadow-soft border border-transparent overflow-hidden group hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+<div class="h-32 bg-cover bg-center relative" data-alt="Honey dripping from a wooden stick" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCM2z8QTys42xTmDBJoJEie5TPc1kz0FMlpKw6D1jNDughLJzQDnw-GWdFrEcjB90HJpP7VOYUIMHPohPuedDnge0QM_XX90aQVD2w18spa9iBO5jRrzWHfIlJ-t-MwGpVhq8qAagluc1u_ADfdZTdhqiZD4qL5g5-XBGGKRf7mYEyHZ20RritCBdUrTngR8V9XIEZOU7D-cQzq37V9bpODgd7U9EWbt6IdNu5piaw3aDDHt2oShFYZTEaTp9cvalDH7XzaxX3YM-w');">
+<div class="absolute top-3 right-3 bg-soft-sage text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm backdrop-blur-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                        Healthy
+                    </div>
+</div>
+<div class="p-5 flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-lg font-bold text-brown-bramble leading-tight">Hive #046 'Clover'</h3>
+<p class="text-xs text-brown-bramble/60 mt-1 font-medium">ID: APIS-VLY-046</p>
+</div>
+</div>
+<div class="h-px bg-[#f0ebe6]"></div>
+<div class="flex flex-col gap-2.5">
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">crown</span>
+<span>2023 Russian</span>
+</div>
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">layers</span>
+<span>2 Deep, 2 Super</span>
+</div>
+<div class="flex items-center gap-3 text-sm text-brown-bramble/80">
+<span class="material-symbols-outlined text-[20px] text-brown-bramble/50">history</span>
+<span>Checked 1 week ago</span>
+</div>
+</div>
+</div>
+</article>
+<button class="flex flex-col items-center justify-center min-h-[340px] bg-white/50 rounded-xl border-2 border-dashed border-[#dcd6d0] hover:border-primary hover:bg-white transition-all group duration-300">
+<div class="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-soft mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-3xl font-light">add</span>
+</div>
+<span class="text-brown-bramble font-bold text-lg">Add New Hive</span>
+<span class="text-brown-bramble/60 text-sm mt-1">Valley Apiary</span>
+</button>
+</div>
+</div>
+</main>
+
+</body></html>
