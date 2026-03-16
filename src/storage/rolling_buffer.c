@@ -7,6 +7,7 @@
 
 #include "rolling_buffer.h"
 #include "log.h"
+#include "psram_alloc.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -62,11 +63,14 @@ rolling_buffer_status_t rolling_buffer_init(const rolling_buffer_config_t *confi
 
     // Pre-allocate frame data buffers
     for (int i = 0; i < g_max_frames; i++) {
-        g_buffer[i].data = malloc(FRAME_SIZE);
+        g_buffer[i].data = psram_malloc(FRAME_SIZE);
         if (!g_buffer[i].data) {
             // Cleanup on failure
             for (int j = 0; j < i; j++) {
-                free(g_buffer[j].data);
+                psram_free(g_buffer[j].data);
+                g_buffer[j].data = NULL;
+                free(g_buffer[j].jpeg_data);
+                g_buffer[j].jpeg_data = NULL;
             }
             free(g_buffer);
             g_buffer = NULL;
@@ -75,8 +79,31 @@ rolling_buffer_status_t rolling_buffer_init(const rolling_buffer_config_t *confi
             return ROLLING_BUFFER_ERROR_NO_MEMORY;
         }
         g_buffer[i].valid = false;
+        g_buffer[i].width = 0;
+        g_buffer[i].height = 0;
+        g_buffer[i].jpeg_size = 0;
+        g_buffer[i].jpeg_width = 0;
+        g_buffer[i].jpeg_height = 0;
         g_buffer[i].timestamp_ms = 0;
         g_buffer[i].sequence = 0;
+#if FRAME_JPEG_MAX_SIZE > 0
+        g_buffer[i].jpeg_data = malloc(FRAME_JPEG_MAX_SIZE);
+        if (!g_buffer[i].jpeg_data) {
+            for (int j = 0; j <= i; j++) {
+                psram_free(g_buffer[j].data);
+                g_buffer[j].data = NULL;
+                free(g_buffer[j].jpeg_data);
+                g_buffer[j].jpeg_data = NULL;
+            }
+            free(g_buffer);
+            g_buffer = NULL;
+            LOG_ERROR("Failed to allocate JPEG buffer %d", i);
+            pthread_mutex_unlock(&g_mutex);
+            return ROLLING_BUFFER_ERROR_NO_MEMORY;
+        }
+#else
+        g_buffer[i].jpeg_data = NULL;
+#endif
     }
 
     g_head = 0;
@@ -99,6 +126,14 @@ bool rolling_buffer_is_initialized(void) {
 }
 
 rolling_buffer_status_t rolling_buffer_add(const frame_t *frame) {
+    return rolling_buffer_add_capture(frame, NULL, 0, 0, 0);
+}
+
+rolling_buffer_status_t rolling_buffer_add_capture(const frame_t *frame,
+                                                   const uint8_t *jpeg_data,
+                                                   size_t jpeg_size,
+                                                   uint16_t jpeg_width,
+                                                   uint16_t jpeg_height) {
     if (frame == NULL) {
         return ROLLING_BUFFER_ERROR_INVALID_PARAM;
     }
@@ -115,9 +150,29 @@ rolling_buffer_status_t rolling_buffer_add(const frame_t *frame) {
     buffered_frame_t *slot = &g_buffer[g_head];
 
     memcpy(slot->data, frame->data, FRAME_SIZE);
+    slot->width = frame->width;
+    slot->height = frame->height;
     slot->timestamp_ms = frame->timestamp_ms;
     slot->sequence = frame->sequence;
     slot->valid = true;
+#if FRAME_JPEG_MAX_SIZE > 0
+    if (jpeg_data != NULL && jpeg_size > 0 && jpeg_size <= FRAME_JPEG_MAX_SIZE &&
+        slot->jpeg_data != NULL) {
+        memcpy(slot->jpeg_data, jpeg_data, jpeg_size);
+        slot->jpeg_size = jpeg_size;
+        slot->jpeg_width = jpeg_width;
+        slot->jpeg_height = jpeg_height;
+    } else {
+        slot->jpeg_size = 0;
+        slot->jpeg_width = 0;
+        slot->jpeg_height = 0;
+    }
+#else
+    (void)jpeg_data;
+    (void)jpeg_size;
+    (void)jpeg_width;
+    (void)jpeg_height;
+#endif
 
     // Advance head (circular)
     g_head = (g_head + 1) % g_max_frames;
@@ -153,6 +208,8 @@ int rolling_buffer_get_all(buffered_frame_t *frames) {
     for (int i = 0; i < count; i++) {
         int idx = (start + i) % g_max_frames;
         // Copy metadata
+        frames[i].width = g_buffer[idx].width;
+        frames[i].height = g_buffer[idx].height;
         frames[i].timestamp_ms = g_buffer[idx].timestamp_ms;
         frames[i].sequence = g_buffer[idx].sequence;
         frames[i].valid = g_buffer[idx].valid;
@@ -162,6 +219,20 @@ int rolling_buffer_get_all(buffered_frame_t *frames) {
         if (frames[i].data != NULL && g_buffer[idx].data != NULL) {
             memcpy(frames[i].data, g_buffer[idx].data, FRAME_SIZE);
         }
+        frames[i].jpeg_size = 0;
+        frames[i].jpeg_width = 0;
+        frames[i].jpeg_height = 0;
+#if FRAME_JPEG_MAX_SIZE > 0
+        if (frames[i].jpeg_data != NULL &&
+            g_buffer[idx].jpeg_data != NULL &&
+            g_buffer[idx].jpeg_size > 0 &&
+            g_buffer[idx].jpeg_size <= FRAME_JPEG_MAX_SIZE) {
+            memcpy(frames[i].jpeg_data, g_buffer[idx].jpeg_data, g_buffer[idx].jpeg_size);
+            frames[i].jpeg_size = g_buffer[idx].jpeg_size;
+            frames[i].jpeg_width = g_buffer[idx].jpeg_width;
+            frames[i].jpeg_height = g_buffer[idx].jpeg_height;
+        }
+#endif
     }
 
     pthread_mutex_unlock(&g_mutex);
@@ -196,8 +267,12 @@ void rolling_buffer_cleanup(void) {
     if (g_buffer) {
         for (int i = 0; i < g_max_frames; i++) {
             if (g_buffer[i].data) {
-                free(g_buffer[i].data);
+                psram_free(g_buffer[i].data);
                 g_buffer[i].data = NULL;
+            }
+            if (g_buffer[i].jpeg_data) {
+                free(g_buffer[i].jpeg_data);
+                g_buffer[i].jpeg_data = NULL;
             }
         }
         free(g_buffer);
@@ -226,17 +301,38 @@ buffered_frame_t *rolling_buffer_alloc_frames(int count) {
     }
 
     for (int i = 0; i < count; i++) {
-        frames[i].data = malloc(FRAME_SIZE);
+        frames[i].data = psram_malloc(FRAME_SIZE);
         if (!frames[i].data) {
             // Cleanup on failure
             for (int j = 0; j < i; j++) {
-                free(frames[j].data);
+                psram_free(frames[j].data);
             }
             free(frames);
             LOG_ERROR("Failed to allocate frame data buffer %d", i);
             return NULL;
         }
         frames[i].valid = false;
+        frames[i].width = 0;
+        frames[i].height = 0;
+#if FRAME_JPEG_MAX_SIZE > 0
+        frames[i].jpeg_data = malloc(FRAME_JPEG_MAX_SIZE);
+        if (!frames[i].jpeg_data) {
+            for (int j = 0; j <= i; j++) {
+                free(frames[j].data);
+                frames[j].data = NULL;
+                free(frames[j].jpeg_data);
+                frames[j].jpeg_data = NULL;
+            }
+            free(frames);
+            LOG_ERROR("Failed to allocate JPEG frame data buffer %d", i);
+            return NULL;
+        }
+#else
+        frames[i].jpeg_data = NULL;
+#endif
+        frames[i].jpeg_size = 0;
+        frames[i].jpeg_width = 0;
+        frames[i].jpeg_height = 0;
     }
 
     return frames;
@@ -249,8 +345,12 @@ void rolling_buffer_free_frames(buffered_frame_t *frames, int count) {
 
     for (int i = 0; i < count; i++) {
         if (frames[i].data) {
-            free(frames[i].data);
+            psram_free(frames[i].data);
             frames[i].data = NULL;
+        }
+        if (frames[i].jpeg_data) {
+            free(frames[i].jpeg_data);
+            frames[i].jpeg_data = NULL;
         }
     }
     free(frames);
