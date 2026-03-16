@@ -8,8 +8,13 @@
 
 #include "tracker.h"
 #include "log.h"
+#include "platform_mutex.h"
 #include <string.h>
 #include <math.h>
+
+APIS_MUTEX_DECLARE(tracker);
+#define TRACKER_LOCK()   APIS_MUTEX_LOCK(tracker)
+#define TRACKER_UNLOCK() APIS_MUTEX_UNLOCK(tracker)
 
 // Tracker state
 typedef struct {
@@ -31,6 +36,8 @@ tracker_config_t tracker_config_defaults(void) {
 }
 
 tracker_status_t tracker_init(const tracker_config_t *config) {
+    TRACKER_LOCK();
+
     if (config == NULL) {
         g_config = tracker_config_defaults();
     } else {
@@ -50,14 +57,21 @@ tracker_status_t tracker_init(const tracker_config_t *config) {
     g_state.next_id = 1;
     g_initialized = true;
 
+    uint32_t max_dist = g_config.max_distance;
+    uint32_t max_disap = g_config.max_disappeared;
+    TRACKER_UNLOCK();
+
     LOG_INFO("Tracker initialized (max_distance=%u, max_disappeared=%u)",
-             g_config.max_distance, g_config.max_disappeared);
+             max_dist, max_disap);
 
     return TRACKER_OK;
 }
 
 bool tracker_is_initialized(void) {
-    return g_initialized;
+    TRACKER_LOCK();
+    bool init = g_initialized;
+    TRACKER_UNLOCK();
+    return init;
 }
 
 /**
@@ -149,12 +163,16 @@ int tracker_update(
     uint32_t timestamp_ms,
     tracked_detection_t *results
 ) {
+    TRACKER_LOCK();
+
     if (!g_initialized) {
+        TRACKER_UNLOCK();
         LOG_WARN("tracker_update called before initialization");
         return -1;
     }
 
     if (results == NULL) {
+        TRACKER_UNLOCK();
         LOG_WARN("tracker_update: results is NULL");
         return -1;
     }
@@ -178,6 +196,7 @@ int tracker_update(
                 }
             }
         }
+        TRACKER_UNLOCK();
         return 0;
     }
 
@@ -193,6 +212,7 @@ int tracker_update(
                 result_count++;
             }
         }
+        TRACKER_UNLOCK();
         return result_count;
     }
 
@@ -262,11 +282,19 @@ int tracker_update(
         }
     }
 
+    TRACKER_UNLOCK();
     return result_count;
 }
 
 int tracker_get_history(uint32_t track_id, track_position_t *history) {
-    if (!g_initialized || history == NULL) {
+    if (history == NULL) {
+        return 0;
+    }
+
+    TRACKER_LOCK();
+
+    if (!g_initialized) {
+        TRACKER_UNLOCK();
         return 0;
     }
 
@@ -276,7 +304,10 @@ int tracker_get_history(uint32_t track_id, track_position_t *history) {
 
             // Copy history in chronological order (oldest to newest)
             int count = obj->history_count;
-            if (count == 0) return 0;
+            if (count == 0) {
+                TRACKER_UNLOCK();
+                return 0;
+            }
 
             // Calculate starting index (oldest entry)
             // If buffer is not full, start at 0
@@ -293,9 +324,12 @@ int tracker_get_history(uint32_t track_id, track_position_t *history) {
                 history[j] = obj->history[idx];
             }
 
+            TRACKER_UNLOCK();
             return count;
         }
     }
+
+    TRACKER_UNLOCK();
     return 0;
 }
 
@@ -306,35 +340,49 @@ int tracker_get_history(uint32_t track_id, track_position_t *history) {
 // a caller-provided output struct to eliminate this risk entirely.
 // TODO: Add tracker_get_object_copy(uint32_t track_id, tracked_object_t *out)
 const tracked_object_t *tracker_get_object(uint32_t track_id) {
+    TRACKER_LOCK();
+
     if (!g_initialized) {
+        TRACKER_UNLOCK();
         return NULL;
     }
 
     for (int i = 0; i < MAX_TRACKED_OBJECTS; i++) {
         if (g_state.objects[i].active && g_state.objects[i].id == track_id) {
+            TRACKER_UNLOCK();
             return &g_state.objects[i];
         }
     }
+
+    TRACKER_UNLOCK();
     return NULL;
 }
 
 int tracker_get_active_count(void) {
-    return g_initialized ? g_state.active_count : 0;
+    TRACKER_LOCK();
+    int count = g_initialized ? g_state.active_count : 0;
+    TRACKER_UNLOCK();
+    return count;
 }
 
 void tracker_reset(void) {
+    TRACKER_LOCK();
     if (!g_initialized) {
+        TRACKER_UNLOCK();
         LOG_WARN("tracker_reset called before initialization");
         return;
     }
     memset(&g_state, 0, sizeof(g_state));
     g_state.next_id = 1;
+    TRACKER_UNLOCK();
     LOG_INFO("Tracker reset");
 }
 
 void tracker_cleanup(void) {
+    TRACKER_LOCK();
     g_initialized = false;
     memset(&g_state, 0, sizeof(g_state));
+    TRACKER_UNLOCK();
     LOG_INFO("Tracker cleanup complete");
 }
 

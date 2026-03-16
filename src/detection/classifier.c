@@ -14,7 +14,12 @@
 #include "classifier.h"
 #include "tracker.h"
 #include "log.h"
+#include "platform_mutex.h"
 #include <string.h>
+
+APIS_MUTEX_DECLARE(classifier);
+#define CLASSIFIER_LOCK()   APIS_MUTEX_LOCK(classifier)
+#define CLASSIFIER_UNLOCK() APIS_MUTEX_UNLOCK(classifier)
 
 static classifier_config_t g_config;
 static bool g_initialized = false;
@@ -32,6 +37,8 @@ classifier_config_t classifier_config_defaults(void) {
 }
 
 classifier_status_t classifier_init(const classifier_config_t *config) {
+    CLASSIFIER_LOCK();
+
     if (config == NULL) {
         g_config = classifier_config_defaults();
     } else {
@@ -65,34 +72,42 @@ classifier_status_t classifier_init(const classifier_config_t *config) {
 
     g_initialized = true;
 
+    uint16_t h_min = g_config.hornet_min;
+    uint16_t h_max = g_config.hornet_max;
+    uint16_t h_rad = g_config.hover_radius;
+    uint32_t h_time = g_config.hover_time_ms;
+    CLASSIFIER_UNLOCK();
+
     LOG_INFO("Classifier initialized (hornet size: %u-%u px, hover: %u px / %u ms)",
-             g_config.hornet_min, g_config.hornet_max,
-             g_config.hover_radius, g_config.hover_time_ms);
+             h_min, h_max, h_rad, h_time);
 
     return CLASSIFIER_OK;
 }
 
 bool classifier_is_initialized(void) {
-    return g_initialized;
+    CLASSIFIER_LOCK();
+    bool init = g_initialized;
+    CLASSIFIER_UNLOCK();
+    return init;
 }
 
 /**
  * Classify detection by size.
  */
-static classification_t classify_by_size(const detection_t *det) {
+static classification_t classify_by_size(const detection_t *det, const classifier_config_t *cfg) {
     // Use max dimension for size comparison
     uint16_t size = (det->w > det->h) ? det->w : det->h;
 
-    if (size < g_config.min_size) {
+    if (size < cfg->min_size) {
         return CLASS_TOO_SMALL;
     }
 
-    if (size > g_config.max_size) {
+    if (size > cfg->max_size) {
         return CLASS_TOO_LARGE;
     }
 
     // Check if in hornet size range
-    if (size >= g_config.hornet_min && size <= g_config.hornet_max) {
+    if (size >= cfg->hornet_min && size <= cfg->hornet_max) {
         return CLASS_HORNET;
     }
 
@@ -109,7 +124,7 @@ static classification_t classify_by_size(const detection_t *det) {
  * @param duration_ms Output: how long the object has been tracked
  * @return true if object is hovering
  */
-static bool analyze_hover(uint32_t track_id, uint32_t *duration_ms) {
+static bool analyze_hover(uint32_t track_id, uint32_t *duration_ms, const classifier_config_t *cfg) {
     track_position_t history[MAX_TRACK_HISTORY];
     int count = tracker_get_history(track_id, history);
 
@@ -158,8 +173,8 @@ static bool analyze_hover(uint32_t track_id, uint32_t *duration_ms) {
     *duration_ms = track_duration;
 
     // Hovering = small movement over sufficient time
-    bool is_hovering = (movement_radius <= g_config.hover_radius) &&
-                       (track_duration >= g_config.hover_time_ms);
+    bool is_hovering = (movement_radius <= cfg->hover_radius) &&
+                       (track_duration >= cfg->hover_time_ms);
 
     return is_hovering;
 }
@@ -169,19 +184,28 @@ int classifier_classify(
     int count,
     classified_detection_t *results
 ) {
+    CLASSIFIER_LOCK();
+
     if (!g_initialized) {
+        CLASSIFIER_UNLOCK();
         LOG_WARN("classifier_classify called before initialization");
         return -1;
     }
 
     if (tracked == NULL || results == NULL) {
+        CLASSIFIER_UNLOCK();
         LOG_WARN("classifier_classify: NULL parameter");
         return -1;
     }
 
     if (count < 0) {
+        CLASSIFIER_UNLOCK();
         return 0;
     }
+
+    // Copy config under lock for use during classification
+    classifier_config_t cfg = g_config;
+    CLASSIFIER_UNLOCK();
 
     for (int i = 0; i < count; i++) {
         classified_detection_t *result = &results[i];
@@ -191,7 +215,7 @@ int classifier_classify(
         result->track_id = tracked[i].track_id;
 
         // Size classification
-        result->classification = classify_by_size(&tracked[i].detection);
+        result->classification = classify_by_size(&tracked[i].detection, &cfg);
 
         // Initialize hover fields
         result->is_hovering = false;
@@ -202,7 +226,8 @@ int classifier_classify(
         if (result->classification == CLASS_HORNET) {
             result->is_hovering = analyze_hover(
                 tracked[i].track_id,
-                &result->track_age_ms
+                &result->track_age_ms,
+                &cfg
             );
 
             // If hovering, the duration is the track age
@@ -238,7 +263,9 @@ int classifier_classify(
 }
 
 void classifier_cleanup(void) {
+    CLASSIFIER_LOCK();
     g_initialized = false;
+    CLASSIFIER_UNLOCK();
     LOG_INFO("Classifier cleanup complete");
 }
 

@@ -4,12 +4,11 @@
  * Pure C implementation of background subtraction and connected component
  * analysis. Works on both Pi and ESP32 platforms without external dependencies.
  *
- * THREAD SAFETY (C7-MED-003):
- * This module is NOT thread-safe. All functions use static global buffers
- * (g_background, g_fg_mask, g_gray, g_visited, g_stack) without mutex protection.
- * By design, motion_detect() is called from a single detection pipeline thread.
- * Callers MUST NOT invoke motion_detect() concurrently from multiple threads.
- * If concurrent access is ever needed, add a mutex around motion_detect() calls.
+ * THREAD SAFETY:
+ * This module uses a module-level mutex to protect all global state.
+ * motion_detect() is called from the detection pipeline thread while
+ * motion_reset_background() may be called from the HTTP control task.
+ * The mutex serializes these accesses to prevent data races.
  *
  * Algorithm:
  * 1. Convert BGR to grayscale
@@ -24,10 +23,16 @@
 #include "frame.h"
 #include "log.h"
 #include "platform.h"
+#include "platform_mutex.h"
+#include "psram_alloc.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+
+APIS_MUTEX_DECLARE(motion);
+#define MOTION_LOCK()   APIS_MUTEX_LOCK(motion)
+#define MOTION_UNLOCK() APIS_MUTEX_UNLOCK(motion)
 
 // Module state
 static motion_config_t g_config;
@@ -56,7 +61,7 @@ static int g_stack_size = 8192;  // Increased from 2048 to handle larger regions
  * automatically routed to PSRAM by the ESP-IDF heap allocator.
  */
 static void *alloc_buffer(size_t size) {
-    return malloc(size);
+    return psram_malloc(size);
 }
 
 /**
@@ -65,7 +70,7 @@ static void *alloc_buffer(size_t size) {
  * Callers must stop camera DMA before calling motion_cleanup().
  */
 static void free_buffer(void *ptr) {
-    free(ptr);
+    psram_free(ptr);
 }
 
 motion_config_t motion_config_defaults(void) {
@@ -81,6 +86,8 @@ motion_config_t motion_config_defaults(void) {
 }
 
 motion_status_t motion_init(const motion_config_t *config) {
+    MOTION_LOCK();
+
     // Apply configuration
     if (config == NULL) {
         g_config = motion_config_defaults();
@@ -113,8 +120,12 @@ motion_status_t motion_init(const motion_config_t *config) {
         // bus starvation when camera DMA is active (INT WDT crash).
         g_bg_initialized = false;
         g_frame_count = 0;
+        int thresh = g_config.threshold;
+        int min_a = g_config.min_area;
+        int max_a = g_config.max_area;
+        MOTION_UNLOCK();
         LOG_INFO("Motion detector reconfigured (threshold=%d, min_area=%d, max_area=%d)",
-                 g_config.threshold, g_config.min_area, g_config.max_area);
+                 thresh, min_a, max_a);
         return MOTION_OK;
     }
 
@@ -140,6 +151,8 @@ motion_status_t motion_init(const motion_config_t *config) {
     if (!g_background_float || !g_background || !g_fg_mask ||
         !g_gray || !g_visited || !g_stack) {
         LOG_ERROR("Failed to allocate motion detection buffers");
+        // Release lock before calling motion_cleanup which also acquires it
+        MOTION_UNLOCK();
         motion_cleanup();
         return MOTION_ERROR_NO_MEMORY;
     }
@@ -153,8 +166,13 @@ motion_status_t motion_init(const motion_config_t *config) {
     g_frame_count = 0;
     g_initialized = true;
 
+    int thresh = g_config.threshold;
+    int min_a = g_config.min_area;
+    int max_a = g_config.max_area;
+    MOTION_UNLOCK();
+
     LOG_INFO("Motion detector initialized (threshold=%d, min_area=%d, max_area=%d)",
-             g_config.threshold, g_config.min_area, g_config.max_area);
+             thresh, min_a, max_a);
 
     return MOTION_OK;
 }
@@ -432,11 +450,6 @@ static int find_connected_components(detection_t *detections, int max_detections
 
 int motion_detect(const uint8_t *frame_data, detection_result_t *result) {
     // Issue 9: Add error logging for each failure case
-    if (!g_initialized) {
-        LOG_WARN("motion_detect called before initialization");
-        return -1;
-    }
-
     if (frame_data == NULL) {
         LOG_WARN("motion_detect: frame_data is NULL");
         return -1;
@@ -444,6 +457,14 @@ int motion_detect(const uint8_t *frame_data, detection_result_t *result) {
 
     if (result == NULL) {
         LOG_WARN("motion_detect: result is NULL");
+        return -1;
+    }
+
+    MOTION_LOCK();
+
+    if (!g_initialized) {
+        MOTION_UNLOCK();
+        LOG_WARN("motion_detect called before initialization");
         return -1;
     }
 
@@ -462,6 +483,7 @@ int motion_detect(const uint8_t *frame_data, detection_result_t *result) {
 
     // Skip detection on first frame (no background comparison possible)
     if (g_frame_count <= 1) {
+        MOTION_UNLOCK();
         return 0;
     }
 
@@ -490,10 +512,13 @@ int motion_detect(const uint8_t *frame_data, detection_result_t *result) {
     int raw_count = find_connected_components(result->detections, MAX_DETECTIONS);
     result->count = (raw_count > 0) ? (uint8_t)raw_count : 0;
 
+    MOTION_UNLOCK();
     return result->count;
 }
 
 void motion_reset_background(void) {
+    MOTION_LOCK();
+
     g_bg_initialized = false;
     g_frame_count = 0;
 
@@ -504,14 +529,20 @@ void motion_reset_background(void) {
         memset(g_background, 0, FRAME_WIDTH * FRAME_HEIGHT);
     }
 
+    MOTION_UNLOCK();
     LOG_INFO("Background model reset");
 }
 
 bool motion_is_initialized(void) {
-    return g_initialized;
+    MOTION_LOCK();
+    bool init = g_initialized;
+    MOTION_UNLOCK();
+    return init;
 }
 
 void motion_cleanup(void) {
+    MOTION_LOCK();
+
     if (g_background_float) {
         free_buffer(g_background_float);
         g_background_float = NULL;
@@ -541,6 +572,7 @@ void motion_cleanup(void) {
     g_bg_initialized = false;
     g_frame_count = 0;
 
+    MOTION_UNLOCK();
     LOG_INFO("Motion detector cleanup complete");
 }
 
