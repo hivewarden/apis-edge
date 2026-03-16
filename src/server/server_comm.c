@@ -90,9 +90,11 @@ static time_t apis_timegm(struct tm *tm) {
 // Constants
 // ============================================================================
 
-#define HTTP_BUFFER_SIZE    4096
-#define FIRMWARE_VERSION    "1.0.0"
-#define DEFAULT_SERVER_PORT 443
+#define HTTP_RESPONSE_BUFFER_SIZE 4096
+#define HTTP_REQUEST_EXTRA_BYTES  512
+#define HEARTBEAT_TASK_STACK_SIZE 12288
+#define FIRMWARE_VERSION          "1.0.0"
+#define DEFAULT_SERVER_PORT       443
 
 // Security Helpers (COMM-001-4 fix)
 #include "secure_util.h"
@@ -146,10 +148,48 @@ static uint32_t get_uptime_seconds(void) {
 
 // Heartbeat always uses /api/units/heartbeat endpoint
 #define HEARTBEAT_PATH "/api/units/heartbeat"
+#define CLAIM_TOKEN_EXCHANGE_PATH "/api/units/claim-tokens/exchange"
 
 // ============================================================================
 // HTTP Client
 // ============================================================================
+
+static char *alloc_http_post_request(const char *host, const char *path,
+                                     const char *api_key, const char *body,
+                                     size_t *request_capacity, int *request_len) {
+    size_t body_len = body ? strlen(body) : 0;
+    size_t capacity = strlen(host) + strlen(path) +
+                      (api_key ? strlen(api_key) : 0) + body_len +
+                      HTTP_REQUEST_EXTRA_BYTES;
+
+    char *request = malloc(capacity);
+    if (!request) {
+        LOG_ERROR("Failed to allocate HTTP request buffer (%zu bytes)", capacity);
+        return NULL;
+    }
+
+    int len = snprintf(request, capacity,
+        "POST %s HTTP/1.1\r\n"
+        "Host: %s\r\n"
+        "X-API-Key: %s\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: %zu\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+        "%s",
+        path, host, api_key ? api_key : "", body_len, body ? body : "");
+
+    if (len < 0 || (size_t)len >= capacity) {
+        LOG_ERROR("HTTP request serialization overflow");
+        secure_clear(request, capacity);
+        free(request);
+        return NULL;
+    }
+
+    *request_capacity = capacity;
+    *request_len = len;
+    return request;
+}
 
 static int http_post(const char *host, uint16_t port, const char *path,
                      const char *api_key, const char *body,
@@ -166,23 +206,20 @@ static int http_post(const char *host, uint16_t port, const char *path,
         }
 
         // Build request
-        char request[HTTP_BUFFER_SIZE];
-        size_t body_len = body ? strlen(body) : 0;
-        int req_len = snprintf(request, sizeof(request),
-            "POST %s HTTP/1.1\r\n"
-            "Host: %s\r\n"
-            "X-API-Key: %s\r\n"
-            "Content-Type: application/json\r\n"
-            "Content-Length: %zu\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            "%s",
-            path, host, api_key ? api_key : "", body_len, body ? body : "");
+        size_t request_capacity = 0;
+        int req_len = 0;
+        char *request = alloc_http_post_request(host, path, api_key, body,
+                                                &request_capacity, &req_len);
+        if (!request) {
+            tls_close(tls_ctx);
+            return -1;
+        }
 
         // Send request over TLS
         int write_result = tls_write(tls_ctx, request, req_len);
         // COMM-001-4 fix: Clear API key from request buffer after sending
-        secure_clear(request, sizeof(request));
+        secure_clear(request, request_capacity);
+        free(request);
 
         if (write_result < 0) {
             LOG_ERROR("Failed to send request over TLS");
@@ -257,31 +294,29 @@ static int http_post(const char *host, uint16_t port, const char *path,
     freeaddrinfo(result);
 
     // Build request
-    char request[HTTP_BUFFER_SIZE];
-    size_t body_len = body ? strlen(body) : 0;
-    int req_len = snprintf(request, sizeof(request),
-        "POST %s HTTP/1.1\r\n"
-        "Host: %s\r\n"
-        "X-API-Key: %s\r\n"
-        "Content-Type: application/json\r\n"
-        "Content-Length: %zu\r\n"
-        "Connection: close\r\n"
-        "\r\n"
-        "%s",
-        path, host, api_key ? api_key : "", body_len, body ? body : "");
+    size_t request_capacity = 0;
+    int req_len = 0;
+    char *request = alloc_http_post_request(host, path, api_key, body,
+                                            &request_capacity, &req_len);
+    if (!request) {
+        close(sock);
+        return -1;
+    }
 
     // Send request
     if (send(sock, request, req_len, 0) < 0) {
         LOG_ERROR("Failed to send request: %s", strerror(errno));
         // COMM-001-4 fix: Clear API key from request buffer before returning
-        secure_clear(request, sizeof(request));
+        secure_clear(request, request_capacity);
+        free(request);
         close(sock);
         return -1;
     }
 
     // COMM-001-4 fix: Clear API key from request buffer after sending
     // This prevents the API key from remaining in memory
-    secure_clear(request, sizeof(request));
+    secure_clear(request, request_capacity);
+    free(request);
 
     // S8-H4 fix: Loop on recv() to handle partial HTTP responses.
     // A single recv() may not return the complete response, especially
@@ -328,9 +363,10 @@ static int http_post(const char *host, uint16_t port, const char *path,
 // ============================================================================
 
 static int do_heartbeat(heartbeat_response_t *resp) {
-    // S8-C3 fix: Use thread-safe snapshot instead of raw pointer
+    // Use the effective snapshot so runtime-discovered URLs work without
+    // persisting them for unclaimed or URL-less devices.
     runtime_config_t config_local;
-    config_manager_get_snapshot(&config_local);
+    config_manager_get_effective_snapshot(&config_local);
 
     // Copy the api_key to a local buffer and then mask it in the snapshot
     char api_key_copy[CFG_MAX_API_KEY_LEN];
@@ -402,15 +438,22 @@ static int do_heartbeat(heartbeat_response_t *resp) {
 
     if (!body) {
         LOG_ERROR("Failed to serialize heartbeat request");
+        secure_clear(api_key_copy, sizeof(api_key_copy));
         return -1;
     }
 
     // Send request
-    char response[HTTP_BUFFER_SIZE];
+    char *response = malloc(HTTP_RESPONSE_BUFFER_SIZE);
+    if (!response) {
+        LOG_ERROR("Failed to allocate heartbeat response buffer");
+        free(body);
+        secure_clear(api_key_copy, sizeof(api_key_copy));
+        return -1;
+    }
     int http_status;
     int result = http_post(host, port, path, api_key_copy,
                            body, use_tls,
-                           response, sizeof(response), &http_status);
+                           response, HTTP_RESPONSE_BUFFER_SIZE, &http_status);
     free(body);
 
     // Clear sensitive api_key copy from stack
@@ -427,6 +470,7 @@ static int do_heartbeat(heartbeat_response_t *resp) {
         }
 
         LOG_WARN("Heartbeat failed: network error");
+        free(response);
         return -1;
     }
 
@@ -466,6 +510,7 @@ static int do_heartbeat(heartbeat_response_t *resp) {
             config_manager_set_needs_setup(true);
         }
 
+        free(response);
         return -1;
     }
 
@@ -475,6 +520,7 @@ static int do_heartbeat(heartbeat_response_t *resp) {
         COMM_UNLOCK();
 
         LOG_WARN("Heartbeat failed: HTTP %d", http_status);
+        free(response);
         return -1;
     }
 
@@ -482,6 +528,7 @@ static int do_heartbeat(heartbeat_response_t *resp) {
     const char *body_start = strstr(response, "\r\n\r\n");
     if (!body_start) {
         LOG_ERROR("Malformed HTTP response");
+        free(response);
         return -1;
     }
 
@@ -518,23 +565,31 @@ static int do_heartbeat(heartbeat_response_t *resp) {
     // Validate body is reasonable size before parsing
     if (body_len == 0) {
         LOG_ERROR("Empty response body");
+        free(response);
         return -1;
     }
-    if (body_len > HTTP_BUFFER_SIZE - 512) {  // Leave room for headers
+    if (body_len > HTTP_RESPONSE_BUFFER_SIZE - 512) {  // Leave room for headers
         LOG_ERROR("Response body too large: %zu bytes", body_len);
+        free(response);
         return -1;
     }
 
     cJSON *resp_json = cJSON_Parse(body_start);
     if (!resp_json) {
         LOG_ERROR("Failed to parse heartbeat response");
+        free(response);
         return -1;
     }
 
     // Extract response data
     heartbeat_response_t local_resp = {0};
+    cJSON *payload = resp_json;
+    cJSON *data = cJSON_GetObjectItem(resp_json, "data");
+    if (data && cJSON_IsObject(data)) {
+        payload = data;
+    }
 
-    cJSON *server_time = cJSON_GetObjectItem(resp_json, "server_time");
+    cJSON *server_time = cJSON_GetObjectItem(payload, "server_time");
     if (server_time && cJSON_IsString(server_time)) {
         strncpy(local_resp.server_time, server_time->valuestring,
                 sizeof(local_resp.server_time) - 1);
@@ -568,7 +623,7 @@ static int do_heartbeat(heartbeat_response_t *resp) {
     }
 
     // Check for config updates
-    cJSON *cfg = cJSON_GetObjectItem(resp_json, "config");
+    cJSON *cfg = cJSON_GetObjectItem(payload, "config");
     if (cfg && cJSON_IsObject(cfg)) {
         local_resp.has_config = true;
 
@@ -634,6 +689,7 @@ static int do_heartbeat(heartbeat_response_t *resp) {
         *resp = local_resp;
     }
 
+    free(response);
     return 0;
 }
 
@@ -763,25 +819,134 @@ int server_comm_validate_key(const char *url, const char *api_key) {
     key_copy[sizeof(key_copy) - 1] = '\0';
 
     // Send heartbeat
-    char response[HTTP_BUFFER_SIZE];
+    char *response = malloc(HTTP_RESPONSE_BUFFER_SIZE);
+    if (!response) {
+        LOG_ERROR("validate_key: failed to allocate response buffer");
+        free(body);
+        secure_clear(key_copy, sizeof(key_copy));
+        return -1;
+    }
     int http_status;
     int result = http_post(host, port, path, key_copy, body, use_tls,
-                           response, sizeof(response), &http_status);
+                           response, HTTP_RESPONSE_BUFFER_SIZE, &http_status);
     free(body);
     secure_clear(key_copy, sizeof(key_copy));
 
     if (result < 0) {
         LOG_WARN("validate_key: network error connecting to %s", url);
+        free(response);
         return -1;
     }
 
     if (http_status == 200) {
         LOG_INFO("validate_key: API key accepted by %s", url);
+        free(response);
         return 0;
     }
 
     LOG_WARN("validate_key: server returned HTTP %d", http_status);
+    free(response);
     return -1;
+}
+
+int server_comm_exchange_claim_token(const char *url, const char *claim_token,
+                                     char *api_key_out, size_t out_size) {
+    if (!url || !claim_token || !api_key_out || out_size == 0 ||
+        strlen(url) == 0 || strlen(claim_token) == 0) {
+        return -1;
+    }
+
+    char host[256];
+    uint16_t port;
+    char path[256];
+    if (http_parse_url(url, host, sizeof(host), &port, path, sizeof(path),
+                       CLAIM_TOKEN_EXCHANGE_PATH) < 0) {
+        LOG_ERROR("exchange_claim_token: invalid server URL: %s", url);
+        return -1;
+    }
+
+    bool use_tls = false;
+    if (strncmp(url, "https://", 8) == 0) {
+        if (tls_available()) {
+            use_tls = true;
+        } else {
+            LOG_ERROR("exchange_claim_token: HTTPS required but TLS not available");
+            return -1;
+        }
+    }
+
+    cJSON *req_json = cJSON_CreateObject();
+    cJSON_AddStringToObject(req_json, "token", claim_token);
+    char *body = cJSON_PrintUnformatted(req_json);
+    cJSON_Delete(req_json);
+    if (!body) {
+        LOG_ERROR("exchange_claim_token: failed to build request body");
+        return -1;
+    }
+
+    char *response = malloc(HTTP_RESPONSE_BUFFER_SIZE);
+    if (!response) {
+        LOG_ERROR("exchange_claim_token: failed to allocate response buffer");
+        free(body);
+        return -1;
+    }
+
+    int http_status = 0;
+    int result = http_post(host, port, path, "", body, use_tls,
+                           response, HTTP_RESPONSE_BUFFER_SIZE, &http_status);
+    free(body);
+
+    if (result < 0) {
+        LOG_WARN("exchange_claim_token: network error connecting to %s", url);
+        free(response);
+        return -1;
+    }
+    if (http_status != 200) {
+        LOG_WARN("exchange_claim_token: server returned HTTP %d", http_status);
+        free(response);
+        return -1;
+    }
+
+    char *body_start = strstr(response, "\r\n\r\n");
+    if (!body_start) {
+        LOG_ERROR("exchange_claim_token: invalid HTTP response");
+        free(response);
+        return -1;
+    }
+    body_start += 4;
+    if (*body_start == '\0') {
+        LOG_ERROR("exchange_claim_token: empty response body");
+        free(response);
+        return -1;
+    }
+
+    cJSON *resp_json = cJSON_Parse(body_start);
+    if (!resp_json) {
+        LOG_ERROR("exchange_claim_token: failed to parse JSON response");
+        free(response);
+        return -1;
+    }
+
+    cJSON *payload = resp_json;
+    cJSON *data = cJSON_GetObjectItem(resp_json, "data");
+    if (data && cJSON_IsObject(data)) {
+        payload = data;
+    }
+
+    cJSON *api_key = cJSON_GetObjectItem(payload, "api_key");
+    if (!api_key || !cJSON_IsString(api_key) || strlen(api_key->valuestring) == 0) {
+        LOG_ERROR("exchange_claim_token: response missing api_key");
+        cJSON_Delete(resp_json);
+        free(response);
+        return -1;
+    }
+
+    strncpy(api_key_out, api_key->valuestring, out_size - 1);
+    api_key_out[out_size - 1] = '\0';
+    cJSON_Delete(resp_json);
+    free(response);
+    LOG_INFO("exchange_claim_token: exchanged claim token via %s", url);
+    return 0;
 }
 
 // ============================================================================
@@ -826,7 +991,12 @@ int server_comm_start(void) {
         return -1;
     }
 #else
-    xTaskCreate(heartbeat_task_func, "heartbeat", 8192, NULL, 5, &g_heartbeat_task);
+    if (xTaskCreate(heartbeat_task_func, "heartbeat", HEARTBEAT_TASK_STACK_SIZE,
+                    NULL, 5, &g_heartbeat_task) != pdPASS) {
+        LOG_ERROR("Failed to create heartbeat task");
+        g_running = false;
+        return -1;
+    }
 #endif
 
     LOG_INFO("Heartbeat thread started");

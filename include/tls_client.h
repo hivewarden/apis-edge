@@ -87,4 +87,16 @@ void apis_tls_cleanup(void);
  */
 bool tls_available(void);
 
+/**
+ * Enable or disable TLS certificate verification.
+ * When disabled, connections proceed without verifying the server's identity.
+ * WARNING: Disabling verification allows MITM attacks. Use only for
+ * development/testing against self-signed certificates.
+ *
+ * Default: verification enabled.
+ *
+ * @param enable true to require verification, false to skip
+ */
+void tls_client_set_verify(bool enable);
+
 #endif /* APIS_TLS_CLIENT_H */

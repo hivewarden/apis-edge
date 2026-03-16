@@ -14,12 +14,19 @@
 
 #include "http_server.h"
 #include "config_manager.h"
+#include "deterrent_state.h"
 #include "event_logger.h"
 #include "storage_manager.h"
 #include "led_controller.h"
 #include "safety_layer.h"
 #include "button_handler.h"
 #include "qr_scanner.h"
+#include "manual_capture.h"
+#include "sync_pipeline.h"
+#include "vision_runtime.h"
+#include "camera.h"
+#include "server_comm.h"
+#include "secure_util.h"
 #include "log.h"
 #include "platform.h"
 
@@ -109,13 +116,37 @@ static int init_local_auth_token(void);  // COMM-001-7: Forward declare
 static void handle_status(int client_fd, const http_request_t *req);
 static void handle_setup_get(int client_fd, const http_request_t *req);
 static void handle_setup_post(int client_fd, const http_request_t *req);
+static void handle_claim_get(int client_fd, const http_request_t *req);
+static void handle_claim_post(int client_fd, const http_request_t *req);
 static void handle_arm(int client_fd, const http_request_t *req);
 static void handle_disarm(int client_fd, const http_request_t *req);
+static void handle_capture(int client_fd, const http_request_t *req);
 static void handle_config_get(int client_fd, const http_request_t *req);
 static void handle_config_post(int client_fd, const http_request_t *req);
 static void handle_stream(int client_fd, const http_request_t *req);
+static void handle_qr_preview(int client_fd, const http_request_t *req);
 static void handle_not_found(int client_fd, const http_request_t *req);
 static int http_send_redirect(int client_fd, const char *location);
+static int url_decode(const char *src, char *dst, size_t dst_size);
+static bool form_get_param(const char *body, const char *key,
+                           char *value, size_t value_size);
+
+static const char *deterrent_target_state_name(target_state_t state) {
+    switch (state) {
+        case TARGET_STATE_IDLE:
+            return "IDLE";
+        case TARGET_STATE_ACQUIRING:
+            return "ACQUIRING";
+        case TARGET_STATE_TRACKING:
+            return "TRACKING";
+        case TARGET_STATE_LOST:
+            return "LOST";
+        case TARGET_STATE_COOLDOWN:
+            return "COOLDOWN";
+        default:
+            return "UNKNOWN";
+    }
+}
 
 // ============================================================================
 // Public API
@@ -402,8 +433,8 @@ static int init_local_auth_token(void) {
         }
     }
 
-    LOG_INFO("Local auth token: %s", g_local_auth_token);
-    LOG_INFO("Use: curl -H 'Authorization: Bearer %s' http://<device-ip>:8080/config", g_local_auth_token);
+    LOG_DEBUG("Local auth token generated (%zu bytes)", strlen(g_local_auth_token));
+    LOG_INFO("Local auth token written to %s", token_path);
 
     return 0;
 }
@@ -413,9 +444,11 @@ static int init_local_auth_token(void) {
  * Expects "Authorization: Bearer <token>" header.
  */
 static bool verify_local_auth(const http_request_t *req) {
-    if (strlen(g_local_auth_token) == 0) {
-        // No token configured - auth disabled (shouldn't happen)
-        return true;
+    if (g_local_auth_token[0] == '\0') {
+        // No token available — token generation failed. Deny all requests
+        // to prevent auth bypass when RNG or HAL fails.
+        LOG_WARN("Auth denied: no local auth token available (generation failed?)");
+        return false;
     }
 
     if (strlen(req->authorization) == 0) {
@@ -446,6 +479,125 @@ static bool verify_local_auth(const http_request_t *req) {
     return result == 0;
 }
 
+static bool claim_flow_active(void) {
+    runtime_config_t config_snapshot;
+    config_manager_get_snapshot(&config_snapshot);
+    return !config_snapshot.needs_setup &&
+           strlen(config_snapshot.server.api_key) == 0 &&
+           qr_scanner_is_initialized();
+}
+
+static bool request_param_from_json_or_form(const http_request_t *req, const char *key,
+                                            char *value, size_t value_size) {
+    if (!req || !key || !value || value_size == 0 || req->body_len == 0) {
+        if (value && value_size > 0) {
+            value[0] = '\0';
+        }
+        return false;
+    }
+
+    value[0] = '\0';
+
+    if (strstr(req->content_type, "application/json") != NULL) {
+        cJSON *body = cJSON_Parse(req->body);
+        if (body) {
+            cJSON *item = cJSON_GetObjectItem(body, key);
+            if (item && cJSON_IsString(item) && item->valuestring) {
+                strncpy(value, item->valuestring, value_size - 1);
+                value[value_size - 1] = '\0';
+                cJSON_Delete(body);
+                return true;
+            }
+            cJSON_Delete(body);
+        }
+    }
+
+    return form_get_param(req->body, key, value, value_size);
+}
+
+static bool get_effective_claim_server_url(char *out, size_t out_size) {
+    runtime_config_t config_snapshot;
+    config_manager_get_effective_snapshot(&config_snapshot);
+    if (strlen(config_snapshot.server.url) == 0) {
+        if (out && out_size > 0) {
+            out[0] = '\0';
+        }
+        return false;
+    }
+
+    snprintf(out, out_size, "%s", config_snapshot.server.url);
+    return true;
+}
+
+static bool get_claim_server_url_hint(char *out, size_t out_size) {
+    if (config_manager_get_pending_claim_server_url(out, out_size) == 0 &&
+        strlen(out) > 0) {
+        return true;
+    }
+
+    return get_effective_claim_server_url(out, out_size);
+}
+
+static bool validate_claim_server_url_input(const char *url) {
+    if (!url) {
+        return false;
+    }
+    if (strlen(url) == 0 || strlen(url) >= CFG_MAX_URL_LEN) {
+        return false;
+    }
+
+    return strncmp(url, "http://", 7) == 0 || strncmp(url, "https://", 8) == 0;
+}
+
+static int persist_claim_from_token(const char *server_url, const char *claim_token,
+                                    char *error_message, size_t error_message_size) {
+    char api_key[CFG_MAX_API_KEY_LEN] = {0};
+    int rc = -1;
+
+    if (!server_url || !claim_token || strlen(server_url) == 0 || strlen(claim_token) == 0) {
+        if (error_message && error_message_size > 0) {
+            snprintf(error_message, error_message_size,
+                     "Server URL and claim token are required");
+        }
+        return -1;
+    }
+
+    if (!config_manager_begin_claim_exchange()) {
+        if (error_message && error_message_size > 0) {
+            snprintf(error_message, error_message_size,
+                     "Another claim attempt is already in progress. Wait a moment and retry.");
+        }
+        return -1;
+    }
+
+    if (server_comm_exchange_claim_token(server_url, claim_token,
+                                         api_key, sizeof(api_key)) != 0) {
+        if (error_message && error_message_size > 0) {
+            snprintf(error_message, error_message_size,
+                     "Claim token exchange failed. Check the token, server URL, or server reachability.");
+        }
+        secure_clear(api_key, sizeof(api_key));
+        config_manager_end_claim_exchange();
+        return -1;
+    }
+
+    rc = config_manager_finalize_claim(server_url, api_key);
+    config_manager_end_claim_exchange();
+    secure_clear(api_key, sizeof(api_key));
+    if (rc != 0) {
+        if (error_message && error_message_size > 0) {
+            snprintf(error_message, error_message_size,
+                     "Claim succeeded but device persistence failed");
+        }
+        return -1;
+    }
+
+    if (error_message && error_message_size > 0) {
+        error_message[0] = '\0';
+    }
+    return 0;
+}
+
 // Rate limiting (extracted to http_rate_limit.c)
 #include "http_rate_limit.h"
 
@@ -456,9 +608,11 @@ static bool verify_local_auth(const http_request_t *req) {
 const char *http_status_text(http_status_t status) {
     switch (status) {
         case HTTP_OK: return "OK";
+        case HTTP_ACCEPTED: return "Accepted";
         case HTTP_UNAUTHORIZED: return "Unauthorized";  // COMM-001-7
         case HTTP_BAD_REQUEST: return "Bad Request";
         case HTTP_NOT_FOUND: return "Not Found";
+        case HTTP_CONFLICT: return "Conflict";
         case HTTP_TOO_MANY_REQUESTS: return "Too Many Requests";
         case HTTP_METHOD_NOT_ALLOWED: return "Method Not Allowed";
         case HTTP_INTERNAL_ERROR: return "Internal Server Error";
@@ -923,6 +1077,34 @@ static void route_request(int client_fd, const http_request_t *req) {
         return;
     }
 
+    // QR preview endpoint - public during onboarding/debug so the operator can
+    // confirm the board is pointed correctly before claim succeeds.
+    if (strcmp(req->path, "/qr-preview.bmp") == 0) {
+        if (strcmp(req->method, "GET") == 0) {
+            handle_qr_preview(client_fd, req);
+        } else {
+            http_send_error(client_fd, HTTP_METHOD_NOT_ALLOWED, "Use GET for /qr-preview.bmp");
+        }
+        return;
+    }
+
+    if (strcmp(req->path, "/claim") == 0) {
+        if (!claim_flow_active()) {
+            http_send_error(client_fd, HTTP_CONFLICT,
+                            "Claim page is only available while the device is waiting to be claimed.");
+            return;
+        }
+
+        if (strcmp(req->method, "GET") == 0) {
+            handle_claim_get(client_fd, req);
+        } else if (strcmp(req->method, "POST") == 0) {
+            handle_claim_post(client_fd, req);
+        } else {
+            http_send_error(client_fd, HTTP_METHOD_NOT_ALLOWED, "Use GET or POST for /claim");
+        }
+        return;
+    }
+
     // Setup endpoint - accessible without auth ONLY when device needs setup
     // (AP mode / first boot). Once configured, requires auth like everything else.
     if (strcmp(req->path, "/setup") == 0) {
@@ -938,6 +1120,12 @@ static void route_request(int client_fd, const http_request_t *req) {
             return;
         }
         // If setup is complete, fall through to auth check below
+    }
+
+    if (claim_flow_active() &&
+        (strcmp(req->path, "/") == 0 || strcmp(req->path, "/index.html") == 0)) {
+        http_send_redirect(client_fd, "/claim");
+        return;
     }
 
     // Captive portal mode: during setup, redirect ALL unknown paths to /setup.
@@ -986,6 +1174,15 @@ static void route_request(int client_fd, const http_request_t *req) {
         return;
     }
 
+    if (strcmp(req->path, "/capture") == 0) {
+        if (strcmp(req->method, "POST") == 0) {
+            handle_capture(client_fd, req);
+        } else {
+            http_send_error(client_fd, HTTP_METHOD_NOT_ALLOWED, "Use POST for /capture");
+        }
+        return;
+    }
+
     // Config endpoint (auth required)
     if (strcmp(req->path, "/config") == 0) {
         if (strcmp(req->method, "GET") == 0) {
@@ -1025,6 +1222,9 @@ static void handle_status(int client_fd, const http_request_t *req) {
     (void)req;
 
     cJSON *response = cJSON_CreateObject();
+    manual_capture_snapshot_t capture_snapshot;
+    deterrent_snapshot_t deterrent_snapshot;
+    vision_snapshot_t vision_snapshot;
 
     // Get armed state from config manager - use public snapshot to avoid
     // holding a pointer to shared state
@@ -1032,6 +1232,8 @@ static void handle_status(int client_fd, const http_request_t *req) {
     config_manager_get_public(&config_snapshot);
     bool armed = config_snapshot.armed;
     bool detection_enabled = config_snapshot.detection.enabled;
+    runtime_config_t effective_snapshot;
+    config_manager_get_effective_snapshot(&effective_snapshot);
 
     cJSON_AddBoolToObject(response, "armed", armed);
     cJSON_AddBoolToObject(response, "detection_enabled", detection_enabled);
@@ -1063,11 +1265,171 @@ static void handle_status(int client_fd, const http_request_t *req) {
     cJSON_AddNumberToObject(response, "storage_free_mb", storage_free_mb);
 
     cJSON_AddStringToObject(response, "firmware_version", FIRMWARE_VERSION);
+    cJSON_AddStringToObject(response, "home_source",
+        config_home_source_name(config_manager_get_effective_server_source()));
+    cJSON_AddStringToObject(response, "resolved_server_url",
+        effective_snapshot.server.url);
+    cJSON_AddStringToObject(response, "install_profile",
+        install_profile_name(config_snapshot.install_profile));
 
-    // QR scanning: true when scanner is active and device is unclaimed
-    cJSON_AddBoolToObject(response, "qr_scanning",
-        qr_scanner_is_initialized() &&
-        led_controller_is_state_active(LED_STATE_UNCLAIMED));
+    bool qr_scanning = qr_scanner_is_initialized() &&
+        strlen(config_snapshot.server.api_key) == 0;
+    cJSON_AddBoolToObject(response, "qr_scanning", qr_scanning);
+
+    qr_scanner_diagnostics_t qr_diag = {0};
+    qr_scanner_get_diagnostics(&qr_diag);
+    cJSON *qr = cJSON_CreateObject();
+    cJSON_AddBoolToObject(qr, "active", qr_scanning);
+    cJSON_AddNumberToObject(qr, "frame_width", qr_diag.width);
+    cJSON_AddNumberToObject(qr, "frame_height", qr_diag.height);
+    cJSON_AddNumberToObject(qr, "last_code_count", qr_diag.last_code_count);
+    cJSON_AddStringToObject(qr, "last_decode_error", qr_diag.last_decode_error);
+    cJSON_AddStringToObject(qr, "last_decode_pass", qr_diag.last_decode_pass);
+    cJSON_AddStringToObject(qr, "operator_hint", qr_diag.operator_hint);
+    cJSON_AddStringToObject(qr, "profile",
+                            camera_qr_profile_name(camera_get_qr_profile()));
+    cJSON_AddNumberToObject(qr, "frames_processed", (double)qr_diag.frames_processed);
+    cJSON_AddNumberToObject(qr, "frames_with_candidates", (double)qr_diag.frames_with_candidates);
+    cJSON_AddNumberToObject(qr, "frames_with_payload", (double)qr_diag.frames_with_payload);
+    cJSON_AddItemToObject(response, "qr", qr);
+
+    cJSON *claim = cJSON_CreateObject();
+    cJSON_AddBoolToObject(claim, "available", claim_flow_active());
+    cJSON_AddBoolToObject(claim, "pending_token",
+                          config_manager_has_pending_claim_token());
+    {
+        char claim_server_url[CFG_MAX_URL_LEN] = {0};
+        if (get_claim_server_url_hint(claim_server_url, sizeof(claim_server_url))) {
+            cJSON_AddStringToObject(claim, "server_url", claim_server_url);
+        } else {
+            cJSON_AddStringToObject(claim, "server_url", "");
+        }
+    }
+    cJSON_AddStringToObject(claim, "path", "/claim");
+    cJSON_AddItemToObject(response, "claim", claim);
+
+    manual_capture_get_snapshot(&capture_snapshot);
+    cJSON *manual_capture = cJSON_CreateObject();
+    cJSON_AddStringToObject(manual_capture, "request_id", capture_snapshot.request_id);
+    cJSON_AddStringToObject(manual_capture, "state",
+                            manual_capture_state_name(capture_snapshot.state));
+    cJSON_AddStringToObject(manual_capture, "recorded_at", capture_snapshot.recorded_at);
+    cJSON_AddStringToObject(manual_capture, "upload_state",
+                            manual_capture_upload_state_name(capture_snapshot.upload_state));
+    cJSON_AddStringToObject(manual_capture, "last_clip_path",
+                            capture_snapshot.last_clip_path);
+    cJSON_AddStringToObject(manual_capture, "last_error",
+                            capture_snapshot.last_error);
+    cJSON_AddItemToObject(response, "manual_capture", manual_capture);
+
+    deterrent_state_get_snapshot(&deterrent_snapshot);
+    cJSON *deterrent = cJSON_CreateObject();
+    cJSON_AddStringToObject(deterrent, "mode",
+                            config_deterrent_mode_name(deterrent_snapshot.mode));
+    cJSON_AddStringToObject(deterrent, "state",
+                            deterrent_target_state_name(deterrent_snapshot.state));
+    cJSON_AddBoolToObject(deterrent, "target_acquired",
+                          deterrent_snapshot.target_acquired);
+    cJSON_AddNumberToObject(deterrent, "target_center_x",
+                            deterrent_snapshot.target_center_x);
+    cJSON_AddNumberToObject(deterrent, "target_center_y",
+                            deterrent_snapshot.target_center_y);
+    cJSON_AddNumberToObject(deterrent, "target_area",
+                            deterrent_snapshot.target_area);
+    cJSON_AddNumberToObject(deterrent, "hover_duration_ms",
+                            deterrent_snapshot.hover_duration_ms);
+    cJSON_AddStringToObject(deterrent, "confidence",
+                            deterrent_snapshot.confidence);
+    cJSON_AddBoolToObject(deterrent, "would_move",
+                          deterrent_snapshot.would_move);
+    cJSON_AddBoolToObject(deterrent, "would_fire",
+                          deterrent_snapshot.would_fire);
+    cJSON_AddStringToObject(deterrent, "last_decision_at",
+                            deterrent_snapshot.last_decision_at);
+    cJSON_AddStringToObject(deterrent, "last_clip_path",
+                            deterrent_snapshot.last_clip_path);
+    cJSON_AddStringToObject(deterrent, "last_annotated_frame_path",
+                            deterrent_snapshot.last_annotated_frame_path);
+    cJSON_AddStringToObject(deterrent, "last_error",
+                            deterrent_snapshot.last_error);
+    cJSON_AddItemToObject(response, "deterrent", deterrent);
+
+    vision_runtime_get_snapshot(&vision_snapshot);
+    cJSON *vision = cJSON_CreateObject();
+    cJSON_AddStringToObject(vision, "install_profile",
+                            install_profile_name(vision_snapshot.install_profile));
+    cJSON_AddStringToObject(vision, "watch_mode_state",
+                            vision_watch_mode_state_name(vision_snapshot.watch_mode_state));
+    cJSON_AddStringToObject(vision, "sensor_mode", vision_snapshot.sensor_mode);
+    cJSON_AddStringToObject(vision, "sensor_resolution", vision_snapshot.sensor_resolution);
+    cJSON_AddStringToObject(vision, "analysis_resolution", vision_snapshot.analysis_resolution);
+    cJSON_AddNumberToObject(vision, "camera_fps", vision_snapshot.camera_fps);
+    cJSON_AddNumberToObject(vision, "analysis_fps", vision_snapshot.analysis_fps);
+    cJSON_AddNumberToObject(vision, "frames_dropped", vision_snapshot.frames_dropped);
+    cJSON_AddNumberToObject(vision, "active_lane", vision_snapshot.active_lane);
+    cJSON *lanes = cJSON_CreateArray();
+    for (int lane = 0; lane < 3; lane++) {
+        cJSON *lane_json = cJSON_CreateObject();
+        cJSON_AddBoolToObject(lane_json, "active", vision_snapshot.lanes[lane].active);
+        cJSON_AddBoolToObject(lane_json, "cooling", vision_snapshot.lanes[lane].cooling);
+        cJSON_AddNumberToObject(lane_json, "track_id", vision_snapshot.lanes[lane].track_id);
+        cJSON_AddNumberToObject(lane_json, "target_center_x",
+                                vision_snapshot.lanes[lane].target_center_x);
+        cJSON_AddNumberToObject(lane_json, "target_center_y",
+                                vision_snapshot.lanes[lane].target_center_y);
+        cJSON_AddNumberToObject(lane_json, "target_area",
+                                vision_snapshot.lanes[lane].target_area);
+        cJSON_AddNumberToObject(lane_json, "hover_duration_ms",
+                                vision_snapshot.lanes[lane].hover_duration_ms);
+        cJSON_AddNumberToObject(lane_json, "score",
+                                vision_snapshot.lanes[lane].score);
+        cJSON_AddStringToObject(lane_json, "confidence",
+                                vision_snapshot.lanes[lane].confidence);
+        cJSON_AddItemToArray(lanes, lane_json);
+    }
+    cJSON_AddItemToObject(vision, "lanes", lanes);
+    cJSON_AddStringToObject(vision, "last_error", vision_snapshot.last_error);
+    cJSON_AddItemToObject(response, "vision", vision);
+
+    {
+        sync_pipeline_snapshot_t sync_snapshot;
+        sync_pipeline_get_snapshot(&sync_snapshot);
+        cJSON *business_sync = cJSON_CreateObject();
+        cJSON_AddBoolToObject(business_sync, "initialized", sync_snapshot.initialized);
+        cJSON_AddBoolToObject(business_sync, "uploader_running", sync_snapshot.uploader_running);
+        cJSON_AddNumberToObject(business_sync, "pending_clips", sync_snapshot.pending_clips);
+        cJSON_AddNumberToObject(business_sync, "pending_entries",
+                                sync_snapshot.journal.pending_entries);
+        cJSON_AddNumberToObject(business_sync, "pending_activation_events",
+                                sync_snapshot.journal.pending_activation_events);
+        cJSON_AddNumberToObject(business_sync, "pending_encounters",
+                                sync_snapshot.journal.pending_encounters);
+        cJSON_AddBoolToObject(business_sync, "journal_sync_initialized",
+                              sync_snapshot.journal_sync.initialized);
+        cJSON_AddBoolToObject(business_sync, "journal_sync_running",
+                              sync_snapshot.journal_sync.running);
+        cJSON_AddStringToObject(business_sync, "last_journal_sync_status",
+                                journal_sync_status_name(sync_snapshot.journal_sync.last_status));
+
+        cJSON *active_encounter = cJSON_CreateObject();
+        cJSON_AddBoolToObject(active_encounter, "active", sync_snapshot.active_encounter.active);
+        cJSON_AddStringToObject(active_encounter, "encounter_id",
+                                sync_snapshot.active_encounter.encounter_id);
+        cJSON_AddNumberToObject(active_encounter, "lane",
+                                sync_snapshot.active_encounter.lane);
+        cJSON_AddNumberToObject(active_encounter, "detection_count",
+                                sync_snapshot.active_encounter.detection_count);
+        cJSON_AddNumberToObject(active_encounter, "activation_count",
+                                sync_snapshot.active_encounter.activation_count);
+        cJSON_AddStringToObject(active_encounter, "pending_clip_id",
+                                sync_snapshot.active_encounter.pending_clip_id);
+        cJSON_AddStringToObject(active_encounter, "first_seen_at",
+                                sync_snapshot.active_encounter.first_seen_at);
+        cJSON_AddStringToObject(active_encounter, "last_seen_at",
+                                sync_snapshot.active_encounter.last_seen_at);
+        cJSON_AddItemToObject(business_sync, "active_encounter", active_encounter);
+        cJSON_AddItemToObject(response, "business_sync", business_sync);
+    }
 
     // LED status: current display state + all active states
     if (led_controller_is_initialized()) {
@@ -1158,13 +1520,72 @@ static void handle_disarm(int client_fd, const http_request_t *req) {
     LOG_INFO("Device disarmed via HTTP API");
 }
 
+static void handle_capture(int client_fd, const http_request_t *req) {
+    uint8_t duration_seconds = 3;
+    bool upload = true;
+    manual_capture_snapshot_t snapshot;
+
+    if (req->body_len > 0) {
+        cJSON *body = cJSON_Parse(req->body);
+        if (body == NULL) {
+            http_send_error(client_fd, HTTP_BAD_REQUEST, "Invalid JSON body");
+            return;
+        }
+
+        cJSON *duration = cJSON_GetObjectItem(body, "duration_seconds");
+        if (duration != NULL) {
+            if (!cJSON_IsNumber(duration)) {
+                cJSON_Delete(body);
+                http_send_error(client_fd, HTTP_BAD_REQUEST,
+                                "'duration_seconds' must be a number");
+                return;
+            }
+            duration_seconds = (uint8_t)duration->valueint;
+        }
+
+        cJSON *upload_item = cJSON_GetObjectItem(body, "upload");
+        if (upload_item != NULL) {
+            if (!cJSON_IsBool(upload_item)) {
+                cJSON_Delete(body);
+                http_send_error(client_fd, HTTP_BAD_REQUEST,
+                                "'upload' must be true or false");
+                return;
+            }
+            upload = cJSON_IsTrue(upload_item);
+        }
+
+        cJSON_Delete(body);
+    }
+
+    if (manual_capture_request(duration_seconds, upload, &snapshot) != 0) {
+        http_send_error(client_fd, HTTP_CONFLICT, "Manual capture already in progress");
+        return;
+    }
+
+    cJSON *response = cJSON_CreateObject();
+    cJSON_AddStringToObject(response, "request_id", snapshot.request_id);
+    cJSON_AddStringToObject(response, "state",
+                            manual_capture_state_name(snapshot.state));
+
+    char *json = cJSON_PrintUnformatted(response);
+    http_send_json(client_fd, HTTP_ACCEPTED, json);
+
+    free(json);
+    cJSON_Delete(response);
+
+    LOG_INFO("Manual capture requested: id=%s duration=%us upload=%s",
+             snapshot.request_id,
+             snapshot.duration_seconds,
+             snapshot.upload_requested ? "true" : "false");
+}
+
 static void handle_config_get(int client_fd, const http_request_t *req) {
     (void)req;
 
     runtime_config_t public_config;
     config_manager_get_public(&public_config);
 
-    char json_buf[2048];
+    char json_buf[4096];
     if (config_manager_to_json(&public_config, json_buf, sizeof(json_buf), false) < 0) {
         http_send_error(client_fd, HTTP_INTERNAL_ERROR, "Failed to serialize configuration");
         return;
@@ -1318,6 +1739,130 @@ static void handle_stream(int client_fd, const http_request_t *req) {
     LOG_INFO("MJPEG stream ended after %d frames", frame_count);
 }
 
+static void handle_qr_preview(int client_fd, const http_request_t *req) {
+    const char *validated_origin = validate_cors_origin(req->origin);
+    uint16_t width = 0;
+    uint16_t height = 0;
+    size_t gray_size = camera_copy_last_qr_frame(NULL, 0, &width, &height);
+    if (gray_size == 0 || width == 0 || height == 0) {
+        http_send_error(client_fd, HTTP_NOT_FOUND,
+                        "QR preview not available yet. Wait for a frame and retry.");
+        return;
+    }
+
+    uint8_t *gray = (uint8_t *)malloc(gray_size);
+    if (!gray) {
+        http_send_error(client_fd, HTTP_INTERNAL_ERROR, "Failed to allocate QR preview buffer");
+        return;
+    }
+
+    if (camera_copy_last_qr_frame(gray, gray_size, &width, &height) != gray_size) {
+        free(gray);
+        http_send_error(client_fd, HTTP_CONFLICT, "QR preview changed while reading. Retry.");
+        return;
+    }
+
+    const uint32_t row_stride = ((uint32_t)width + 3U) & ~3U;
+    const uint32_t pixel_bytes = row_stride * (uint32_t)height;
+    const uint32_t bmp_size = 14U + 40U + (256U * 4U) + pixel_bytes;
+    char header[512];
+    int header_len;
+
+    if (validated_origin) {
+        header_len = snprintf(header, sizeof(header),
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: image/bmp\r\n"
+            "Content-Length: %lu\r\n"
+            "Cache-Control: no-cache, no-store, must-revalidate\r\n"
+            "Pragma: no-cache\r\n"
+            "Connection: close\r\n"
+            "Access-Control-Allow-Origin: %s\r\n"
+            "Vary: Origin\r\n"
+            "\r\n",
+            (unsigned long)bmp_size, validated_origin);
+    } else {
+        header_len = snprintf(header, sizeof(header),
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: image/bmp\r\n"
+            "Content-Length: %lu\r\n"
+            "Cache-Control: no-cache, no-store, must-revalidate\r\n"
+            "Pragma: no-cache\r\n"
+            "Connection: close\r\n"
+            "\r\n",
+            (unsigned long)bmp_size);
+    }
+
+    if (header_len < 0 || (size_t)header_len >= sizeof(header) ||
+        send(client_fd, header, (size_t)header_len, MSG_NOSIGNAL) <= 0) {
+        free(gray);
+        return;
+    }
+
+    const uint32_t pixel_data_offset = 14U + 40U + (256U * 4U);
+    uint8_t file_header[14] = {
+        'B', 'M',
+        (uint8_t)(bmp_size & 0xFF),
+        (uint8_t)((bmp_size >> 8) & 0xFF),
+        (uint8_t)((bmp_size >> 16) & 0xFF),
+        (uint8_t)((bmp_size >> 24) & 0xFF),
+        0, 0, 0, 0,
+        (uint8_t)(pixel_data_offset & 0xFF),
+        (uint8_t)((pixel_data_offset >> 8) & 0xFF),
+        (uint8_t)((pixel_data_offset >> 16) & 0xFF),
+        (uint8_t)((pixel_data_offset >> 24) & 0xFF),
+    };
+    uint8_t info_header[40] = {0};
+    info_header[0] = 40;
+    info_header[4] = (uint8_t)(width & 0xFF);
+    info_header[5] = (uint8_t)((width >> 8) & 0xFF);
+    info_header[8] = (uint8_t)(height & 0xFF);
+    info_header[9] = (uint8_t)((height >> 8) & 0xFF);
+    info_header[12] = 1;   // planes
+    info_header[14] = 8;   // 8-bit indexed
+    info_header[20] = (uint8_t)(pixel_bytes & 0xFF);
+    info_header[21] = (uint8_t)((pixel_bytes >> 8) & 0xFF);
+    info_header[22] = (uint8_t)((pixel_bytes >> 16) & 0xFF);
+    info_header[23] = (uint8_t)((pixel_bytes >> 24) & 0xFF);
+    info_header[32] = 0;
+    info_header[33] = 1;   // 256 colors in palette
+
+    if (send(client_fd, file_header, sizeof(file_header), MSG_NOSIGNAL) <= 0 ||
+        send(client_fd, info_header, sizeof(info_header), MSG_NOSIGNAL) <= 0) {
+        free(gray);
+        return;
+    }
+
+    uint8_t palette[256 * 4];
+    for (int i = 0; i < 256; i++) {
+        palette[i * 4 + 0] = (uint8_t)i;
+        palette[i * 4 + 1] = (uint8_t)i;
+        palette[i * 4 + 2] = (uint8_t)i;
+        palette[i * 4 + 3] = 0;
+    }
+    if (send(client_fd, palette, sizeof(palette), MSG_NOSIGNAL) <= 0) {
+        free(gray);
+        return;
+    }
+
+    static const uint8_t zero_pad[3] = {0, 0, 0};
+    const uint32_t padding = row_stride - (uint32_t)width;
+    for (int row = (int)height - 1; row >= 0; row--) {
+        const uint8_t *row_ptr = gray + ((size_t)row * (size_t)width);
+        if (send(client_fd, row_ptr, width, MSG_NOSIGNAL) <= 0) {
+            free(gray);
+            return;
+        }
+        if (padding > 0 &&
+            send(client_fd, zero_pad, padding, MSG_NOSIGNAL) <= 0) {
+            free(gray);
+            return;
+        }
+    }
+
+    LOG_INFO("Served QR preview frame (%ux%u BMP)", width, height);
+    free(gray);
+}
+
 // ============================================================================
 // Setup Page (WiFi Provisioning)
 // ============================================================================
@@ -1360,11 +1905,12 @@ static const char SETUP_PAGE_HTML[] =
     "<label>WiFi Password</label>"
     "<input name=\"password\" type=\"password\" placeholder=\"WiFi password\">"
     "<hr>"
-    "<label>API Key</label>"
-    "<input name=\"api_key\" id=\"api_key\" placeholder=\"From your dashboard\">"
-    "<p class=\"hint\">Register your device at the dashboard to get this key</p>"
+    "<label>Claim Token (Recommended)</label>"
+    "<input name=\"claim_token\" id=\"claim_token\" "
+    "placeholder=\"One-time token from HiveWarden\">"
+    "<p class=\"hint\">Use the short-lived claim token from the dashboard QR or claim sheet</p>"
     "<button type=\"button\" id=\"qr-scan\" onclick=\"startScan()\">"
-    "&#128247; Scan QR Code instead</button>"
+    "&#128247; Scan claim QR with this browser</button>"
     "<div id=\"qr-wrap\">"
     "<video id=\"qr-video\" playsinline autoplay muted></video>"
     "<button type=\"button\" id=\"qr-cancel\" onclick=\"stopScan()\">"
@@ -1380,7 +1926,10 @@ static const char SETUP_PAGE_HTML[] =
     "<input id=\"server_url_visible\" "
     "placeholder=\"https://hivewarden.eu\" "
     "oninput=\"document.getElementById('server_url').value=this.value\">"
-    "<p class=\"hint\">Only change if self-hosting Hive Warden</p>"
+    "<p class=\"hint\">Only change if self-hosting Hive Warden or discovery will not find your server</p>"
+    "<label style=\"margin-top:8px\">Advanced: raw API key</label>"
+    "<input name=\"api_key\" id=\"api_key\" placeholder=\"Only for advanced/manual recovery\">"
+    "<p class=\"hint\">Prefer the claim token above. Raw API keys are for advanced recovery only.</p>"
     "</details>"
     "<button type=\"submit\">Save &amp; Reboot</button>"
     "</form>"
@@ -1404,10 +1953,14 @@ static const char SETUP_PAGE_HTML[] =
     "function detect(){"
     "bd.detect(v).then(function(codes){"
     "if(codes.length>0){try{"
-    "var d=JSON.parse(codes[0].rawValue);"
+    "var raw=(codes[0].rawValue||'').trim();"
+    "if(raw[0]==='{'){"
+    "var d=JSON.parse(raw);"
     "if(d.s){document.getElementById('server_url').value=d.s;"
     "document.getElementById('server_url_visible').value=d.s}"
-    "if(d.k){document.getElementById('api_key').value=d.k}"
+    "if(d.t){document.getElementById('claim_token').value=d.t}"
+    "else if(d.k){document.getElementById('api_key').value=d.k}"
+    "}else{document.getElementById('claim_token').value=raw}"
     "s.textContent='\\u2705 QR scanned!';"
     "s.className='qr-ok';stopScan();return"
     "}catch(e){}}"
@@ -1443,6 +1996,87 @@ static const char SETUP_SUCCESS_HTML[] =
     "<p>You can close this page.</p>"
     "</body></html>";
 
+static const char CLAIM_PAGE_HTML[] =
+    "<!DOCTYPE html><html><head>"
+    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+    "<title>HiveWarden Claim</title>"
+    "<style>"
+    "body{font-family:-apple-system,sans-serif;max-width:460px;margin:24px auto;"
+    "padding:0 16px;background:#0f0f23;color:#e0e0e0}"
+    "h1{color:#f5a623;font-size:1.35em;text-align:center;margin-bottom:4px}"
+    ".sub{text-align:center;font-size:.9em;color:#a9acb5;margin-bottom:18px;line-height:1.45}"
+    "label{display:block;margin:14px 0 4px;font-size:.9em;color:#ccc}"
+    "input{width:100%;padding:10px;border:1px solid #333;border-radius:6px;"
+    "background:#1a1a3e;color:#fff;box-sizing:border-box;font-size:1em}"
+    "input:focus{border-color:#f5a623;outline:none}"
+    "button{width:100%;padding:13px;margin-top:18px;background:#f5a623;"
+    "color:#0f0f23;border:none;border-radius:6px;font-size:1.05em;"
+    "font-weight:bold;cursor:pointer}"
+    ".hint{font-size:.78em;color:#8d92a0;margin-top:4px;line-height:1.45}"
+    ".panel{margin-top:18px;padding:14px;border:1px solid #2b3051;"
+    "border-radius:10px;background:#151a2f}"
+    ".meta{font-size:.82em;color:#b8becc;line-height:1.5;margin-top:8px}"
+    ".pill{display:inline-block;padding:2px 8px;border-radius:999px;"
+    "background:#24304d;color:#f2f5ff;font-size:.76em;margin:0 6px 6px 0}"
+    "#preview{width:100%;border-radius:8px;border:1px solid #3b4165;background:#05070d;"
+    "display:block;min-height:180px;object-fit:contain}"
+    "</style></head><body>"
+    "<h1>Claim This Device</h1>"
+    "<p class=\"sub\">If the camera does not finish scanning the QR, paste the same one-time claim token here. "
+    "The token is short-lived and exchanged for the real device API key only once.</p>"
+    "<form method=\"POST\" action=\"/claim\">"
+    "<label>Claim Token</label>"
+    "<input name=\"claim_token\" id=\"claim_token\" required "
+    "placeholder=\"HWC... one-time token\">"
+    "<p class=\"hint\">This is the same token shown under the QR code in HiveWarden.</p>"
+    "<label>Server URL (optional)</label>"
+    "<input name=\"server_url\" id=\"claim_server_url\" "
+    "placeholder=\"Leave blank to use the discovered server\">"
+    "<p class=\"hint\">Leave blank to use the locally discovered/default HiveWarden server. "
+    "Fill this only if you are self-hosting or discovery picked the wrong server.</p>"
+    "<button type=\"submit\">Claim &amp; Reboot</button>"
+    "</form>"
+    "<div class=\"panel\">"
+    "<img id=\"preview\" alt=\"Live QR preview\" src=\"/qr-preview.bmp\">"
+    "<div class=\"meta\" id=\"claim_meta\">Loading camera feedback...</div>"
+    "</div>"
+    "<script>"
+    "var preview=document.getElementById('preview');"
+    "var meta=document.getElementById('claim_meta');"
+    "var serverInput=document.getElementById('claim_server_url');"
+    "function refresh(){"
+    "fetch('/status').then(function(r){return r.json()}).then(function(data){"
+    "var qr=data.qr||{};var claim=data.claim||{};"
+    "if(!serverInput.value&&claim.server_url){serverInput.value=claim.server_url}"
+    "meta.innerHTML='"
+    "<span class=\"pill\">QR '+(qr.active?'active':'inactive')+'</span>' + "
+    "'<span class=\"pill\">'+(qr.profile||'profile unknown')+'</span>' + "
+    "'<span class=\"pill\">candidates '+(qr.frames_with_candidates||0)+'</span>' + "
+    "'<span class=\"pill\">payloads '+(qr.frames_with_payload||0)+'</span><br>' + "
+    "'Hint: '+(qr.operator_hint||'Keep the QR centered and steady.') + '<br>' + "
+    "'Resolved server: ' + (claim.server_url||data.resolved_server_url||'not available yet');"
+    "}).catch(function(){meta.textContent='Status unavailable. Keep the token handy and retry in a moment.'});"
+    "preview.src='/qr-preview.bmp?ts='+Date.now();"
+    "}"
+    "setInterval(refresh, 1200);refresh();"
+    "</script>"
+    "</body></html>";
+
+static const char CLAIM_SUCCESS_HTML[] =
+    "<!DOCTYPE html><html><head>"
+    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+    "<title>HiveWarden - Claim Complete</title>"
+    "<style>"
+    "body{font-family:-apple-system,sans-serif;max-width:420px;margin:40px auto;"
+    "padding:0 16px;background:#0f0f23;color:#e0e0e0;text-align:center}"
+    "h1{color:#4CAF50;font-size:1.3em}"
+    "p{color:#aaa;line-height:1.5}"
+    "</style></head><body>"
+    "<h1>Claim Complete</h1>"
+    "<p>The device has stored its server identity and is rebooting now.</p>"
+    "<p>You can return to HiveWarden and wait for the unit to come online.</p>"
+    "</body></html>";
+
 /**
  * Send an HTML response.
  */
@@ -1461,6 +2095,28 @@ static int http_send_html(int client_fd, http_status_t status, const char *html)
     if (send(client_fd, header, header_len, 0) < 0) return -1;
     if (body_len > 0 && send(client_fd, html, body_len, 0) < 0) return -1;
     return 0;
+}
+
+static void http_send_onboarding_page(int client_fd, http_status_t status,
+                                      const char *title, const char *message) {
+    char html[2048];
+    snprintf(html, sizeof(html),
+             "<!DOCTYPE html><html><head>"
+             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+             "<title>%s</title>"
+             "<style>"
+             "body{font-family:-apple-system,sans-serif;max-width:420px;margin:40px auto;"
+             "padding:0 16px;background:#0f0f23;color:#e0e0e0;text-align:center}"
+             "h1{color:#f5a623;font-size:1.3em}"
+             "p{color:#aaa;line-height:1.5}"
+             "a{color:#f5a623}"
+             "</style></head><body>"
+             "<h1>%s</h1>"
+             "<p>%s</p>"
+             "<p><a href=\"/claim\">Back to claim page</a></p>"
+             "</body></html>",
+             title, title, message);
+    http_send_html(client_fd, status, html);
 }
 
 /**
@@ -1542,6 +2198,7 @@ static void handle_setup_post(int client_fd, const http_request_t *req) {
     char ssid[64] = {0};
     char password[128] = {0};
     char server_url[256] = {0};
+    char claim_token[64] = {0};
     char api_key[64] = {0};
 
     if (!form_get_param(req->body, "ssid", ssid, sizeof(ssid)) || strlen(ssid) == 0) {
@@ -1551,10 +2208,12 @@ static void handle_setup_post(int client_fd, const http_request_t *req) {
 
     form_get_param(req->body, "password", password, sizeof(password));
     form_get_param(req->body, "server_url", server_url, sizeof(server_url));
+    form_get_param(req->body, "claim_token", claim_token, sizeof(claim_token));
     form_get_param(req->body, "api_key", api_key, sizeof(api_key));
 
-    LOG_INFO("Setup: SSID=%s, server=%s", ssid,
-             strlen(server_url) > 0 ? server_url : "(standalone)");
+    LOG_INFO("Setup: SSID=%s, server=%s, pending_claim=%s", ssid,
+             strlen(server_url) > 0 ? server_url : "(auto-discover)",
+             strlen(claim_token) > 0 ? "yes" : "no");
 
     // Save WiFi credentials
 #ifdef APIS_PLATFORM_ESP32
@@ -1564,9 +2223,45 @@ static void handle_setup_post(int client_fd, const http_request_t *req) {
     }
 #endif
 
-    // Save server configuration if provided
-    if (strlen(server_url) > 0) {
-        config_manager_set_server(server_url, api_key);
+    if (strlen(api_key) > 0) {
+        if (strlen(server_url) > 0) {
+            if (config_manager_set_server(server_url, api_key) != 0) {
+                http_send_error(client_fd, HTTP_INTERNAL_ERROR, "Failed to save server settings");
+                return;
+            }
+        } else if (config_manager_set_api_key(api_key) != 0) {
+            http_send_error(client_fd, HTTP_INTERNAL_ERROR, "Failed to save API key");
+            return;
+        }
+        if (config_manager_clear_pending_claim_token() != 0 ||
+            config_manager_clear_pending_claim_server_url() != 0) {
+            http_send_error(client_fd, HTTP_INTERNAL_ERROR,
+                            "Failed to clear pending claim state");
+            return;
+        }
+    } else if (strlen(claim_token) > 0) {
+        if (config_manager_set_pending_claim_token(claim_token) != 0) {
+            http_send_error(client_fd, HTTP_INTERNAL_ERROR,
+                            "Failed to store claim token");
+            return;
+        }
+        if (config_manager_set_pending_claim_server_url(server_url) != 0) {
+            http_send_error(client_fd, HTTP_INTERNAL_ERROR,
+                            "Failed to store claim server selection");
+            return;
+        }
+    } else {
+        if (strlen(server_url) > 0 &&
+            config_manager_set_server(server_url, NULL) != 0) {
+            http_send_error(client_fd, HTTP_INTERNAL_ERROR, "Failed to save server settings");
+            return;
+        }
+        if (config_manager_clear_pending_claim_token() != 0 ||
+            config_manager_clear_pending_claim_server_url() != 0) {
+            http_send_error(client_fd, HTTP_INTERNAL_ERROR,
+                            "Failed to clear pending claim state");
+            return;
+        }
     }
 
     // Mark setup as complete
@@ -1583,6 +2278,64 @@ static void handle_setup_post(int client_fd, const http_request_t *req) {
 #else
     // On Pi/test, just log (no reboot)
     LOG_INFO("Setup complete (reboot skipped on non-ESP32 platform)");
+#endif
+}
+
+static void handle_claim_get(int client_fd, const http_request_t *req) {
+    (void)req;
+    http_send_html(client_fd, HTTP_OK, CLAIM_PAGE_HTML);
+    LOG_INFO("Served claim page");
+}
+
+static void handle_claim_post(int client_fd, const http_request_t *req) {
+    char claim_token[64] = {0};
+    char server_url[CFG_MAX_URL_LEN] = {0};
+    char error_message[256] = {0};
+
+    if (req->body_len == 0) {
+        http_send_onboarding_page(client_fd, HTTP_BAD_REQUEST,
+                                  "Claim Failed",
+                                  "Enter the one-time claim token and try again.");
+        return;
+    }
+
+    if (!request_param_from_json_or_form(req, "claim_token",
+                                         claim_token, sizeof(claim_token)) ||
+        strlen(claim_token) == 0) {
+        http_send_onboarding_page(client_fd, HTTP_BAD_REQUEST,
+                                  "Claim Failed",
+                                  "A one-time claim token is required.");
+        return;
+    }
+
+    request_param_from_json_or_form(req, "server_url", server_url, sizeof(server_url));
+    if (strlen(server_url) > 0) {
+        if (!validate_claim_server_url_input(server_url)) {
+            http_send_onboarding_page(client_fd, HTTP_BAD_REQUEST,
+                                      "Claim Failed",
+                                      "The provided server URL is invalid.");
+            return;
+        }
+    } else if (!get_claim_server_url_hint(server_url, sizeof(server_url))) {
+        http_send_onboarding_page(client_fd, HTTP_BAD_REQUEST,
+                                  "Claim Failed",
+                                  "No claim server is available yet. Enter a server URL or wait for discovery.");
+        return;
+    }
+
+    if (persist_claim_from_token(server_url, claim_token,
+                                 error_message, sizeof(error_message)) != 0) {
+        http_send_onboarding_page(client_fd, HTTP_BAD_REQUEST,
+                                  "Claim Failed", error_message);
+        return;
+    }
+
+    http_send_html(client_fd, HTTP_OK, CLAIM_SUCCESS_HTML);
+    LOG_INFO("Device claimed via local claim page against %s", server_url);
+
+#ifdef APIS_PLATFORM_ESP32
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    esp_restart();
 #endif
 }
 
@@ -1615,6 +2368,11 @@ static void handle_not_found(int client_fd, const http_request_t *req) {
     // the DNS server resolves it to us, and we redirect to the setup page.
     if (config_manager_needs_setup()) {
         http_send_redirect(client_fd, "/setup");
+        return;
+    }
+
+    if (claim_flow_active()) {
+        http_send_redirect(client_fd, "/claim");
         return;
     }
 

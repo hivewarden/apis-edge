@@ -11,6 +11,7 @@
 #include "clip_uploader.h"
 #include "config_manager.h"
 #include "storage_manager.h"
+#include "telemetry_journal.h"
 #include "http_utils.h"
 #include "tls_client.h"
 #include "log.h"
@@ -19,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 #include <errno.h>
 #include <stdint.h>
@@ -48,6 +50,9 @@
 #define READ_CHUNK_SIZE      4096
 #define BOUNDARY_STRING      "----APISUploadBoundary7MA4YWxkTrZu0gW"
 #define QUEUE_FILE_PATH      "/data/apis/upload_queue.json"
+#define QUEUE_FILE_PATH_TMP  "/data/apis/upload_queue.json.tmp"
+#define QUEUE_FILE_PATH_DEV  "./data/apis/upload_queue.json"
+#define QUEUE_FILE_PATH_DEV_TMP "./data/apis/upload_queue.json.tmp"
 #define QUEUE_FILE_VERSION   1
 
 // Security Helpers (COMM-001-4 fix)
@@ -62,11 +67,17 @@ static volatile bool g_running = false;
 static clip_queue_entry_t g_queue[MAX_UPLOAD_QUEUE];
 static uint32_t g_queue_count = 0;
 static int64_t g_last_upload_time = 0;
+static clip_upload_complete_cb_t g_completion_callback = NULL;
+static void *g_completion_callback_data = NULL;
+static const char *g_queue_file_path = QUEUE_FILE_PATH;
+static const char *g_queue_tmp_path = QUEUE_FILE_PATH_TMP;
 
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
 static pthread_t g_upload_thread;
 #else
 static TaskHandle_t g_upload_task = NULL;
+#define UPLOAD_TASK_STACK_SIZE 16384
+#define UPLOAD_TASK_PRIORITY   4
 #endif
 
 #include "platform_mutex.h"
@@ -107,11 +118,137 @@ static int64_t get_current_time(void) {
     return (int64_t)time(NULL);
 }
 
+static void format_current_time_iso8601(char *buf, size_t buf_size) {
+    time_t now = time(NULL);
+    struct tm tm_buf;
+    struct tm *tm = gmtime_r(&now, &tm_buf);
+
+    if (tm != NULL) {
+        strftime(buf, buf_size, "%Y-%m-%dT%H:%M:%SZ", tm);
+    } else {
+        snprintf(buf, buf_size, "1970-01-01T00:00:00Z");
+    }
+}
+
+static const char *clip_content_type(const char *clip_path) {
+    const char *extension = strrchr(clip_path, '.');
+    if (extension != NULL && strcasecmp(extension, ".avi") == 0) {
+        return "video/x-msvideo";
+    }
+    return "video/mp4";
+}
+
+static int build_multipart_header(const clip_queue_entry_t *entry,
+                                  const char *filename,
+                                  char *body_header,
+                                  size_t body_header_size) {
+    int len = 0;
+
+    if (entry->detection_id[0] != '\0') {
+        if (entry->encounter_id[0] != '\0') {
+            len = snprintf(body_header, body_header_size,
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"clip_id\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"encounter_id\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"detection_id\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"recorded_at\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n"
+                "Content-Type: %s\r\n"
+                "\r\n",
+                BOUNDARY_STRING, entry->clip_id,
+                BOUNDARY_STRING, entry->encounter_id,
+                BOUNDARY_STRING, entry->detection_id,
+                BOUNDARY_STRING, entry->recorded_at,
+                BOUNDARY_STRING, filename, clip_content_type(entry->clip_path));
+        } else {
+            len = snprintf(body_header, body_header_size,
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"clip_id\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"detection_id\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"recorded_at\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n"
+                "Content-Type: %s\r\n"
+                "\r\n",
+                BOUNDARY_STRING, entry->clip_id,
+                BOUNDARY_STRING, entry->detection_id,
+                BOUNDARY_STRING, entry->recorded_at,
+                BOUNDARY_STRING, filename, clip_content_type(entry->clip_path));
+        }
+    } else {
+        if (entry->encounter_id[0] != '\0') {
+            len = snprintf(body_header, body_header_size,
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"clip_id\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"encounter_id\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"recorded_at\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n"
+                "Content-Type: %s\r\n"
+                "\r\n",
+                BOUNDARY_STRING, entry->clip_id,
+                BOUNDARY_STRING, entry->encounter_id,
+                BOUNDARY_STRING, entry->recorded_at,
+                BOUNDARY_STRING, filename, clip_content_type(entry->clip_path));
+        } else {
+            len = snprintf(body_header, body_header_size,
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"clip_id\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"recorded_at\"\r\n"
+                "\r\n"
+                "%s\r\n"
+                "--%s\r\n"
+                "Content-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n"
+                "Content-Type: %s\r\n"
+                "\r\n",
+                BOUNDARY_STRING, entry->clip_id,
+                BOUNDARY_STRING, entry->recorded_at,
+                BOUNDARY_STRING, filename, clip_content_type(entry->clip_path));
+        }
+    }
+
+    if (len < 0 || (size_t)len >= body_header_size) {
+        return -1;
+    }
+
+    return len;
+}
+
 // ============================================================================
 // Queue Persistence
 // ============================================================================
 
-#if defined(APIS_PLATFORM_PI)
 static int save_queue_to_disk(void) {
     cJSON *root = cJSON_CreateObject();
     if (!root) return -1;
@@ -131,7 +268,11 @@ static int save_queue_to_disk(void) {
         if (!entry) continue;
 
         cJSON_AddStringToObject(entry, "clip_path", g_queue[i].clip_path);
+        cJSON_AddStringToObject(entry, "clip_id", g_queue[i].clip_id);
         cJSON_AddStringToObject(entry, "detection_id", g_queue[i].detection_id);
+        cJSON_AddStringToObject(entry, "encounter_id", g_queue[i].encounter_id);
+        cJSON_AddStringToObject(entry, "activation_id", g_queue[i].activation_id);
+        cJSON_AddStringToObject(entry, "recorded_at", g_queue[i].recorded_at);
         cJSON_AddNumberToObject(entry, "retry_count", g_queue[i].retry_count);
         cJSON_AddNumberToObject(entry, "next_retry_time", (double)g_queue[i].next_retry_time);
         cJSON_AddNumberToObject(entry, "queued_time", (double)g_queue[i].queued_time);
@@ -148,18 +289,9 @@ static int save_queue_to_disk(void) {
 
     // Atomic write: write to temp file, then rename to final path.
     // This prevents queue file corruption if power is lost during write.
-    static const char *queue_tmp_path = QUEUE_FILE_PATH ".tmp";
-
-    int queue_fd = open(queue_tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-    if (queue_fd < 0) {
-        LOG_WARN("Could not open temp queue file for writing: %s", queue_tmp_path);
-        free(json_str);
-        return -1;
-    }
-    FILE *fp = fdopen(queue_fd, "w");
-    if (!fp) {
-        LOG_WARN("Could not fdopen temp queue file: %s", queue_tmp_path);
-        close(queue_fd);
+    FILE *fp = fopen(g_queue_tmp_path, "w");
+    if (fp == NULL) {
+        LOG_WARN("Could not open temp queue file for writing: %s", g_queue_tmp_path);
         free(json_str);
         return -1;
     }
@@ -169,9 +301,9 @@ static int save_queue_to_disk(void) {
     free(json_str);
 
     // Atomic rename: replaces the old queue file in one operation
-    if (rename(queue_tmp_path, QUEUE_FILE_PATH) != 0) {
+    if (rename(g_queue_tmp_path, g_queue_file_path) != 0) {
         LOG_WARN("Failed to rename temp queue file: %s", strerror(errno));
-        unlink(queue_tmp_path);
+        remove(g_queue_tmp_path);
         return -1;
     }
 
@@ -180,7 +312,7 @@ static int save_queue_to_disk(void) {
 }
 
 static int load_queue_from_disk(void) {
-    FILE *fp = fopen(QUEUE_FILE_PATH, "r");
+    FILE *fp = fopen(g_queue_file_path, "r");
     if (!fp) {
         LOG_DEBUG("No existing queue file found");
         return 0;  // Not an error
@@ -225,7 +357,11 @@ static int load_queue_from_disk(void) {
         if (g_queue_count >= MAX_UPLOAD_QUEUE) break;
 
         cJSON *path = cJSON_GetObjectItem(entry, "clip_path");
+        cJSON *clip_id = cJSON_GetObjectItem(entry, "clip_id");
         cJSON *det_id = cJSON_GetObjectItem(entry, "detection_id");
+        cJSON *encounter_id = cJSON_GetObjectItem(entry, "encounter_id");
+        cJSON *activation_id = cJSON_GetObjectItem(entry, "activation_id");
+        cJSON *recorded_at = cJSON_GetObjectItem(entry, "recorded_at");
         cJSON *retry = cJSON_GetObjectItem(entry, "retry_count");
         cJSON *next_time = cJSON_GetObjectItem(entry, "next_retry_time");
         cJSON *queued = cJSON_GetObjectItem(entry, "queued_time");
@@ -238,9 +374,34 @@ static int load_queue_from_disk(void) {
         strncpy(e->clip_path, path->valuestring, CLIP_PATH_MAX - 1);
         e->clip_path[CLIP_PATH_MAX - 1] = '\0';  // I5 fix: Explicit null termination
 
+        if (clip_id && cJSON_IsString(clip_id)) {
+            strncpy(e->clip_id, clip_id->valuestring, CLIP_ID_MAX - 1);
+            e->clip_id[CLIP_ID_MAX - 1] = '\0';
+        }
         if (det_id && cJSON_IsString(det_id)) {
             strncpy(e->detection_id, det_id->valuestring, DETECTION_ID_MAX - 1);
             e->detection_id[DETECTION_ID_MAX - 1] = '\0';  // I5 fix: Explicit null termination
+        }
+        if (encounter_id && cJSON_IsString(encounter_id)) {
+            strncpy(e->encounter_id, encounter_id->valuestring, ENCOUNTER_ID_MAX - 1);
+            e->encounter_id[ENCOUNTER_ID_MAX - 1] = '\0';
+        }
+        if (activation_id && cJSON_IsString(activation_id)) {
+            strncpy(e->activation_id, activation_id->valuestring, ACTIVATION_ID_MAX - 1);
+            e->activation_id[ACTIVATION_ID_MAX - 1] = '\0';
+        }
+        if (recorded_at && cJSON_IsString(recorded_at)) {
+            strncpy(e->recorded_at, recorded_at->valuestring, RECORDED_AT_MAX - 1);
+            e->recorded_at[RECORDED_AT_MAX - 1] = '\0';
+        } else {
+            format_current_time_iso8601(e->recorded_at, sizeof(e->recorded_at));
+        }
+
+        if (e->clip_id[0] == '\0') {
+            (void)telemetry_journal_derive_clip_id(e->clip_path,
+                                                   e->recorded_at,
+                                                   e->clip_id,
+                                                   sizeof(e->clip_id));
         }
 
         if (retry && cJSON_IsNumber(retry)) {
@@ -264,14 +425,6 @@ static int load_queue_from_disk(void) {
     LOG_INFO("Loaded %u clips from queue file", g_queue_count);
     return 0;
 }
-#else
-// Test/ESP32: No disk persistence
-// S8-M6 TODO: On ESP32, implement queue persistence via NVS (Non-Volatile Storage)
-// or SPIFFS to survive power cycles. Currently queued clips are lost on reboot.
-// Suggested approach: Store serialized queue in NVS blob with versioned format.
-static int save_queue_to_disk(void) { return 0; }
-static int load_queue_from_disk(void) { return 0; }
-#endif
 
 // ============================================================================
 // Path Traversal Protection
@@ -385,6 +538,14 @@ static int find_next_uploadable(void) {
     for (uint32_t i = 0; i < g_queue_count; i++) {
         if (g_queue[i].uploaded) continue;
         if (g_queue[i].next_retry_time > now) continue;  // Not ready for retry
+        if (g_queue[i].encounter_id[0] != '\0' &&
+            !telemetry_journal_is_entry_synced(g_queue[i].encounter_id)) {
+            continue;
+        }
+        if (g_queue[i].activation_id[0] != '\0' &&
+            !telemetry_journal_is_entry_synced(g_queue[i].activation_id)) {
+            continue;
+        }
 
         // Find oldest (FIFO)
         if (oldest_idx < 0 || g_queue[i].queued_time < oldest_time) {
@@ -426,9 +587,10 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
     tls_context_t *tls_ctx = NULL;
     bool secrets_cleared = false;
 
-    // S8-C3 fix: Use thread-safe snapshot instead of raw pointer
+    // Use the effective snapshot so runtime-discovered URLs can be used
+    // without persisting them to disk.
     runtime_config_t config_snap;
-    config_manager_get_snapshot(&config_snap);
+    config_manager_get_effective_snapshot(&config_snap);
 
     // Snapshot the fields we need
     char server_url[CFG_MAX_URL_LEN];
@@ -442,7 +604,7 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
     api_key_copy[sizeof(api_key_copy) - 1] = '\0';
 
     // Clear sensitive data from stack snapshot
-    memset(config_snap.server.api_key, 0, sizeof(config_snap.server.api_key));
+    secure_clear(config_snap.server.api_key, sizeof(config_snap.server.api_key));
 
     if (strlen(server_url) == 0) {
         LOG_DEBUG("No server URL configured, skipping upload");
@@ -493,18 +655,14 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
     }
 
     // Build multipart body header
-    char body_header[1024];
-    int header_len = snprintf(body_header, sizeof(body_header),
-        "--%s\r\n"
-        "Content-Disposition: form-data; name=\"detection_id\"\r\n"
-        "\r\n"
-        "%s\r\n"
-        "--%s\r\n"
-        "Content-Disposition: form-data; name=\"clip\"; filename=\"%s\"\r\n"
-        "Content-Type: video/mp4\r\n"
-        "\r\n",
-        BOUNDARY_STRING, entry->detection_id,
-        BOUNDARY_STRING, filename);
+    char body_header[1536];
+    int header_len = build_multipart_header(entry, filename,
+                                            body_header, sizeof(body_header));
+    if (header_len < 0) {
+        LOG_ERROR("Failed to build multipart body header");
+        status = UPLOAD_STATUS_CLIENT_ERROR;
+        goto cleanup;
+    }
 
     // Build multipart body footer
     char body_footer[64];
@@ -603,7 +761,7 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
             goto cleanup;
         }
 
-        if (http_status == 201) {
+        if (http_status == 200 || http_status == 201) {
             LOG_INFO("Clip uploaded successfully (TLS): %s", entry->clip_path);
             status = UPLOAD_STATUS_SUCCESS;
             goto cleanup;
@@ -746,7 +904,7 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
             goto cleanup;
         }
 
-        if (http_status == 201) {
+        if (http_status == 200 || http_status == 201) {
             LOG_INFO("Clip uploaded successfully: %s", entry->clip_path);
             status = UPLOAD_STATUS_SUCCESS;
             goto cleanup;
@@ -793,9 +951,10 @@ static long get_file_size_esp32(const char *filepath) {
 }
 
 static upload_status_t do_upload(clip_queue_entry_t *entry) {
-    // S8-C3 fix: Use thread-safe snapshot instead of raw pointer
+    // Use the effective snapshot so runtime-discovered URLs can be used
+    // without persisting them to disk.
     runtime_config_t config_snap;
-    config_manager_get_snapshot(&config_snap);
+    config_manager_get_effective_snapshot(&config_snap);
 
     char server_url_esp[CFG_MAX_URL_LEN];
     char api_key_esp[CFG_MAX_API_KEY_LEN];
@@ -805,7 +964,7 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
     api_key_esp[sizeof(api_key_esp) - 1] = '\0';
 
     // Clear sensitive data from stack snapshot
-    memset(config_snap.server.api_key, 0, sizeof(config_snap.server.api_key));
+    secure_clear(config_snap.server.api_key, sizeof(config_snap.server.api_key));
 
     if (strlen(server_url_esp) == 0) {
         LOG_DEBUG("No server URL configured, skipping upload");
@@ -843,29 +1002,28 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
     // Build full URL for upload endpoint
     char full_url[512];
     snprintf(full_url, sizeof(full_url), "%s://%s:%u%s",
-             port == 443 ? "https" : "http", host, port, path);
+             strncmp(server_url_esp, "https://", 8) == 0 ? "https" : "http",
+             host, port, path);
 
     // Build multipart body header
-    char body_header[1024];
-    int header_len = snprintf(body_header, sizeof(body_header),
-        "--%s\r\n"
-        "Content-Disposition: form-data; name=\"detection_id\"\r\n"
-        "\r\n"
-        "%s\r\n"
-        "--%s\r\n"
-        "Content-Disposition: form-data; name=\"clip\"; filename=\"%s\"\r\n"
-        "Content-Type: video/mp4\r\n"
-        "\r\n",
-        BOUNDARY_STRING, entry->detection_id,
-        BOUNDARY_STRING, filename);
+    char body_header[1536];
+    int header_len = build_multipart_header(entry, filename,
+                                            body_header, sizeof(body_header));
+    if (header_len < 0) {
+        LOG_ERROR("Failed to build multipart body header");
+        secure_clear(api_key_esp, sizeof(api_key_esp));
+        return UPLOAD_STATUS_CLIENT_ERROR;
+    }
 
     // Build multipart body footer
     char body_footer[64];
     int footer_len = snprintf(body_footer, sizeof(body_footer),
         "\r\n--%s--\r\n", BOUNDARY_STRING);
 
-    // Content-Length overflow check: ensure the total size doesn't wrap around
-    if (file_size > (long)(SIZE_MAX - (size_t)header_len - (size_t)footer_len)) {
+    // Content-Length overflow check: compare in size_t space so 32-bit ESP32
+    // signed/unsigned casts do not turn SIZE_MAX into a negative sentinel.
+    if (file_size < 0 ||
+        (size_t)file_size > SIZE_MAX - (size_t)header_len - (size_t)footer_len) {
         LOG_ERROR("Content-Length overflow: file_size=%ld, header=%d, footer=%d",
                   file_size, header_len, footer_len);
         secure_clear(api_key_esp, sizeof(api_key_esp));
@@ -965,7 +1123,7 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
     esp_http_client_cleanup(client);
 
     // Check status
-    if (http_status == 201) {
+    if (http_status == 200 || http_status == 201) {
         LOG_INFO("Clip uploaded successfully: %s", entry->clip_path);
         return UPLOAD_STATUS_SUCCESS;
     }
@@ -991,6 +1149,10 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
 // ============================================================================
 
 static void process_upload_queue(void) {
+    bool invoke_callback = false;
+    clip_upload_request_t callback_request;
+    upload_status_t callback_status = UPLOAD_STATUS_NETWORK_ERROR;
+
     UPLOAD_LOCK();
     int idx = find_next_uploadable();
     if (idx < 0) {
@@ -1016,8 +1178,7 @@ static void process_upload_queue(void) {
 
     // Find entry again (may have moved)
     for (uint32_t i = 0; i < g_queue_count; i++) {
-        if (strcmp(g_queue[i].clip_path, entry.clip_path) == 0 &&
-            strcmp(g_queue[i].detection_id, entry.detection_id) == 0) {
+        if (strcmp(g_queue[i].clip_id, entry.clip_id) == 0) {
 
             if (status == UPLOAD_STATUS_SUCCESS) {
                 g_queue[i].uploaded = true;
@@ -1026,6 +1187,21 @@ static void process_upload_queue(void) {
                 if (storage_manager_is_initialized()) {
                     storage_manager_mark_uploaded(entry.clip_path);
                 }
+                invoke_callback = true;
+                memset(&callback_request, 0, sizeof(callback_request));
+                snprintf(callback_request.clip_path, sizeof(callback_request.clip_path),
+                         "%s", entry.clip_path);
+                snprintf(callback_request.clip_id, sizeof(callback_request.clip_id),
+                         "%s", entry.clip_id);
+                snprintf(callback_request.detection_id, sizeof(callback_request.detection_id),
+                         "%s", entry.detection_id);
+                snprintf(callback_request.encounter_id, sizeof(callback_request.encounter_id),
+                         "%s", entry.encounter_id);
+                snprintf(callback_request.activation_id, sizeof(callback_request.activation_id),
+                         "%s", entry.activation_id);
+                snprintf(callback_request.recorded_at, sizeof(callback_request.recorded_at),
+                         "%s", entry.recorded_at);
+                callback_status = status;
                 compact_queue();
                 save_queue_to_disk();
             } else if (status == UPLOAD_STATUS_FILE_ERROR ||
@@ -1033,6 +1209,21 @@ static void process_upload_queue(void) {
                 // Permanent failure - remove from queue
                 LOG_WARN("Clip upload failed permanently: %s", entry.clip_path);
                 g_queue[i].uploaded = true;  // Mark for removal
+                invoke_callback = true;
+                memset(&callback_request, 0, sizeof(callback_request));
+                snprintf(callback_request.clip_path, sizeof(callback_request.clip_path),
+                         "%s", entry.clip_path);
+                snprintf(callback_request.clip_id, sizeof(callback_request.clip_id),
+                         "%s", entry.clip_id);
+                snprintf(callback_request.detection_id, sizeof(callback_request.detection_id),
+                         "%s", entry.detection_id);
+                snprintf(callback_request.encounter_id, sizeof(callback_request.encounter_id),
+                         "%s", entry.encounter_id);
+                snprintf(callback_request.activation_id, sizeof(callback_request.activation_id),
+                         "%s", entry.activation_id);
+                snprintf(callback_request.recorded_at, sizeof(callback_request.recorded_at),
+                         "%s", entry.recorded_at);
+                callback_status = status;
                 compact_queue();
                 save_queue_to_disk();
             } else {
@@ -1044,6 +1235,21 @@ static void process_upload_queue(void) {
                     LOG_WARN("Clip upload exceeded max retries (%u): %s",
                              MAX_UPLOAD_RETRIES, entry.clip_path);
                     g_queue[i].uploaded = true;  // Mark for removal
+                    invoke_callback = true;
+                    memset(&callback_request, 0, sizeof(callback_request));
+                    snprintf(callback_request.clip_path, sizeof(callback_request.clip_path),
+                             "%s", entry.clip_path);
+                    snprintf(callback_request.clip_id, sizeof(callback_request.clip_id),
+                             "%s", entry.clip_id);
+                    snprintf(callback_request.detection_id, sizeof(callback_request.detection_id),
+                             "%s", entry.detection_id);
+                    snprintf(callback_request.encounter_id, sizeof(callback_request.encounter_id),
+                             "%s", entry.encounter_id);
+                    snprintf(callback_request.activation_id, sizeof(callback_request.activation_id),
+                             "%s", entry.activation_id);
+                    snprintf(callback_request.recorded_at, sizeof(callback_request.recorded_at),
+                             "%s", entry.recorded_at);
+                    callback_status = status;
                     compact_queue();
                     save_queue_to_disk();
                 } else {
@@ -1059,6 +1265,11 @@ static void process_upload_queue(void) {
     }
 
     UPLOAD_UNLOCK();
+
+    if (invoke_callback && g_completion_callback != NULL) {
+        g_completion_callback(&callback_request, callback_status,
+                              g_completion_callback_data);
+    }
 }
 
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
@@ -1105,6 +1316,8 @@ static void upload_task_func(void *arg) {
 // ============================================================================
 
 int clip_uploader_init(void) {
+    int load_rc;
+
     if (g_initialized) {
         LOG_WARN("Clip uploader already initialized");
         return 0;
@@ -1117,9 +1330,24 @@ int clip_uploader_init(void) {
     memset(g_queue, 0, sizeof(g_queue));
     g_queue_count = 0;
     g_last_upload_time = 0;
+    g_completion_callback = NULL;
+    g_completion_callback_data = NULL;
+
+    g_queue_file_path =
+#if defined(APIS_PLATFORM_TEST)
+        QUEUE_FILE_PATH_DEV;
+    g_queue_tmp_path = QUEUE_FILE_PATH_DEV_TMP;
+#else
+        QUEUE_FILE_PATH;
+    g_queue_tmp_path = QUEUE_FILE_PATH_TMP;
+#endif
 
     // Load persistent queue
-    load_queue_from_disk();
+    load_rc = load_queue_from_disk();
+    if (load_rc != 0) {
+        LOG_ERROR("Clip uploader init failed: could not load persisted queue");
+        return -1;
+    }
 
     g_initialized = true;
     LOG_INFO("Clip uploader initialized (%u clips in queue)", g_queue_count);
@@ -1147,23 +1375,37 @@ int clip_uploader_start(void) {
         return -1;
     }
 #else
-    xTaskCreate(upload_task_func, "clip_upload", 8192, NULL, 4, &g_upload_task);
+    BaseType_t task_created = xTaskCreate(upload_task_func,
+                                          "clip_upload",
+                                          UPLOAD_TASK_STACK_SIZE,
+                                          NULL,
+                                          UPLOAD_TASK_PRIORITY,
+                                          &g_upload_task);
+    if (task_created != pdPASS) {
+        LOG_ERROR("Failed to create upload task");
+        g_running = false;
+        return -1;
+    }
 #endif
 
     LOG_INFO("Upload thread started");
     return 0;
 }
 
-int clip_uploader_queue(const char *clip_path, const char *detection_id) {
-    if (!clip_path || strlen(clip_path) == 0) {
+int clip_uploader_queue(const clip_upload_request_t *request) {
+    if (request == NULL ||
+        request->clip_path[0] == '\0' ||
+        request->recorded_at[0] == '\0') {
         return -1;
     }
 
 #if defined(APIS_PLATFORM_PI) || defined(APIS_PLATFORM_TEST)
     // Path traversal protection: ensure clip_path is within expected directory
     // Use ./data/clips as the expected base (matching storage_manager default)
-    if (!is_safe_path(clip_path, "./data/clips") && !is_safe_path(clip_path, "/data/apis") && !is_safe_path(clip_path, "/data/clips")) {
-        LOG_ERROR("Clip path rejected (path traversal): %s", clip_path);
+    if (!is_safe_path(request->clip_path, "./data/clips") &&
+        !is_safe_path(request->clip_path, "/data/apis") &&
+        !is_safe_path(request->clip_path, "/data/clips")) {
+        LOG_ERROR("Clip path rejected (path traversal): %s", request->clip_path);
         return -1;
     }
 #endif
@@ -1178,8 +1420,11 @@ int clip_uploader_queue(const char *clip_path, const char *detection_id) {
 
     // Check if already in queue
     for (uint32_t i = 0; i < g_queue_count; i++) {
-        if (strcmp(g_queue[i].clip_path, clip_path) == 0) {
-            LOG_DEBUG("Clip already in queue: %s", clip_path);
+        if ((request->clip_id[0] != '\0' &&
+             strcmp(g_queue[i].clip_id, request->clip_id) == 0) ||
+            (strcmp(g_queue[i].clip_path, request->clip_path) == 0 &&
+             strcmp(g_queue[i].recorded_at, request->recorded_at) == 0)) {
+            LOG_DEBUG("Clip already in queue: %s", request->clip_path);
             UPLOAD_UNLOCK();
             return 0;
         }
@@ -1215,9 +1460,27 @@ int clip_uploader_queue(const char *clip_path, const char *detection_id) {
         clip_queue_entry_t *entry = &g_queue[g_queue_count];
         memset(entry, 0, sizeof(*entry));
 
-        strncpy(entry->clip_path, clip_path, CLIP_PATH_MAX - 1);
-        if (detection_id) {
-            strncpy(entry->detection_id, detection_id, DETECTION_ID_MAX - 1);
+        snprintf(entry->clip_path, sizeof(entry->clip_path), "%s", request->clip_path);
+        if (request->clip_id[0] != '\0') {
+            snprintf(entry->clip_id, sizeof(entry->clip_id), "%s", request->clip_id);
+        } else {
+            (void)telemetry_journal_derive_clip_id(request->clip_path,
+                                                   request->recorded_at,
+                                                   entry->clip_id,
+                                                   sizeof(entry->clip_id));
+        }
+        snprintf(entry->recorded_at, sizeof(entry->recorded_at), "%s", request->recorded_at);
+        if (request->detection_id[0] != '\0') {
+            snprintf(entry->detection_id, sizeof(entry->detection_id), "%s",
+                     request->detection_id);
+        }
+        if (request->encounter_id[0] != '\0') {
+            snprintf(entry->encounter_id, sizeof(entry->encounter_id), "%s",
+                     request->encounter_id);
+        }
+        if (request->activation_id[0] != '\0') {
+            snprintf(entry->activation_id, sizeof(entry->activation_id), "%s",
+                     request->activation_id);
         }
         entry->queued_time = get_current_time();
         entry->next_retry_time = 0;  // Upload immediately
@@ -1226,7 +1489,7 @@ int clip_uploader_queue(const char *clip_path, const char *detection_id) {
 
         g_queue_count++;
 
-        LOG_INFO("Clip queued for upload: %s", clip_path);
+        LOG_INFO("Clip queued for upload: %s", request->clip_path);
         save_queue_to_disk();
     }
 
@@ -1336,6 +1599,14 @@ bool clip_uploader_is_initialized(void) {
 
 bool clip_uploader_is_running(void) {
     return g_running;
+}
+
+void clip_uploader_set_completion_callback(clip_upload_complete_cb_t callback,
+                                           void *user_data) {
+    UPLOAD_LOCK();
+    g_completion_callback = callback;
+    g_completion_callback_data = user_data;
+    UPLOAD_UNLOCK();
 }
 
 // ============================================================================

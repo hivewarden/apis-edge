@@ -24,12 +24,14 @@
 #if defined(APIS_PLATFORM_ESP32)
 
 #include "esp_tls.h"
+#include "esp_crt_bundle.h"
 
 struct tls_context {
     esp_tls_t *tls;
 };
 
 static volatile bool g_tls_initialized = false;
+static bool g_verify_certs = true;
 
 int apis_tls_init(void) {
     if (g_tls_initialized) {
@@ -38,6 +40,11 @@ int apis_tls_init(void) {
     g_tls_initialized = true;
     LOG_INFO("TLS subsystem initialized (esp_tls)");
     return 0;
+}
+
+void tls_client_set_verify(bool enable) {
+    g_verify_certs = enable;
+    LOG_INFO("TLS certificate verification %s", enable ? "enabled" : "DISABLED");
 }
 
 tls_context_t *tls_connect(const char *host, int port) {
@@ -49,6 +56,13 @@ tls_context_t *tls_connect(const char *host, int port) {
     esp_tls_cfg_t cfg = {
         .timeout_ms = 10000,
     };
+
+    if (g_verify_certs) {
+        cfg.crt_bundle_attach = esp_crt_bundle_attach;
+    } else {
+        LOG_WARN("TLS connecting to %s:%d WITHOUT certificate verification", host, port);
+        cfg.skip_common_name = true;
+    }
 
     esp_tls_t *tls = esp_tls_conn_http_new(NULL, &cfg);
     if (!tls) {
@@ -161,7 +175,19 @@ struct tls_context {
 
 static mbedtls_entropy_context g_entropy;
 static mbedtls_ctr_drbg_context g_ctr_drbg;
+static mbedtls_x509_crt g_ca_certs;
 static volatile bool g_tls_initialized = false;
+static bool g_verify_certs = true;
+static bool g_ca_loaded = false;
+
+/* Common system CA certificate paths (Linux/macOS) */
+static const char *ca_cert_paths[] = {
+    "/etc/ssl/certs/ca-certificates.crt",   /* Debian/Ubuntu */
+    "/etc/pki/tls/certs/ca-bundle.crt",     /* Fedora/RHEL */
+    "/etc/ssl/cert.pem",                     /* macOS, Alpine */
+    "/usr/local/etc/openssl/cert.pem",       /* macOS Homebrew OpenSSL */
+    NULL
+};
 
 int apis_tls_init(void) {
     if (g_tls_initialized) {
@@ -170,6 +196,7 @@ int apis_tls_init(void) {
 
     mbedtls_entropy_init(&g_entropy);
     mbedtls_ctr_drbg_init(&g_ctr_drbg);
+    mbedtls_x509_crt_init(&g_ca_certs);
 
     const char *pers = "apis_tls_client";
     int ret = mbedtls_ctr_drbg_seed(&g_ctr_drbg, mbedtls_entropy_func,
@@ -183,9 +210,30 @@ int apis_tls_init(void) {
         return -1;
     }
 
+    /* Load system CA certificates for server verification */
+    g_ca_loaded = false;
+    for (int i = 0; ca_cert_paths[i] != NULL; i++) {
+        ret = mbedtls_x509_crt_parse_file(&g_ca_certs, ca_cert_paths[i]);
+        if (ret == 0 || ret > 0) {
+            /* ret > 0 means some certs failed but others loaded — acceptable */
+            LOG_INFO("Loaded CA certificates from %s", ca_cert_paths[i]);
+            g_ca_loaded = true;
+            break;
+        }
+    }
+    if (!g_ca_loaded) {
+        LOG_WARN("No system CA certificates found — TLS connections will fail "
+                 "unless verification is disabled (offline-first: this is OK)");
+    }
+
     g_tls_initialized = true;
     LOG_INFO("TLS subsystem initialized (mbedTLS)");
     return 0;
+}
+
+void tls_client_set_verify(bool enable) {
+    g_verify_certs = enable;
+    LOG_INFO("TLS certificate verification %s", enable ? "enabled" : "DISABLED");
 }
 
 tls_context_t *tls_connect(const char *host, int port) {
@@ -230,12 +278,18 @@ tls_context_t *tls_connect(const char *host, int port) {
         return NULL;
     }
 
-    /* S8-C1 fix: Require certificate verification to prevent MITM attacks.
-     * In production, load a CA bundle via mbedtls_x509_crt_parse() and pass to
-     * mbedtls_ssl_conf_ca_chain(). Without a loaded CA chain, connections to
-     * servers with valid certificates will still succeed if the system CA store
-     * is configured, but self-signed certificates will be correctly rejected. */
-    mbedtls_ssl_conf_authmode(&ctx->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+    if (g_verify_certs) {
+        mbedtls_ssl_conf_authmode(&ctx->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+        if (g_ca_loaded) {
+            mbedtls_ssl_conf_ca_chain(&ctx->conf, &g_ca_certs, NULL);
+        } else {
+            LOG_ERROR("TLS verification required but no CA certificates loaded — "
+                      "connection to %s:%d will likely fail", host, port);
+        }
+    } else {
+        LOG_WARN("TLS connecting to %s:%d WITHOUT certificate verification", host, port);
+        mbedtls_ssl_conf_authmode(&ctx->conf, MBEDTLS_SSL_VERIFY_NONE);
+    }
     mbedtls_ssl_conf_rng(&ctx->conf, mbedtls_ctr_drbg_random, &g_ctr_drbg);
 
     ret = mbedtls_ssl_setup(&ctx->ssl, &ctx->conf);
@@ -333,8 +387,10 @@ void apis_tls_cleanup(void) {
         return;
     }
 
+    mbedtls_x509_crt_free(&g_ca_certs);
     mbedtls_ctr_drbg_free(&g_ctr_drbg);
     mbedtls_entropy_free(&g_entropy);
+    g_ca_loaded = false;
     g_tls_initialized = false;
     LOG_INFO("TLS subsystem cleaned up");
 }
@@ -362,6 +418,11 @@ struct tls_context {
 int apis_tls_init(void) {
     LOG_INFO("TLS subsystem initialized (stub - no TLS library available)");
     return 0;
+}
+
+void tls_client_set_verify(bool enable) {
+    (void)enable;
+    /* No-op: TLS not available */
 }
 
 tls_context_t *tls_connect(const char *host, int port) {

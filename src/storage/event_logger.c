@@ -59,7 +59,11 @@ static bool g_initialized = false;
 event_logger_config_t event_logger_config_defaults(void) {
     event_logger_config_t config;
     memset(&config, 0, sizeof(config));
+#ifdef APIS_PLATFORM_ESP32
+    snprintf(config.db_path, sizeof(config.db_path), "/data/detections.db");
+#else
     snprintf(config.db_path, sizeof(config.db_path), "./data/detections.db");
+#endif
     config.min_free_mb = MIN_FREE_SPACE_MB;
     config.prune_days = DEFAULT_PRUNE_DAYS;
     return config;
@@ -414,15 +418,16 @@ int event_logger_get_events(
         return -1;
     }
 
-    // Bind parameters
+    // Bind parameters — use SQLITE_TRANSIENT for caller-provided strings
+    // to avoid use-after-free if caller's buffer goes out of scope before step()
     int bind_idx = 1;
     if (since_timestamp && until_timestamp) {
-        sqlite3_bind_text(stmt, bind_idx++, since_timestamp, -1, SQLITE_STATIC);
-        sqlite3_bind_text(stmt, bind_idx++, until_timestamp, -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, bind_idx++, since_timestamp, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, bind_idx++, until_timestamp, -1, SQLITE_TRANSIENT);
     } else if (since_timestamp) {
-        sqlite3_bind_text(stmt, bind_idx++, since_timestamp, -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, bind_idx++, since_timestamp, -1, SQLITE_TRANSIENT);
     } else if (until_timestamp) {
-        sqlite3_bind_text(stmt, bind_idx++, until_timestamp, -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, bind_idx++, until_timestamp, -1, SQLITE_TRANSIENT);
     }
     (void)bind_idx; // Suppress unused variable warning after final bind
 
@@ -727,7 +732,7 @@ int event_logger_clear_clip_reference(const char *clip_path) {
         return -1;
     }
 
-    sqlite3_bind_text(stmt, 1, clip_path, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 1, clip_path, -1, SQLITE_TRANSIENT);
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 
