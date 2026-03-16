@@ -129,15 +129,15 @@ Single source of truth for all bugs, review findings, and technical debt.
 
 | ID | Date | Sev | Context | Summary | Status | Fixed In | Notes |
 |----|------|-----|---------|---------|--------|----------|-------|
-| R-081 | 2026-03-16 | HIGH | CMakeLists.txt:154-308 | 6 test targets (test_camera, test_motion, test_tracker, test_classifier, test_event_logger, test_clip_recorder) only build when `NOT APIS_PLATFORM STREQUAL "test"` — they are excluded from CI/test builds entirely. Detection pipeline (tracker, classifier, motion) has zero CI coverage | open | | Pattern: tests-excluded-from-ci |
-| R-082 | 2026-03-16 | MED | tests/test_safety_layer.c:51-57 | RUN_TEST macro unconditionally increments `tests_passed` and prints PASS after calling test function — if TEST_ASSERT fails and returns early, the test is still counted as passed. Masks real failures in safety-critical test suite | open | | Pattern: run-test-always-pass |
-| R-083 | 2026-03-16 | MED | tests/test_button_handler.c (RUN_TEST macro) | Same RUN_TEST always-pass bug as R-082 — test_button_handler.c defines its own RUN_TEST that always increments tests_passed after test_func() returns, regardless of whether TEST_ASSERT fired | open | | Pattern: run-test-always-pass |
-| R-084 | 2026-03-16 | MED | tests/test_server_comm.c:30-38 | TEST_ASSERT macro does not return on failure — both PASS and FAIL branches increment their counters but execution continues to subsequent assertions. A failing assertion does not abort the test, so later assertions may operate on invalid state and produce misleading results | open | | Pattern: test-assert-no-early-return |
-| R-085 | 2026-03-16 | MED | tests/test_servo_controller.c:22-30 | Same non-aborting TEST_ASSERT pattern as R-084 — test continues after failure, subsequent assertions may be meaningless | open | | Pattern: test-assert-no-early-return |
-| R-086 | 2026-03-16 | MED | tests/test_targeting.c:29-37 | Same non-aborting TEST_ASSERT pattern as R-084 — targeting tests continue after assertion failures | open | | Pattern: test-assert-no-early-return |
-| R-087 | 2026-03-16 | MED | tests/test_edge_telemetry.c:12-20 | Same non-aborting TEST_ASSERT pattern as R-084 — edge telemetry tests continue after assertion failures | open | | Pattern: test-assert-no-early-return |
-| R-088 | 2026-03-16 | MED | tests/test_shadow_lane_gate.c:8-16 | Same non-aborting TEST_ASSERT pattern as R-084 — shadow lane gate tests continue after assertion failures | open | | Pattern: test-assert-no-early-return |
-| R-089 | 2026-03-16 | MED | tests/test_clip_uploader.c (TEST_ASSERT macro) | Same non-aborting TEST_ASSERT pattern as R-084 — clip uploader tests continue after assertion failures | open | | Pattern: test-assert-no-early-return |
+| R-081 | 2026-03-16 | HIGH | CMakeLists.txt:154-308 | 6 test targets (test_camera, test_motion, test_tracker, test_classifier, test_event_logger, test_clip_recorder) only build when `NOT APIS_PLATFORM STREQUAL "test"` — they are excluded from CI/test builds entirely. Detection pipeline (tracker, classifier, motion) has zero CI coverage | verified-fixed | 08b8c91 | Pattern: tests-excluded-from-ci |
+| R-082 | 2026-03-16 | MED | tests/test_safety_layer.c:51-57 | RUN_TEST macro unconditionally increments `tests_passed` and prints PASS after calling test function — if TEST_ASSERT fails and returns early, the test is still counted as passed. Masks real failures in safety-critical test suite | verified-fixed | 6db83cc | Pattern: run-test-always-pass |
+| R-083 | 2026-03-16 | MED | tests/test_button_handler.c (RUN_TEST macro) | Same RUN_TEST always-pass bug as R-082 — test_button_handler.c defines its own RUN_TEST that always increments tests_passed after test_func() returns, regardless of whether TEST_ASSERT fired | verified-fixed | 6db83cc | Pattern: run-test-always-pass |
+| R-084 | 2026-03-16 | MED | tests/test_server_comm.c:30-38 | TEST_ASSERT macro does not return on failure — both PASS and FAIL branches increment their counters but execution continues to subsequent assertions. A failing assertion does not abort the test, so later assertions may operate on invalid state and produce misleading results | verified-fixed | 6db83cc | Pattern: test-assert-no-early-return |
+| R-085 | 2026-03-16 | MED | tests/test_servo_controller.c:22-30 | Same non-aborting TEST_ASSERT pattern as R-084 — test continues after failure, subsequent assertions may be meaningless | verified-fixed | 6db83cc | Pattern: test-assert-no-early-return |
+| R-086 | 2026-03-16 | MED | tests/test_targeting.c:29-37 | Same non-aborting TEST_ASSERT pattern as R-084 — targeting tests continue after assertion failures | verified-fixed | 6db83cc | Pattern: test-assert-no-early-return |
+| R-087 | 2026-03-16 | MED | tests/test_edge_telemetry.c:12-20 | Same non-aborting TEST_ASSERT pattern as R-084 — edge telemetry tests continue after assertion failures | not-reproducible | | File does not exist in repository |
+| R-088 | 2026-03-16 | MED | tests/test_shadow_lane_gate.c:8-16 | Same non-aborting TEST_ASSERT pattern as R-084 — shadow lane gate tests continue after assertion failures | not-reproducible | | File does not exist in repository |
+| R-089 | 2026-03-16 | MED | tests/test_clip_uploader.c (TEST_ASSERT macro) | Same non-aborting TEST_ASSERT pattern as R-084 — clip uploader tests continue after assertion failures | verified-fixed | 6db83cc | Pattern: test-assert-no-early-return |
 | R-090 | 2026-03-16 | LOW | hal/esp32/camera_esp32.c:129 | `ensure_qr_preview_capacity()` uses `malloc()` for QR preview buffer instead of `heap_caps_malloc(MALLOC_CAP_SPIRAM)` — QR preview at QVGA is 320*240*3 = 230KB, dangerously large for internal SRAM on ESP32 | open | | Pattern: large-alloc-not-psram |
 | R-091 | 2026-03-16 | MED | hal/esp32/camera_esp32.c:update_last_qr_frame() | Lock-free odd/even versioning for QR frame sharing — writer sets version to odd, copies data, sets version to even. Reader checks version before and after memcpy. On ESP32 Xtensa with no memory barriers between version write and memcpy, compiler or CPU reordering can produce torn reads. Needs `__sync_synchronize()` or volatile stores | open | | Pattern: lock-free-no-barrier |
 | R-092 | 2026-03-16 | LOW | hal/pi/camera_pi.c:camera_read_capture() | `camera_read_capture` does not populate the `jpeg_frame` output parameter — initializes it to empty (data=NULL, size=0) without any actual JPEG encoding. Callers expecting JPEG data from Pi platform will silently get nothing | open | | Pattern: stub-returns-empty |
@@ -203,7 +203,7 @@ Single source of truth for all bugs, review findings, and technical debt.
 **Scope:** tests/test_safety_layer.c, tests/test_button_handler.c, tests/test_server_comm.c, tests/test_servo_controller.c, tests/test_targeting.c, tests/test_edge_telemetry.c, tests/test_shadow_lane_gate.c, tests/test_clip_uploader.c
 **Effort:** M
 **Risk:** Medium — fixing assertions may reveal currently-hidden test failures that need investigation
-**Status:** open
+**Status:** verified-fixed (6db83cc). R-087/R-088 files do not exist — marked not-reproducible. Fix exposed 2 pre-existing failures in test_targeting.
 
 ### RC-006: large-stack-buffer-net-task
 
@@ -258,7 +258,7 @@ Single source of truth for all bugs, review findings, and technical debt.
 **Scope:** CMakeLists.txt, tests/ (may need new mock stubs)
 **Effort:** M
 **Risk:** Medium — tests may fail when first enabled, revealing bugs hidden by lack of CI coverage
-**Status:** open
+**Status:** verified-fixed (08b8c91). Added test-platform HAL stub (hal/test/camera_test.c). All 6 targets build and run. test_event_logger has 3 pre-existing failures now exposed.
 
 ### Standalone Findings (no cluster)
 
