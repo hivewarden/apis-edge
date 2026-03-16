@@ -21,22 +21,7 @@
 #include <string.h>
 #include <unistd.h>
 
-// ============================================================================
-// Test Framework
-// ============================================================================
-
-static int tests_passed = 0;
-static int tests_failed = 0;
-
-#define TEST_ASSERT(cond, msg) do { \
-    if (cond) { \
-        printf("  PASS: %s\n", msg); \
-        tests_passed++; \
-    } else { \
-        printf("  FAIL: %s\n", msg); \
-        tests_failed++; \
-    } \
-} while(0)
+#include "test_framework.h"
 
 // ============================================================================
 // Test: Initialization
@@ -413,22 +398,19 @@ int main(void) {
     // Initialize logging (suppress during tests)
     log_init(NULL, LOG_LEVEL_ERROR, false);
 
-    printf("=== Clip Uploader Tests ===\n");
+    TEST_BEGIN("Clip Uploader");
 
-    test_initialization();
-    test_status_names();
-    test_exponential_backoff();
-    test_queue_operations();
-    test_queue_limit();
-    test_statistics();
-    test_start_stop();
-    test_cleanup();
-    test_null_params();
-    test_retry_state_reset();
-    test_fifo_ordering();
+    RUN_TEST(test_initialization);
+    RUN_TEST(test_status_names);
+    RUN_TEST(test_exponential_backoff);
+    RUN_TEST(test_queue_operations);
+    RUN_TEST(test_queue_limit);
+    RUN_TEST(test_statistics);
+    RUN_TEST(test_start_stop);
+    RUN_TEST(test_cleanup);
+    RUN_TEST(test_null_params);
+    RUN_TEST(test_retry_state_reset);
+    RUN_TEST(test_fifo_ordering);
 
-    printf("\n=== Results: %d passed, %d failed ===\n",
-           tests_passed, tests_failed);
-
-    return tests_failed > 0 ? 1 : 0;
+    TEST_END();
 }

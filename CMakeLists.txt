@@ -150,162 +150,174 @@ if(NOT APIS_PLATFORM STREQUAL "test")
     endif()
 endif()
 
-# Hardware-dependent tests (not built in test mode)
-if(NOT APIS_PLATFORM STREQUAL "test")
-    # Test executable
-    add_executable(test_camera
-        tests/test_camera.c
-        src/config.c
-        src/log.c
+# Detection pipeline and storage tests (all platforms)
+# Camera test executable
+add_executable(test_camera
+    tests/test_camera.c
+    src/config.c
+    src/log.c
+)
+
+if(APIS_PLATFORM STREQUAL "pi")
+    target_sources(test_camera PRIVATE hal/pi/camera_pi.c)
+    target_link_libraries(test_camera
+        ${V4L2_LIBRARIES}
+        ${YAML_LIBRARIES}
+        pthread
+        m
     )
-
-    if(APIS_PLATFORM STREQUAL "pi")
-        target_sources(test_camera PRIVATE hal/pi/camera_pi.c)
-        target_link_libraries(test_camera
-            ${V4L2_LIBRARIES}
-            ${YAML_LIBRARIES}
-            pthread
-            m
-        )
-        target_include_directories(test_camera PRIVATE
-            ${V4L2_INCLUDE_DIRS}
-            ${YAML_INCLUDE_DIRS}
-        )
-    endif()
-
     target_include_directories(test_camera PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/hal
+        ${V4L2_INCLUDE_DIRS}
+        ${YAML_INCLUDE_DIRS}
     )
+elseif(APIS_PLATFORM STREQUAL "test")
+    target_sources(test_camera PRIVATE hal/test/camera_test.c)
+    target_link_libraries(test_camera pthread m)
+endif()
 
-    # Motion detection test executable
-    add_executable(test_motion
-        tests/test_motion.c
-        src/detection/motion.c
-        src/config.c
-        src/log.c
+target_include_directories(test_camera PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/hal
+)
+
+# Motion detection test executable
+add_executable(test_motion
+    tests/test_motion.c
+    src/detection/motion.c
+    src/config.c
+    src/log.c
+)
+
+if(APIS_PLATFORM STREQUAL "pi")
+    target_link_libraries(test_motion
+        ${YAML_LIBRARIES}
+        pthread
+        m
     )
-
-    if(APIS_PLATFORM STREQUAL "pi")
-        target_link_libraries(test_motion
-            ${YAML_LIBRARIES}
-            pthread
-            m
-        )
-        target_include_directories(test_motion PRIVATE
-            ${YAML_INCLUDE_DIRS}
-        )
-    endif()
-
     target_include_directories(test_motion PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/hal
+        ${YAML_INCLUDE_DIRS}
     )
+elseif(APIS_PLATFORM STREQUAL "test")
+    target_link_libraries(test_motion pthread m)
+endif()
 
-    # Tracker test executable
-    add_executable(test_tracker
-        tests/test_tracker.c
-        src/detection/tracker.c
-        src/config.c
-        src/log.c
+target_include_directories(test_motion PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/hal
+)
+
+# Tracker test executable
+add_executable(test_tracker
+    tests/test_tracker.c
+    src/detection/tracker.c
+    src/config.c
+    src/log.c
+)
+
+if(APIS_PLATFORM STREQUAL "pi")
+    target_link_libraries(test_tracker
+        ${YAML_LIBRARIES}
+        pthread
+        m
     )
-
-    if(APIS_PLATFORM STREQUAL "pi")
-        target_link_libraries(test_tracker
-            ${YAML_LIBRARIES}
-            pthread
-            m
-        )
-        target_include_directories(test_tracker PRIVATE
-            ${YAML_INCLUDE_DIRS}
-        )
-    endif()
-
     target_include_directories(test_tracker PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/hal
+        ${YAML_INCLUDE_DIRS}
     )
+elseif(APIS_PLATFORM STREQUAL "test")
+    target_link_libraries(test_tracker pthread m)
+endif()
 
-    # Classifier test executable
-    add_executable(test_classifier
-        tests/test_classifier.c
-        src/detection/tracker.c
-        src/detection/classifier.c
-        src/config.c
-        src/log.c
+target_include_directories(test_tracker PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/hal
+)
+
+# Classifier test executable
+add_executable(test_classifier
+    tests/test_classifier.c
+    src/detection/tracker.c
+    src/detection/classifier.c
+    src/config.c
+    src/log.c
+)
+
+if(APIS_PLATFORM STREQUAL "pi")
+    target_link_libraries(test_classifier
+        ${YAML_LIBRARIES}
+        pthread
+        m
     )
-
-    if(APIS_PLATFORM STREQUAL "pi")
-        target_link_libraries(test_classifier
-            ${YAML_LIBRARIES}
-            pthread
-            m
-        )
-        target_include_directories(test_classifier PRIVATE
-            ${YAML_INCLUDE_DIRS}
-        )
-    endif()
-
     target_include_directories(test_classifier PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/hal
+        ${YAML_INCLUDE_DIRS}
     )
+elseif(APIS_PLATFORM STREQUAL "test")
+    target_link_libraries(test_classifier pthread m)
+endif()
 
-    # Event logger test executable
-    add_executable(test_event_logger
-        tests/test_event_logger.c
-        src/storage/event_logger.c
-        src/storage/schema.c
-        src/config.c
-        src/log.c
+target_include_directories(test_classifier PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/hal
+)
+
+# Event logger test executable
+add_executable(test_event_logger
+    tests/test_event_logger.c
+    src/storage/event_logger.c
+    src/storage/schema.c
+    src/config.c
+    src/log.c
+)
+
+if(APIS_PLATFORM STREQUAL "pi")
+    target_link_libraries(test_event_logger
+        ${YAML_LIBRARIES}
+        ${SQLITE3_LIBRARIES}
+        pthread
+        m
     )
-
-    if(APIS_PLATFORM STREQUAL "pi")
-        target_link_libraries(test_event_logger
-            ${YAML_LIBRARIES}
-            ${SQLITE3_LIBRARIES}
-            pthread
-            m
-        )
-        target_include_directories(test_event_logger PRIVATE
-            ${YAML_INCLUDE_DIRS}
-            ${SQLITE3_INCLUDE_DIRS}
-        )
-    endif()
-
     target_include_directories(test_event_logger PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/hal
+        ${YAML_INCLUDE_DIRS}
+        ${SQLITE3_INCLUDE_DIRS}
     )
+elseif(APIS_PLATFORM STREQUAL "test")
+    target_link_libraries(test_event_logger pthread m ${SQLite3_LIBRARIES})
+    target_include_directories(test_event_logger PRIVATE ${SQLite3_INCLUDE_DIRS})
+endif()
 
-    # Clip recorder test executable
-    add_executable(test_clip_recorder
-        tests/test_clip_recorder.c
-        src/storage/rolling_buffer.c
-        src/storage/clip_recorder.c
-        src/storage/storage_manager.c
-        src/config.c
-        src/log.c
+target_include_directories(test_event_logger PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/hal
+)
+
+# Clip recorder test executable
+add_executable(test_clip_recorder
+    tests/test_clip_recorder.c
+    src/storage/rolling_buffer.c
+    src/storage/clip_recorder.c
+    src/storage/storage_manager.c
+    src/config.c
+    src/log.c
+)
+
+if(APIS_PLATFORM STREQUAL "pi")
+    target_link_libraries(test_clip_recorder
+        ${YAML_LIBRARIES}
+        ${FFMPEG_LIBRARIES}
+        pthread
+        m
     )
-
-    if(APIS_PLATFORM STREQUAL "pi")
-        target_link_libraries(test_clip_recorder
-            ${YAML_LIBRARIES}
-            ${FFMPEG_LIBRARIES}
-            pthread
-            m
-        )
-        target_include_directories(test_clip_recorder PRIVATE
-            ${YAML_INCLUDE_DIRS}
-            ${FFMPEG_INCLUDE_DIRS}
-        )
-    endif()
-
     target_include_directories(test_clip_recorder PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/hal
+        ${YAML_INCLUDE_DIRS}
+        ${FFMPEG_INCLUDE_DIRS}
     )
-endif() # NOT test platform
+elseif(APIS_PLATFORM STREQUAL "test")
+    target_link_libraries(test_clip_recorder pthread m)
+endif()
+
+target_include_directories(test_clip_recorder PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/hal
+)
 
 # S8-I-04: Test files implement their own TEST_ASSERT macros with no shared
 # test infrastructure or automatic discovery. Each test_*.c has its own main().
@@ -948,22 +960,20 @@ set_tests_properties(test_clip_uploader test_servo_controller test_coordinate_ma
     test_led_controller test_button_handler test_qr_scanner
     PROPERTIES LABELS "P2;peripheral")
 
-# Hardware-dependent tests (only on Pi/ESP32)
-if(NOT APIS_PLATFORM STREQUAL "test")
-    add_test(NAME test_camera COMMAND test_camera)
-    add_test(NAME test_motion COMMAND test_motion)
-    add_test(NAME test_tracker COMMAND test_tracker)
-    add_test(NAME test_classifier COMMAND test_classifier)
-    add_test(NAME test_event_logger COMMAND test_event_logger)
-    add_test(NAME test_clip_recorder COMMAND test_clip_recorder)
+# Detection pipeline and storage tests (all platforms)
+add_test(NAME test_camera COMMAND test_camera)
+add_test(NAME test_motion COMMAND test_motion)
+add_test(NAME test_tracker COMMAND test_tracker)
+add_test(NAME test_classifier COMMAND test_classifier)
+add_test(NAME test_event_logger COMMAND test_event_logger)
+add_test(NAME test_clip_recorder COMMAND test_clip_recorder)
 
-    set_tests_properties(test_motion test_tracker test_classifier
-        PROPERTIES LABELS "P1;detection")
-    set_tests_properties(test_event_logger test_clip_recorder
-        PROPERTIES LABELS "P2;storage")
-    set_tests_properties(test_camera
-        PROPERTIES LABELS "P3;hardware")
-endif()
+set_tests_properties(test_motion test_tracker test_classifier
+    PROPERTIES LABELS "P1;detection")
+set_tests_properties(test_event_logger test_clip_recorder
+    PROPERTIES LABELS "P2;storage")
+set_tests_properties(test_camera
+    PROPERTIES LABELS "P3;hardware")
 
 # Install targets (not available in test mode)
 if(NOT APIS_PLATFORM STREQUAL "test")
