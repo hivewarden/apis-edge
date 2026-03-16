@@ -12,24 +12,7 @@
 #include <math.h>
 #include <assert.h>
 
-// ============================================================================
-// Test Counters
-// ============================================================================
-
-static int tests_passed = 0;
-static int tests_failed = 0;
-
-#define TEST_ASSERT(condition, message) do { \
-    if (condition) { \
-        tests_passed++; \
-        printf("  PASS: %s\n", message); \
-    } else { \
-        tests_failed++; \
-        printf("  FAIL: %s (line %d)\n", message, __LINE__); \
-    } \
-} while(0)
-
-#define TEST_SECTION(name) printf("\n=== %s ===\n", name)
+#include "test_framework.h"
 
 // ============================================================================
 // Helper Functions
@@ -625,34 +608,24 @@ int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
 
-    printf("\n");
-    printf("==========================================================\n");
-    printf("  APIS Edge - Servo Controller Unit Tests\n");
-    printf("==========================================================\n");
+    TEST_BEGIN("Servo Controller");
 
-    // Run all tests
-    test_status_names();
-    test_axis_names();
-    test_angle_clamping();
-    test_angle_validation();
-    test_pwm_conversion();
-    test_pwm_round_trip();
-    test_not_initialized();
-    test_initialization();
-    test_movement();
-    test_immediate_movement();
-    test_single_axis_movement();
-    test_home_position();
-    test_statistics();
-    test_tilt_safety();
-    test_failure_callback();
-    test_cleanup_safety();
+    RUN_TEST(test_status_names);
+    RUN_TEST(test_axis_names);
+    RUN_TEST(test_angle_clamping);
+    RUN_TEST(test_angle_validation);
+    RUN_TEST(test_pwm_conversion);
+    RUN_TEST(test_pwm_round_trip);
+    RUN_TEST(test_not_initialized);
+    RUN_TEST(test_initialization);
+    RUN_TEST(test_movement);
+    RUN_TEST(test_immediate_movement);
+    RUN_TEST(test_single_axis_movement);
+    RUN_TEST(test_home_position);
+    RUN_TEST(test_statistics);
+    RUN_TEST(test_tilt_safety);
+    RUN_TEST(test_failure_callback);
+    RUN_TEST(test_cleanup_safety);
 
-    // Summary
-    printf("\n==========================================================\n");
-    printf("  Test Results: %d passed, %d failed\n",
-           tests_passed, tests_failed);
-    printf("==========================================================\n\n");
-
-    return tests_failed > 0 ? 1 : 0;
+    TEST_END();
 }

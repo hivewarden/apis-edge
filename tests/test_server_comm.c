@@ -20,22 +20,7 @@
 #include <string.h>
 #include <unistd.h>
 
-// ============================================================================
-// Test Framework
-// ============================================================================
-
-static int tests_passed = 0;
-static int tests_failed = 0;
-
-#define TEST_ASSERT(cond, msg) do { \
-    if (cond) { \
-        printf("  PASS: %s\n", msg); \
-        tests_passed++; \
-    } else { \
-        printf("  FAIL: %s\n", msg); \
-        tests_failed++; \
-    } \
-} while(0)
+#include "test_framework.h"
 
 // ============================================================================
 // Test: Initialization
@@ -301,21 +286,18 @@ int main(void) {
     // Initialize logging (suppress during tests)
     log_init(NULL, LOG_LEVEL_ERROR, false);
 
-    printf("=== Server Communication Tests ===\n");
+    TEST_BEGIN("Server Communication");
 
-    test_initialization();
-    test_status_names();
-    test_seconds_since_heartbeat();
-    test_start_stop();
-    test_no_server_config();
-    test_network_failure();
-    test_cleanup();
-    test_response_structure();
-    test_clock_drift_response_field();
-    test_config_sync_response_field();
+    RUN_TEST(test_initialization);
+    RUN_TEST(test_status_names);
+    RUN_TEST(test_seconds_since_heartbeat);
+    RUN_TEST(test_start_stop);
+    RUN_TEST(test_no_server_config);
+    RUN_TEST(test_network_failure);
+    RUN_TEST(test_cleanup);
+    RUN_TEST(test_response_structure);
+    RUN_TEST(test_clock_drift_response_field);
+    RUN_TEST(test_config_sync_response_field);
 
-    printf("\n=== Results: %d passed, %d failed ===\n",
-           tests_passed, tests_failed);
-
-    return tests_failed > 0 ? 1 : 0;
+    TEST_END();
 }

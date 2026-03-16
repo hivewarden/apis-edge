@@ -25,36 +25,14 @@
 #include "laser_controller.h"
 #include "button_handler.h"
 
-// ============================================================================
-// Test infrastructure
-// ============================================================================
+// Forward declare cleanup helper (used by TEST_SETUP)
+static void cleanup_all(void);
 
-static int tests_passed = 0;
-static int tests_failed = 0;
+// Define setup/teardown BEFORE including test_framework.h
+#define TEST_SETUP()    cleanup_all()
+#define TEST_TEARDOWN() ((void)0)
 
-#define TEST_ASSERT(condition, message) do { \
-    if (!(condition)) { \
-        printf("  FAIL: %s (line %d)\n", message, __LINE__); \
-        tests_failed++; \
-        return; \
-    } \
-} while(0)
-
-#define TEST_ASSERT_EQ(a, b, message) do { \
-    if ((a) != (b)) { \
-        printf("  FAIL: %s - expected %d, got %d (line %d)\n", message, (int)(b), (int)(a), __LINE__); \
-        tests_failed++; \
-        return; \
-    } \
-} while(0)
-
-#define RUN_TEST(test_func) do { \
-    printf("Running %s...\n", #test_func); \
-    cleanup_all(); \
-    test_func(); \
-    tests_passed++; \
-    printf("  PASS\n"); \
-} while(0)
+#include "test_framework.h"
 
 // Time utility
 static void sleep_ms(int ms) {
@@ -741,19 +719,15 @@ void test_safety_laser_off_always_succeeds(void) {
 // ============================================================================
 
 int main(void) {
-    printf("\n==========================================================\n");
-    printf("  Safety Layer Tests\n");
-    printf("==========================================================\n\n");
+    TEST_BEGIN("Safety Layer");
 
     // Initialization Tests
-    printf("--- Initialization Tests ---\n");
     RUN_TEST(test_init_succeeds);
     RUN_TEST(test_double_init_succeeds);
     RUN_TEST(test_initial_state_is_normal);
     RUN_TEST(test_initial_detection_is_inactive);
 
     // Safety Check Tests
-    printf("\n--- Safety Check Tests ---\n");
     RUN_TEST(test_check_fails_not_initialized);
     RUN_TEST(test_check_all_fails_without_setup);
     RUN_TEST(test_check_armed_passes_when_armed);
@@ -768,7 +742,6 @@ int main(void) {
     RUN_TEST(test_check_multiple_failures);
 
     // Watchdog Tests
-    printf("\n--- Watchdog Tests ---\n");
     RUN_TEST(test_watchdog_starts_with_feed);
     RUN_TEST(test_watchdog_feed_resets);
     RUN_TEST(test_watchdog_remaining_decreases);
@@ -777,7 +750,6 @@ int main(void) {
     RUN_TEST(test_watchdog_timeout_enters_safe_mode);
 
     // Voltage/Brownout Tests
-    printf("\n--- Voltage/Brownout Tests ---\n");
     RUN_TEST(test_voltage_set_and_get);
     RUN_TEST(test_voltage_warning_detected);
     RUN_TEST(test_voltage_warning_not_detected);
@@ -787,57 +759,44 @@ int main(void) {
     RUN_TEST(test_brownout_check_passes);
 
     // Safe Mode Tests
-    printf("\n--- Safe Mode Tests ---\n");
     RUN_TEST(test_enter_safe_mode);
     RUN_TEST(test_checks_fail_in_safe_mode);
     RUN_TEST(test_reset_from_safe_mode);
     RUN_TEST(test_reset_when_not_in_safe_mode);
 
     // Detection State Tests
-    printf("\n--- Detection State Tests ---\n");
     RUN_TEST(test_detection_set_and_get);
 
     // Callback Tests
-    printf("\n--- Callback Tests ---\n");
     RUN_TEST(test_state_callback_invoked);
     RUN_TEST(test_failure_callback_invoked);
     RUN_TEST(test_null_callbacks_allowed);
 
     // Statistics Tests
-    printf("\n--- Statistics Tests ---\n");
     RUN_TEST(test_stats_initial_values);
     RUN_TEST(test_stats_track_checks);
     RUN_TEST(test_stats_track_failures);
     RUN_TEST(test_stats_uptime_increases);
 
     // Name Conversion Tests
-    printf("\n--- Name Conversion Tests ---\n");
     RUN_TEST(test_safety_state_name);
     RUN_TEST(test_safety_status_name);
     RUN_TEST(test_safety_check_name);
 
     // Cleanup Tests
-    printf("\n--- Cleanup Tests ---\n");
     RUN_TEST(test_cleanup_resets_state);
     RUN_TEST(test_cleanup_when_not_initialized);
     RUN_TEST(test_operations_fail_after_cleanup);
 
     // Integration Tests
-    printf("\n--- Integration Tests ---\n");
     RUN_TEST(test_full_safety_flow);
     RUN_TEST(test_upward_tilt_always_rejected);
 
     // Wrapper Function Tests
-    printf("\n--- Wrapper Function Tests ---\n");
     RUN_TEST(test_safety_laser_on_fails_without_setup);
     RUN_TEST(test_safety_laser_on_succeeds_with_setup);
     RUN_TEST(test_safety_laser_on_blocked_in_safe_mode);
     RUN_TEST(test_safety_laser_off_always_succeeds);
 
-    // Results
-    printf("\n==========================================================\n");
-    printf("  Test Results: %d passed, %d failed\n", tests_passed, tests_failed);
-    printf("==========================================================\n\n");
-
-    return tests_failed > 0 ? 1 : 0;
+    TEST_END();
 }

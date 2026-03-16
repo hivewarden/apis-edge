@@ -17,36 +17,11 @@
 
 #include "button_handler.h"
 
-// ============================================================================
-// Test infrastructure
-// ============================================================================
+// Define setup/teardown BEFORE including test_framework.h
+#define TEST_SETUP()    button_handler_cleanup()
+#define TEST_TEARDOWN() ((void)0)
 
-static int tests_passed = 0;
-static int tests_failed = 0;
-
-#define TEST_ASSERT(condition, message) do { \
-    if (!(condition)) { \
-        printf("  FAIL: %s (line %d)\n", message, __LINE__); \
-        tests_failed++; \
-        return; \
-    } \
-} while(0)
-
-#define TEST_ASSERT_EQ(a, b, message) do { \
-    if ((a) != (b)) { \
-        printf("  FAIL: %s - expected %d, got %d (line %d)\n", message, (int)(b), (int)(a), __LINE__); \
-        tests_failed++; \
-        return; \
-    } \
-} while(0)
-
-#define RUN_TEST(test_func) do { \
-    printf("Running %s...\n", #test_func); \
-    button_handler_cleanup(); \
-    test_func(); \
-    tests_passed++; \
-    printf("  PASS\n"); \
-} while(0)
+#include "test_framework.h"
 
 // Test-only function declarations (defined in implementation)
 extern void button_handler_test_simulate_press(bool pressed);
@@ -643,12 +618,9 @@ void test_undo_not_triggered_after_window(void) {
 // ============================================================================
 
 int main(void) {
-    printf("\n==========================================================\n");
-    printf("  Button Handler Tests\n");
-    printf("==========================================================\n\n");
+    TEST_BEGIN("Button Handler");
 
     // Initialization Tests
-    printf("--- Initialization Tests ---\n");
     RUN_TEST(test_init_without_buzzer);
     RUN_TEST(test_init_with_buzzer);
     RUN_TEST(test_double_init_fails);
@@ -656,7 +628,6 @@ int main(void) {
     RUN_TEST(test_initial_button_state_is_released);
 
     // Mode Transition Tests
-    printf("\n--- Mode Transition Tests ---\n");
     RUN_TEST(test_arm_from_disarmed);
     RUN_TEST(test_disarm_from_armed);
     RUN_TEST(test_emergency_stop_from_armed);
@@ -666,7 +637,6 @@ int main(void) {
     RUN_TEST(test_set_mode_directly);
 
     // Button Press Simulation Tests
-    printf("\n--- Button Press Simulation Tests ---\n");
     RUN_TEST(test_button_press_detection);
     RUN_TEST(test_button_release_detection);
     RUN_TEST(test_short_press_toggles_arm_state);
@@ -677,18 +647,15 @@ int main(void) {
     RUN_TEST(test_undo_within_window);
 
     // Callback Tests
-    printf("\n--- Callback Tests ---\n");
     RUN_TEST(test_event_callback_invoked);
     RUN_TEST(test_mode_callback_invoked);
     RUN_TEST(test_null_callbacks_allowed);
 
     // Buzzer Tests
-    printf("\n--- Buzzer Tests ---\n");
     RUN_TEST(test_buzzer_enable_disable);
     RUN_TEST(test_buzzer_function_does_not_crash);
 
     // Statistics Tests
-    printf("\n--- Statistics Tests ---\n");
     RUN_TEST(test_stats_initial_values);
     RUN_TEST(test_stats_tracks_arm_disarm);
     RUN_TEST(test_stats_uptime_increases);
@@ -696,29 +663,21 @@ int main(void) {
     RUN_TEST(test_stats_null_param_error);
 
     // Name Conversion Tests
-    printf("\n--- Name Conversion Tests ---\n");
     RUN_TEST(test_button_state_name);
     RUN_TEST(test_system_mode_name);
     RUN_TEST(test_button_event_name);
     RUN_TEST(test_button_status_name);
 
     // Cleanup Tests
-    printf("\n--- Cleanup Tests ---\n");
     RUN_TEST(test_cleanup_resets_state);
     RUN_TEST(test_cleanup_when_not_initialized);
     RUN_TEST(test_operations_fail_after_cleanup);
 
     // Edge Cases
-    printf("\n--- Edge Cases ---\n");
     RUN_TEST(test_medium_press_ignored);
     RUN_TEST(test_rapid_presses_debounced);
     RUN_TEST(test_update_when_not_initialized);
     RUN_TEST(test_undo_not_triggered_after_window);
 
-    // Results
-    printf("\n==========================================================\n");
-    printf("  Test Results: %d passed, %d failed\n", tests_passed, tests_failed);
-    printf("==========================================================\n\n");
-
-    return tests_failed > 0 ? 1 : 0;
+    TEST_END();
 }

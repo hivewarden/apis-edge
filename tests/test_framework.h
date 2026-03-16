@@ -208,4 +208,23 @@ static const char *tf_suite_name = "unknown";
     return; \
 } while(0)
 
+/* ── Backward-compatible aliases for legacy test files ── */
+/* These map the old TEST_ASSERT/TEST_ASSERT_EQ macros to the correct    */
+/* framework macros that abort on failure and report via tf_current_test_failed. */
+
+#define TEST_ASSERT(cond, msg)        ASSERT_TRUE(cond, msg)
+
+#define TEST_ASSERT_EQ(actual, expected, msg) do { \
+    long long _e = (long long)(expected); \
+    long long _a = (long long)(actual); \
+    if (_e != _a) { \
+        printf("    %sFAIL%s: %s (%s:%d)\n", TF_RED, TF_RESET, (msg), __FILE__, __LINE__); \
+        printf("      Expected: %lld, Got: %lld\n", _e, _a); \
+        tf_current_test_failed = 1; \
+        return; \
+    } \
+} while(0)
+
+#define TEST_SECTION(name) printf("\n=== %s ===\n", name)
+
 #endif /* APIS_TEST_FRAMEWORK_H */
