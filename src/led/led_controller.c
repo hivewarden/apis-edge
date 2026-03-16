@@ -31,9 +31,9 @@
 #define GPIO_LED_GREEN  25
 #define GPIO_LED_BLUE   12
 #elif defined(APIS_PLATFORM_ESP32)
-#define GPIO_LED_RED    33  // Built-in red LED on ESP32-CAM
-#define GPIO_LED_GREEN  -1  // Not available
-#define GPIO_LED_BLUE   -1  // Not available
+#define GPIO_LED_RED    3   // XIAO D2
+#define GPIO_LED_GREEN  4   // XIAO D3
+#define GPIO_LED_BLUE   5   // XIAO D4
 #endif
 
 // ============================================================================
@@ -573,5 +573,8 @@ int led_controller_active_summary(char *buf, int buf_len) {
 }
 
 bool led_controller_is_initialized(void) {
-    return g_initialized;
+    LED_LOCK();
+    bool init = g_initialized;
+    LED_UNLOCK();
+    return init;
 }

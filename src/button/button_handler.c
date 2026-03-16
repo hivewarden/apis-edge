@@ -126,6 +126,11 @@ static void gpio_init_button(void) {
 
 static void gpio_init_buzzer(void) {
     if (!ctx.buzzer_enabled) return;
+    if (GPIO_BUZZER_PIN < 0) {
+        ctx.buzzer_enabled = false;
+        LOG_INFO("Buzzer disabled - no buzzer pin configured for this board");
+        return;
+    }
 
 #if defined(APIS_PLATFORM_PI)
     // TODO: Implement real PWM buzzer using pigpio or gpiod library
@@ -170,6 +175,7 @@ static void gpio_init_buzzer(void) {
  */
 static void buzzer_tone(uint32_t frequency_hz, uint32_t duration_ms) {
     if (!ctx.buzzer_enabled) return;
+    if (GPIO_BUZZER_PIN < 0) return;
 
 #if defined(APIS_PLATFORM_PI)
     // Real Pi implementation would generate PWM tone
@@ -451,7 +457,7 @@ button_status_t button_handler_init(bool enable_buzzer) {
     // (memset clears entire context while lock is held, which is safe
     // because we verified not initialized)
     memset(&ctx, 0, sizeof(ctx));
-    ctx.buzzer_enabled = enable_buzzer;
+    ctx.buzzer_enabled = enable_buzzer && GPIO_BUZZER_PIN >= 0;
     ctx.system_mode = SYSTEM_MODE_DISARMED;
     ctx.init_time = get_time_ms();
 
@@ -463,12 +469,18 @@ button_status_t button_handler_init(bool enable_buzzer) {
 
     BUTTON_UNLOCK();
 
-    LOG_INFO("Button handler initialized (buzzer: %s)", enable_buzzer ? "enabled" : "disabled");
+    LOG_INFO("Button handler initialized (buzzer: %s)",
+             ctx.buzzer_enabled ? "enabled" : "disabled");
     return BUTTON_OK;
 }
 
 void button_handler_update(void) {
-    if (!ctx.initialized) return;
+    BUTTON_LOCK();
+    if (!ctx.initialized) {
+        BUTTON_UNLOCK();
+        return;
+    }
+    BUTTON_UNLOCK();
 
     // C7-H3 fix: Collect deferred actions under lock, flush after unlock
     deferred_button_actions_t deferred_actions;
@@ -612,9 +624,9 @@ void button_handler_buzzer(uint32_t frequency_hz, uint32_t duration_ms) {
 
 void button_handler_set_buzzer_enabled(bool enable) {
     BUTTON_LOCK();
-    ctx.buzzer_enabled = enable;
+    ctx.buzzer_enabled = enable && GPIO_BUZZER_PIN >= 0;
     BUTTON_UNLOCK();
-    LOG_INFO("Buzzer %s", enable ? "enabled" : "disabled");
+    LOG_INFO("Buzzer %s", (enable && GPIO_BUZZER_PIN >= 0) ? "enabled" : "disabled");
 }
 
 bool button_handler_is_buzzer_enabled(void) {
@@ -651,7 +663,10 @@ button_status_t button_handler_get_stats(button_stats_t *stats) {
 }
 
 bool button_handler_is_initialized(void) {
-    return ctx.initialized;
+    BUTTON_LOCK();
+    bool init = ctx.initialized;
+    BUTTON_UNLOCK();
+    return init;
 }
 
 const char *button_state_name(button_state_t state) {
@@ -713,7 +728,7 @@ void button_handler_cleanup(void) {
 #elif defined(APIS_PLATFORM_ESP32)
     // ESP32: Reset GPIO pins to default state
     gpio_reset_pin(GPIO_BUTTON_PIN);
-    if (ctx.buzzer_enabled) {
+    if (ctx.buzzer_enabled && GPIO_BUZZER_PIN >= 0) {
         ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0);
         gpio_reset_pin(GPIO_BUZZER_PIN);
     }
