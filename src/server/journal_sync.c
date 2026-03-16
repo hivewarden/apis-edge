@@ -4,6 +4,8 @@
 #include "http_utils.h"
 #include "log.h"
 #include "platform.h"
+#include "psram_alloc.h"
+#include "http_recv.h"
 #include "secure_util.h"
 #include "telemetry_journal.h"
 #include "tls_client.h"
@@ -56,7 +58,7 @@ const char *journal_sync_status_name(journal_sync_status_t status) {
 }
 
 static int build_payload(char **payload_out, char ids[][EDGE_SYNC_ID_MAX], int *id_count_out) {
-    telemetry_journal_entry_t entries[TELEMETRY_JOURNAL_BATCH_MAX];
+    telemetry_journal_entry_t *entries = NULL;
     cJSON *root = NULL;
     cJSON *items = NULL;
     int entry_count;
@@ -68,11 +70,18 @@ static int build_payload(char **payload_out, char ids[][EDGE_SYNC_ID_MAX], int *
     *payload_out = NULL;
     *id_count_out = 0;
 
+    entries = psram_malloc(sizeof(telemetry_journal_entry_t) * TELEMETRY_JOURNAL_BATCH_MAX);
+    if (entries == NULL) {
+        return -1;
+    }
+
     entry_count = telemetry_journal_get_pending(entries, TELEMETRY_JOURNAL_BATCH_MAX);
     if (entry_count < 0) {
+        psram_free(entries);
         return -1;
     }
     if (entry_count == 0) {
+        psram_free(entries);
         return 0;
     }
 
@@ -80,6 +89,7 @@ static int build_payload(char **payload_out, char ids[][EDGE_SYNC_ID_MAX], int *
     items = cJSON_CreateArray();
     if (root == NULL || items == NULL) {
         cJSON_Delete(root);
+        psram_free(entries);
         return -1;
     }
 
@@ -124,6 +134,7 @@ static int build_payload(char **payload_out, char ids[][EDGE_SYNC_ID_MAX], int *
     *payload_out = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     *id_count_out = entry_count;
+    psram_free(entries);
     return (*payload_out != NULL) ? entry_count : -1;
 }
 
@@ -139,7 +150,7 @@ static journal_sync_status_t post_json(const char *server_url,
     int sock = -1;
     bool use_tls = false;
     int http_status = 0;
-    char response[JOURNAL_SYNC_HTTP_BUFFER];
+    char *response = NULL;
     size_t body_len;
     char *request = NULL;
     size_t request_capacity;
@@ -151,11 +162,17 @@ static journal_sync_status_t post_json(const char *server_url,
         return JOURNAL_SYNC_STATUS_NO_CONFIG;
     }
 
+    response = psram_malloc(JOURNAL_SYNC_HTTP_BUFFER);
+    if (response == NULL) {
+        return JOURNAL_SYNC_STATUS_NETWORK_ERROR;
+    }
+
     use_tls = strncmp(server_url, "https://", 8) == 0;
     body_len = strlen(body);
     request_capacity = strlen(host) + strlen(path) + strlen(api_key) + body_len + 512;
     request = malloc(request_capacity);
     if (request == NULL) {
+        psram_free(response);
         return JOURNAL_SYNC_STATUS_NETWORK_ERROR;
     }
 
@@ -171,6 +188,7 @@ static journal_sync_status_t post_json(const char *server_url,
                            path, host, api_key, body_len, body);
     if (request_len <= 0 || (size_t)request_len >= request_capacity) {
         free(request);
+        psram_free(response);
         return JOURNAL_SYNC_STATUS_CLIENT_ERROR;
     }
 
@@ -178,20 +196,22 @@ static journal_sync_status_t post_json(const char *server_url,
         tls_context_t *tls = tls_connect(host, port);
         if (tls == NULL) {
             free(request);
+            psram_free(response);
             return JOURNAL_SYNC_STATUS_NETWORK_ERROR;
         }
         if (tls_write(tls, request, request_len) < 0) {
             tls_close(tls);
             free(request);
+            psram_free(response);
             return JOURNAL_SYNC_STATUS_NETWORK_ERROR;
         }
-        int received = tls_read(tls, response, sizeof(response) - 1);
+        int received = tls_recv_full(tls, response, JOURNAL_SYNC_HTTP_BUFFER);
         tls_close(tls);
         free(request);
         if (received <= 0) {
+            psram_free(response);
             return JOURNAL_SYNC_STATUS_NETWORK_ERROR;
         }
-        response[received] = '\0';
     } else {
         char port_str[16];
         hints.ai_family = AF_INET;
@@ -199,6 +219,7 @@ static journal_sync_status_t post_json(const char *server_url,
         snprintf(port_str, sizeof(port_str), "%u", port);
         if (getaddrinfo(host, port_str, &hints, &result) != 0) {
             free(request);
+            psram_free(response);
             return JOURNAL_SYNC_STATUS_NETWORK_ERROR;
         }
         sock = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
@@ -210,6 +231,7 @@ static journal_sync_status_t post_json(const char *server_url,
                 close(sock);
             }
             free(request);
+            psram_free(response);
             return JOURNAL_SYNC_STATUS_NETWORK_ERROR;
         }
         freeaddrinfo(result);
@@ -217,19 +239,21 @@ static journal_sync_status_t post_json(const char *server_url,
         if (send(sock, request, request_len, 0) < 0) {
             close(sock);
             free(request);
+            psram_free(response);
             return JOURNAL_SYNC_STATUS_NETWORK_ERROR;
         }
-        int received = recv(sock, response, sizeof(response) - 1, 0);
-        close(sock);
         free(request);
+        int received = plain_recv_full(sock, response, JOURNAL_SYNC_HTTP_BUFFER);
+        close(sock);
         if (received <= 0) {
+            psram_free(response);
             return JOURNAL_SYNC_STATUS_NETWORK_ERROR;
         }
-        response[received] = '\0';
     }
 
     if (sscanf(response, "HTTP/1.1 %d", &http_status) != 1 &&
         sscanf(response, "HTTP/1.0 %d", &http_status) != 1) {
+        psram_free(response);
         return JOURNAL_SYNC_STATUS_NETWORK_ERROR;
     }
 
@@ -243,6 +267,7 @@ static journal_sync_status_t post_json(const char *server_url,
         status = JOURNAL_SYNC_STATUS_CLIENT_ERROR;
     }
 
+    psram_free(response);
     return status;
 }
 #else

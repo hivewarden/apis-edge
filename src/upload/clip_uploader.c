@@ -12,7 +12,9 @@
 #include "config_manager.h"
 #include "storage_manager.h"
 #include "telemetry_journal.h"
+#include "http_recv.h"
 #include "http_utils.h"
+#include "psram_alloc.h"
 #include "tls_client.h"
 #include "log.h"
 #include "platform.h"
@@ -587,6 +589,17 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
     tls_context_t *tls_ctx = NULL;
     bool secrets_cleared = false;
 
+    // Heap-allocate large buffers to reduce stack pressure (RC-006)
+    char *http_header = psram_malloc(1024);
+    char *body_header = psram_malloc(1536);
+    char *response_buf = psram_malloc(HTTP_BUFFER_SIZE);
+    if (!http_header || !body_header || !response_buf) {
+        psram_free(http_header);
+        psram_free(body_header);
+        psram_free(response_buf);
+        return UPLOAD_STATUS_NETWORK_ERROR;
+    }
+
     // Use the effective snapshot so runtime-discovered URLs can be used
     // without persisting them to disk.
     runtime_config_t config_snap;
@@ -595,8 +608,7 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
     // Snapshot the fields we need
     char server_url[CFG_MAX_URL_LEN];
     char api_key_copy[CFG_MAX_API_KEY_LEN];
-    char http_header[1024];
-    memset(http_header, 0, sizeof(http_header));
+    memset(http_header, 0, 1024);
 
     strncpy(server_url, config_snap.server.url, sizeof(server_url) - 1);
     server_url[sizeof(server_url) - 1] = '\0';
@@ -654,10 +666,9 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
         filename = entry->clip_path;
     }
 
-    // Build multipart body header
-    char body_header[1536];
+    // Build multipart body header (buffer allocated at function entry)
     int header_len = build_multipart_header(entry, filename,
-                                            body_header, sizeof(body_header));
+                                            body_header, 1536);
     if (header_len < 0) {
         LOG_ERROR("Failed to build multipart body header");
         status = UPLOAD_STATUS_CLIENT_ERROR;
@@ -681,7 +692,7 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
     size_t content_length = (size_t)header_len + (size_t)file_size + (size_t)footer_len;
 
     // Build HTTP headers (used by both TLS and plain paths)
-    int hdr_len = snprintf(http_header, sizeof(http_header),
+    int hdr_len = snprintf(http_header, 1024,
         "POST %s HTTP/1.1\r\n"
         "Host: %s\r\n"
         "X-API-Key: %s\r\n"
@@ -703,7 +714,7 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
             LOG_ERROR("Failed to send headers over TLS");
             goto cleanup;
         }
-        secure_clear(http_header, sizeof(http_header));
+        secure_clear(http_header, 1024);
         secure_clear(api_key_copy, sizeof(api_key_copy));
         secrets_cleared = true;
 
@@ -742,8 +753,7 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
 
         LOG_DEBUG("Sent %zu bytes for clip upload (TLS)", bytes_sent);
 
-        char response[HTTP_BUFFER_SIZE];
-        int received = tls_read(tls_ctx, response, sizeof(response) - 1);
+        int received = tls_recv_full(tls_ctx, response_buf, HTTP_BUFFER_SIZE);
         tls_close(tls_ctx);
         tls_ctx = NULL;
 
@@ -752,11 +762,9 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
             goto cleanup;
         }
 
-        response[received] = '\0';
-
         int http_status = 0;
-        if (sscanf(response, "HTTP/1.1 %d", &http_status) != 1 &&
-            sscanf(response, "HTTP/1.0 %d", &http_status) != 1) {
+        if (sscanf(response_buf, "HTTP/1.1 %d", &http_status) != 1 &&
+            sscanf(response_buf, "HTTP/1.0 %d", &http_status) != 1) {
             LOG_ERROR("Failed to parse HTTP status");
             goto cleanup;
         }
@@ -830,7 +838,7 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
     }
 
     // COMM-001-4 fix: Clear API key from header buffer and local copy after sending
-    secure_clear(http_header, sizeof(http_header));
+    secure_clear(http_header, 1024);
     secure_clear(api_key_copy, sizeof(api_key_copy));
     secrets_cleared = true;
 
@@ -873,11 +881,10 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
 
     // S8-H4 fix: Loop on recv() to handle partial HTTP responses.
     {
-        char response[HTTP_BUFFER_SIZE];
         size_t total_received = 0;
-        while (total_received < sizeof(response) - 1) {
-            ssize_t chunk = recv(sock, response + total_received,
-                                 sizeof(response) - 1 - total_received, 0);
+        while (total_received < (size_t)HTTP_BUFFER_SIZE - 1) {
+            ssize_t chunk = recv(sock, response_buf + total_received,
+                                 (size_t)HTTP_BUFFER_SIZE - 1 - total_received, 0);
             if (chunk < 0) {
                 if (errno == EINTR) continue;
                 if (total_received > 0) break;
@@ -895,11 +902,11 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
             goto cleanup;
         }
 
-        response[total_received] = '\0';
+        response_buf[total_received] = '\0';
 
         int http_status = 0;
-        if (sscanf(response, "HTTP/1.1 %d", &http_status) != 1 &&
-            sscanf(response, "HTTP/1.0 %d", &http_status) != 1) {
+        if (sscanf(response_buf, "HTTP/1.1 %d", &http_status) != 1 &&
+            sscanf(response_buf, "HTTP/1.0 %d", &http_status) != 1) {
             LOG_ERROR("Failed to parse HTTP status");
             goto cleanup;
         }
@@ -925,9 +932,12 @@ static upload_status_t do_upload(clip_queue_entry_t *entry) {
 
 cleanup:
     if (!secrets_cleared) {
-        secure_clear(http_header, sizeof(http_header));
+        secure_clear(http_header, 1024);
         secure_clear(api_key_copy, sizeof(api_key_copy));
     }
+    psram_free(http_header);
+    psram_free(body_header);
+    psram_free(response_buf);
     if (fp) fclose(fp);
     if (tls_ctx) tls_close(tls_ctx);
     if (addrinfo_result) freeaddrinfo(addrinfo_result);
