@@ -12,6 +12,7 @@
 #include "config_manager.h"
 #include "log.h"
 #include "platform.h"
+#include "secure_util.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,6 +33,9 @@ APIS_MUTEX_DECLARE(config);
 
 // Global state
 static runtime_config_t g_runtime_config;
+static char g_runtime_server_url[CFG_MAX_URL_LEN];
+static config_home_source_t g_runtime_server_source = CONFIG_HOME_SOURCE_NONE;
+static bool g_claim_exchange_in_progress = false;
 static bool g_initialized = false;
 static bool g_use_dev_path = false;
 
@@ -65,6 +69,27 @@ static void set_timestamp(char *buf, size_t size) {
         strftime(buf, size, "%Y-%m-%dT%H:%M:%SZ", tm);
     } else {
         snprintf(buf, size, "1970-01-01T00:00:00Z");
+    }
+}
+
+static void clear_runtime_server_url_locked(void) {
+    memset(g_runtime_server_url, 0, sizeof(g_runtime_server_url));
+    g_runtime_server_source = CONFIG_HOME_SOURCE_NONE;
+}
+
+static void clear_pending_claim_state_locked(bool clear_server_url) {
+    memset(g_runtime_config.pending_claim_token, 0, sizeof(g_runtime_config.pending_claim_token));
+    if (clear_server_url) {
+        memset(g_runtime_config.pending_claim_server_url, 0,
+               sizeof(g_runtime_config.pending_claim_server_url));
+    }
+}
+
+static void apply_effective_server_url_locked(runtime_config_t *config) {
+    if (!config) return;
+    if (strlen(config->server.url) == 0 && strlen(g_runtime_server_url) > 0) {
+        strncpy(config->server.url, g_runtime_server_url, CFG_MAX_URL_LEN - 1);
+        config->server.url[CFG_MAX_URL_LEN - 1] = '\0';
     }
 }
 
@@ -126,10 +151,14 @@ runtime_config_t config_manager_defaults(void) {
             .name = "APIS Unit",
         },
         .server = {
-            .url = "https://apis.honeybeegood.be",
+            // Keep the URL blank on first boot so the runtime discovery chain can
+            // decide between saved config, local mDNS, and onboarding defaults.
+            .url = "",
             .api_key = "",
             .heartbeat_interval_seconds = 60,
         },
+        .pending_claim_token = "",
+        .pending_claim_server_url = "",
         .detection = {
             .enabled = true,
             .min_size_px = 18,
@@ -141,6 +170,8 @@ runtime_config_t config_manager_defaults(void) {
             .max_duration_seconds = 10,
             .cooldown_seconds = 5,
         },
+        .install_profile = INSTALL_PROFILE_HIGH_MOUNT_THREE_HIVE_V1,
+        .deterrent_mode = CONFIG_DETERRENT_MODE_SHADOW,
         .armed = false,
         .needs_setup = true,
         .updated_at = "",
@@ -194,6 +225,53 @@ static bool validate_url(const char *url, cfg_validation_t *validation) {
     return true;
 }
 
+const char *config_home_source_name(config_home_source_t source) {
+    switch (source) {
+        case CONFIG_HOME_SOURCE_NONE:
+            return "none";
+        case CONFIG_HOME_SOURCE_PERSISTED:
+            return "persisted";
+        case CONFIG_HOME_SOURCE_RUNTIME:
+            return "runtime";
+        case CONFIG_HOME_SOURCE_MDNS:
+            return "mdns";
+        case CONFIG_HOME_SOURCE_DEFAULT:
+            return "default";
+        case CONFIG_HOME_SOURCE_FALLBACK:
+            return "fallback";
+        default:
+            return "unknown";
+    }
+}
+
+const char *config_deterrent_mode_name(config_deterrent_mode_t mode) {
+    switch (mode) {
+        case CONFIG_DETERRENT_MODE_SHADOW:
+            return "shadow";
+        case CONFIG_DETERRENT_MODE_LIVE:
+            return "live";
+        default:
+            return "unknown";
+    }
+}
+
+int config_deterrent_mode_from_string(const char *value, config_deterrent_mode_t *out) {
+    if (value == NULL || out == NULL) {
+        return -1;
+    }
+
+    if (strcmp(value, "shadow") == 0) {
+        *out = CONFIG_DETERRENT_MODE_SHADOW;
+        return 0;
+    }
+    if (strcmp(value, "live") == 0) {
+        *out = CONFIG_DETERRENT_MODE_LIVE;
+        return 0;
+    }
+
+    return -1;
+}
+
 /**
  * Validate numeric range.
  */
@@ -226,6 +304,16 @@ bool config_manager_validate(const runtime_config_t *config, cfg_validation_t *v
     if (!validate_url(config->server.url, validation)) return false;
     if (!validate_string_len(config->server.api_key, CFG_MAX_API_KEY_LEN,
                              "server.api_key", validation)) return false;
+    if (!validate_string_len(config->pending_claim_token, CFG_MAX_API_KEY_LEN,
+                             "pending_claim_token", validation)) return false;
+    if (!validate_string_len(config->pending_claim_server_url, CFG_MAX_URL_LEN,
+                             "pending_claim_server_url", validation)) return false;
+    if (!validate_url(config->pending_claim_server_url, validation)) {
+        strncpy(validation->error_field, "pending_claim_server_url",
+                sizeof(validation->error_field) - 1);
+        validation->error_field[sizeof(validation->error_field) - 1] = '\0';
+        return false;
+    }
     if (!validate_range(config->server.heartbeat_interval_seconds, 10, 3600,
                         "server.heartbeat_interval_seconds", validation))
         return false;
@@ -243,6 +331,31 @@ bool config_manager_validate(const runtime_config_t *config, cfg_validation_t *v
                         "laser.max_duration_seconds", validation)) return false;
     if (!validate_range(config->laser.cooldown_seconds, 1, 60,
                         "laser.cooldown_seconds", validation)) return false;
+
+    if (!install_profile_is_known(config->install_profile)) {
+        validation->valid = false;
+        strncpy(validation->error_field, "install_profile",
+                sizeof(validation->error_field) - 1);
+        validation->error_field[sizeof(validation->error_field) - 1] = '\0';
+        strncpy(validation->error_message,
+                "Install profile is invalid",
+                sizeof(validation->error_message) - 1);
+        validation->error_message[sizeof(validation->error_message) - 1] = '\0';
+        return false;
+    }
+
+    if (config->deterrent_mode != CONFIG_DETERRENT_MODE_SHADOW &&
+        config->deterrent_mode != CONFIG_DETERRENT_MODE_LIVE) {
+        validation->valid = false;
+        strncpy(validation->error_field, "deterrent_mode",
+                sizeof(validation->error_field) - 1);
+        validation->error_field[sizeof(validation->error_field) - 1] = '\0';
+        strncpy(validation->error_message,
+                "Deterrent mode must be 'shadow' or 'live'",
+                sizeof(validation->error_message) - 1);
+        validation->error_message[sizeof(validation->error_message) - 1] = '\0';
+        return false;
+    }
 
     return true;
 }
@@ -291,6 +404,15 @@ int config_manager_to_json(const runtime_config_t *config, char *buf, size_t buf
                            config->server.heartbeat_interval_seconds);
     cJSON_AddItemToObject(root, "server", server);
 
+    if (include_sensitive && strlen(config->pending_claim_token) > 0) {
+        cJSON_AddStringToObject(root, "pending_claim_token",
+                                config->pending_claim_token);
+    }
+    if (include_sensitive && strlen(config->pending_claim_server_url) > 0) {
+        cJSON_AddStringToObject(root, "pending_claim_server_url",
+                                config->pending_claim_server_url);
+    }
+
     // Detection
     cJSON *detection = cJSON_CreateObject();
     cJSON_AddBoolToObject(detection, "enabled", config->detection.enabled);
@@ -311,6 +433,10 @@ int config_manager_to_json(const runtime_config_t *config, char *buf, size_t buf
     cJSON_AddItemToObject(root, "laser", laser);
 
     // Top-level fields
+    cJSON_AddStringToObject(root, "install_profile",
+                            install_profile_name(config->install_profile));
+    cJSON_AddStringToObject(root, "deterrent_mode",
+                            config_deterrent_mode_name(config->deterrent_mode));
     cJSON_AddBoolToObject(root, "armed", config->armed);
     cJSON_AddBoolToObject(root, "needs_setup", config->needs_setup);
     cJSON_AddStringToObject(root, "updated_at", config->updated_at);
@@ -417,6 +543,11 @@ int config_manager_from_json(const char *json, runtime_config_t *config) {
             json_get_int(server, "heartbeat_interval_seconds", 60);
     }
 
+    json_get_string(root, "pending_claim_token", config->pending_claim_token,
+                    CFG_MAX_API_KEY_LEN);
+    json_get_string(root, "pending_claim_server_url", config->pending_claim_server_url,
+                    CFG_MAX_URL_LEN);
+
     // Detection
     cJSON *detection = cJSON_GetObjectItem(root, "detection");
     if (detection) {
@@ -439,6 +570,21 @@ int config_manager_from_json(const char *json, runtime_config_t *config) {
     }
 
     // Top-level fields
+    cJSON *install_profile = cJSON_GetObjectItem(root, "install_profile");
+    if (install_profile && cJSON_IsString(install_profile)) {
+        install_profile_t parsed_profile = INSTALL_PROFILE_HIGH_MOUNT_THREE_HIVE_V1;
+        if (install_profile_from_string(install_profile->valuestring, &parsed_profile) == 0) {
+            config->install_profile = parsed_profile;
+        }
+    }
+    cJSON *deterrent_mode = cJSON_GetObjectItem(root, "deterrent_mode");
+    if (deterrent_mode && cJSON_IsString(deterrent_mode)) {
+        config_deterrent_mode_t parsed_mode = CONFIG_DETERRENT_MODE_SHADOW;
+        if (config_deterrent_mode_from_string(deterrent_mode->valuestring,
+                                              &parsed_mode) == 0) {
+            config->deterrent_mode = parsed_mode;
+        }
+    }
     config->armed = json_get_bool(root, "armed", false);
     config->needs_setup = json_get_bool(root, "needs_setup", true);
     json_get_string(root, "updated_at", config->updated_at,
@@ -546,6 +692,7 @@ int config_manager_save(void) {
     if (config_manager_to_json(&g_runtime_config, json, sizeof(json), true) < 0) {
         CONFIG_UNLOCK();
         LOG_ERROR("Failed to serialize config");
+        secure_clear(json, sizeof(json));
         return -1;
     }
 
@@ -559,6 +706,7 @@ int config_manager_save(void) {
     FILE *fp = fopen(temp_path, "w");
     if (!fp) {
         LOG_ERROR("Failed to create temp config: %s", strerror(errno));
+        secure_clear(json, sizeof(json));
         return -1;
     }
 #else
@@ -566,6 +714,7 @@ int config_manager_save(void) {
     int fd = open(temp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (fd < 0) {
         LOG_ERROR("Failed to create temp config with secure permissions: %s", strerror(errno));
+        secure_clear(json, sizeof(json));
         return -1;
     }
 
@@ -574,6 +723,7 @@ int config_manager_save(void) {
     if (!fp) {
         LOG_ERROR("Failed to open temp config stream: %s", strerror(errno));
         close(fd);
+        secure_clear(json, sizeof(json));
         return -1;
     }
 #endif
@@ -598,11 +748,14 @@ int config_manager_save(void) {
 
     fclose(fp);
 
-    // S8-I-01: Clear the JSON buffer that contained the API key in cleartext.
-    // Using memset here (not volatile-based secure_clear) is acceptable since
-    // the compiler cannot prove the buffer is dead at this point (it was passed
-    // to fputs above, preventing dead-store elimination in practice).
-    memset(json, 0, sizeof(json));
+    // Clear the JSON buffer that contained the API key in cleartext.
+    secure_clear(json, sizeof(json));
+
+    // SPIFFS rename semantics are more limited than POSIX rename semantics.
+    // Remove the destination first on ESP32 so config replacement succeeds.
+#ifdef APIS_PLATFORM_ESP32
+    unlink(path);
+#endif
 
     // Atomic rename
     if (rename(temp_path, path) != 0) {
@@ -643,6 +796,7 @@ int config_manager_init(bool use_dev_path) {
 
     // Start with defaults
     g_runtime_config = config_manager_defaults();
+    clear_runtime_server_url_locked();
 
     CONFIG_UNLOCK();
 
@@ -659,13 +813,25 @@ int config_manager_init(bool use_dev_path) {
         config_manager_save();
     }
 
+    // Capture config fields under lock for safe logging after unlock
+    char init_device_id[sizeof(g_runtime_config.device.id)];
+    bool init_armed;
+    bool init_needs_setup;
+
+    CONFIG_LOCK();
+    strncpy(init_device_id, g_runtime_config.device.id, sizeof(init_device_id));
+    init_device_id[sizeof(init_device_id) - 1] = '\0';
+    init_armed = g_runtime_config.armed;
+    init_needs_setup = g_runtime_config.needs_setup;
+    CONFIG_UNLOCK();
+
     // Mark as initialized (safe: init must complete before other threads access)
     g_initialized = true;
 
     LOG_INFO("Config manager initialized (device: %s, armed: %s, needs_setup: %s)",
-             g_runtime_config.device.id,
-             g_runtime_config.armed ? "yes" : "no",
-             g_runtime_config.needs_setup ? "yes" : "no");
+             init_device_id,
+             init_armed ? "yes" : "no",
+             init_needs_setup ? "yes" : "no");
 
     return 0;
 }
@@ -692,11 +858,26 @@ void config_manager_get_public(runtime_config_t *out) {
     if (strlen(out->server.api_key) > 0) {
         strncpy(out->server.api_key, "***", CFG_MAX_API_KEY_LEN - 1);
     }
+    if (strlen(out->pending_claim_token) > 0) {
+        strncpy(out->pending_claim_token, "***", CFG_MAX_API_KEY_LEN - 1);
+        out->pending_claim_token[CFG_MAX_API_KEY_LEN - 1] = '\0';
+    }
+    if (strlen(out->pending_claim_server_url) > 0) {
+        strncpy(out->pending_claim_server_url, "***", CFG_MAX_URL_LEN - 1);
+        out->pending_claim_server_url[CFG_MAX_URL_LEN - 1] = '\0';
+    }
 }
 
 void config_manager_get_snapshot(runtime_config_t *out) {
     CONFIG_LOCK();
     *out = g_runtime_config;
+    CONFIG_UNLOCK();
+}
+
+void config_manager_get_effective_snapshot(runtime_config_t *out) {
+    CONFIG_LOCK();
+    *out = g_runtime_config;
+    apply_effective_server_url_locked(out);
     CONFIG_UNLOCK();
 }
 
@@ -737,12 +918,14 @@ int config_manager_update(const char *json_updates, cfg_validation_t *validation
         }
     }
 
+    bool clear_runtime_server_url = false;
     cJSON *server = cJSON_GetObjectItem(updates, "server");
     if (server) {
         cJSON *url = cJSON_GetObjectItem(server, "url");
         if (url && cJSON_IsString(url)) {
             strncpy(new_config.server.url, url->valuestring, CFG_MAX_URL_LEN - 1);
             new_config.server.url[CFG_MAX_URL_LEN - 1] = '\0';
+            clear_runtime_server_url = true;
         }
 
         // Only update API key if provided and not masked
@@ -752,6 +935,10 @@ int config_manager_update(const char *json_updates, cfg_validation_t *validation
             if (strcmp(key, "***") != 0) { // Don't overwrite with mask
                 strncpy(new_config.server.api_key, key, CFG_MAX_API_KEY_LEN - 1);
                 new_config.server.api_key[CFG_MAX_API_KEY_LEN - 1] = '\0';
+                memset(new_config.pending_claim_token, 0,
+                       sizeof(new_config.pending_claim_token));
+                memset(new_config.pending_claim_server_url, 0,
+                       sizeof(new_config.pending_claim_server_url));
             }
         }
 
@@ -801,6 +988,49 @@ int config_manager_update(const char *json_updates, cfg_validation_t *validation
     cJSON *armed = cJSON_GetObjectItem(updates, "armed");
     if (armed) new_config.armed = cJSON_IsTrue(armed);
 
+    cJSON *install_profile = cJSON_GetObjectItem(updates, "install_profile");
+    if (install_profile && cJSON_IsString(install_profile)) {
+        install_profile_t parsed_profile = INSTALL_PROFILE_HIGH_MOUNT_THREE_HIVE_V1;
+        if (install_profile_from_string(install_profile->valuestring, &parsed_profile) != 0) {
+            if (validation) {
+                validation->valid = false;
+                strncpy(validation->error_field, "install_profile",
+                        sizeof(validation->error_field) - 1);
+                validation->error_field[sizeof(validation->error_field) - 1] = '\0';
+                strncpy(validation->error_message,
+                        "Install profile is invalid",
+                        sizeof(validation->error_message) - 1);
+                validation->error_message[sizeof(validation->error_message) - 1] = '\0';
+            }
+            CONFIG_UNLOCK();
+            cJSON_Delete(updates);
+            return -1;
+        }
+        new_config.install_profile = parsed_profile;
+    }
+
+    cJSON *deterrent_mode = cJSON_GetObjectItem(updates, "deterrent_mode");
+    if (deterrent_mode && cJSON_IsString(deterrent_mode)) {
+        config_deterrent_mode_t parsed_mode = CONFIG_DETERRENT_MODE_SHADOW;
+        if (config_deterrent_mode_from_string(deterrent_mode->valuestring,
+                                              &parsed_mode) != 0) {
+            if (validation) {
+                validation->valid = false;
+                strncpy(validation->error_field, "deterrent_mode",
+                        sizeof(validation->error_field) - 1);
+                validation->error_field[sizeof(validation->error_field) - 1] = '\0';
+                strncpy(validation->error_message,
+                        "Deterrent mode must be 'shadow' or 'live'",
+                        sizeof(validation->error_message) - 1);
+                validation->error_message[sizeof(validation->error_message) - 1] = '\0';
+            }
+            CONFIG_UNLOCK();
+            cJSON_Delete(updates);
+            return -1;
+        }
+        new_config.deterrent_mode = parsed_mode;
+    }
+
     cJSON *needs_setup = cJSON_GetObjectItem(updates, "needs_setup");
     if (needs_setup) new_config.needs_setup = cJSON_IsTrue(needs_setup);
 
@@ -815,6 +1045,9 @@ int config_manager_update(const char *json_updates, cfg_validation_t *validation
 
     // Apply new config
     g_runtime_config = new_config;
+    if (clear_runtime_server_url) {
+        clear_runtime_server_url_locked();
+    }
 
     CONFIG_UNLOCK();
 
@@ -835,6 +1068,7 @@ int config_manager_update(const char *json_updates, cfg_validation_t *validation
 void config_manager_reset_defaults(void) {
     CONFIG_LOCK();
     g_runtime_config = config_manager_defaults();
+    clear_runtime_server_url_locked();
     CONFIG_UNLOCK();
 
     LOG_INFO("Runtime configuration reset to defaults");
@@ -865,6 +1099,55 @@ bool config_manager_is_armed(void) {
     return armed;
 }
 
+int config_manager_set_install_profile(install_profile_t profile) {
+    if (!install_profile_is_known(profile)) {
+        return -1;
+    }
+
+    CONFIG_LOCK();
+    g_runtime_config.install_profile = profile;
+    CONFIG_UNLOCK();
+
+    LOG_INFO("Install profile changed to: %s", install_profile_name(profile));
+
+    return config_manager_save();
+}
+
+install_profile_t config_manager_get_install_profile(void) {
+    install_profile_t profile;
+
+    CONFIG_LOCK();
+    profile = g_runtime_config.install_profile;
+    CONFIG_UNLOCK();
+
+    return profile;
+}
+
+int config_manager_set_deterrent_mode(config_deterrent_mode_t mode) {
+    if (mode != CONFIG_DETERRENT_MODE_SHADOW &&
+        mode != CONFIG_DETERRENT_MODE_LIVE) {
+        return -1;
+    }
+
+    CONFIG_LOCK();
+    g_runtime_config.deterrent_mode = mode;
+    CONFIG_UNLOCK();
+
+    LOG_INFO("Deterrent mode changed to: %s", config_deterrent_mode_name(mode));
+
+    return config_manager_save();
+}
+
+config_deterrent_mode_t config_manager_get_deterrent_mode(void) {
+    config_deterrent_mode_t mode;
+
+    CONFIG_LOCK();
+    mode = g_runtime_config.deterrent_mode;
+    CONFIG_UNLOCK();
+
+    return mode;
+}
+
 int config_manager_complete_setup(void) {
     CONFIG_LOCK();
     g_runtime_config.needs_setup = false;
@@ -893,12 +1176,20 @@ int config_manager_set_device(const char *id, const char *name) {
 int config_manager_set_server(const char *url, const char *api_key) {
     if (!url) return -1;
 
+    cfg_validation_t validation = {0};
+    if (!validate_url(url, &validation)) {
+        LOG_ERROR("Invalid server URL: %s", url);
+        return -1;
+    }
+
     CONFIG_LOCK();
     strncpy(g_runtime_config.server.url, url, CFG_MAX_URL_LEN - 1);
     g_runtime_config.server.url[CFG_MAX_URL_LEN - 1] = '\0';
+    clear_runtime_server_url_locked();
     if (api_key) {
         strncpy(g_runtime_config.server.api_key, api_key, CFG_MAX_API_KEY_LEN - 1);
         g_runtime_config.server.api_key[CFG_MAX_API_KEY_LEN - 1] = '\0';
+        clear_pending_claim_state_locked(true);
     }
     CONFIG_UNLOCK();
 
@@ -907,8 +1198,241 @@ int config_manager_set_server(const char *url, const char *api_key) {
     return config_manager_save();
 }
 
+int config_manager_finalize_claim(const char *url, const char *api_key) {
+    if (!url || !api_key || strlen(url) == 0 || strlen(api_key) == 0) {
+        return -1;
+    }
+
+    cfg_validation_t validation = {0};
+    if (!validate_url(url, &validation)) {
+        LOG_ERROR("Invalid claimed server URL: %s", url);
+        return -1;
+    }
+
+    CONFIG_LOCK();
+    strncpy(g_runtime_config.server.url, url, CFG_MAX_URL_LEN - 1);
+    g_runtime_config.server.url[CFG_MAX_URL_LEN - 1] = '\0';
+    strncpy(g_runtime_config.server.api_key, api_key, CFG_MAX_API_KEY_LEN - 1);
+    g_runtime_config.server.api_key[CFG_MAX_API_KEY_LEN - 1] = '\0';
+    clear_pending_claim_state_locked(true);
+    g_runtime_config.needs_setup = false;
+    clear_runtime_server_url_locked();
+    CONFIG_UNLOCK();
+
+    LOG_INFO("Claim finalized against %s", url);
+    return config_manager_save();
+}
+
+int config_manager_set_runtime_server_choice(const char *url, config_home_source_t source) {
+    if (!url) return -1;
+
+    cfg_validation_t validation = {0};
+    if (!validate_url(url, &validation)) {
+        LOG_ERROR("Invalid runtime server URL: %s", url);
+        return -1;
+    }
+
+    CONFIG_LOCK();
+    strncpy(g_runtime_server_url, url, CFG_MAX_URL_LEN - 1);
+    g_runtime_server_url[CFG_MAX_URL_LEN - 1] = '\0';
+    g_runtime_server_source = source;
+    CONFIG_UNLOCK();
+
+    LOG_INFO("Runtime server URL selected (%s): %s",
+             config_home_source_name(source), url);
+
+    return 0;
+}
+
+int config_manager_set_runtime_server_url(const char *url) {
+    return config_manager_set_runtime_server_choice(url, CONFIG_HOME_SOURCE_RUNTIME);
+}
+
+void config_manager_clear_runtime_server_url(void) {
+    CONFIG_LOCK();
+    clear_runtime_server_url_locked();
+    CONFIG_UNLOCK();
+}
+
+config_home_source_t config_manager_get_effective_server_source(void) {
+    config_home_source_t source = CONFIG_HOME_SOURCE_NONE;
+
+    CONFIG_LOCK();
+    if (strlen(g_runtime_config.server.url) > 0) {
+        source = CONFIG_HOME_SOURCE_PERSISTED;
+    } else if (strlen(g_runtime_server_url) > 0) {
+        source = g_runtime_server_source;
+    }
+    CONFIG_UNLOCK();
+
+    return source;
+}
+
+int config_manager_set_api_key(const char *api_key) {
+    if (!api_key) return -1;
+
+    CONFIG_LOCK();
+    strncpy(g_runtime_config.server.api_key, api_key, CFG_MAX_API_KEY_LEN - 1);
+    g_runtime_config.server.api_key[CFG_MAX_API_KEY_LEN - 1] = '\0';
+    clear_pending_claim_state_locked(true);
+    CONFIG_UNLOCK();
+
+    LOG_INFO("Server API key updated");
+
+    return config_manager_save();
+}
+
+int config_manager_set_pending_claim_token(const char *claim_token) {
+    if (!claim_token || strlen(claim_token) == 0 ||
+        strlen(claim_token) >= CFG_MAX_API_KEY_LEN) {
+        return -1;
+    }
+
+    CONFIG_LOCK();
+    strncpy(g_runtime_config.pending_claim_token, claim_token,
+            sizeof(g_runtime_config.pending_claim_token) - 1);
+    g_runtime_config.pending_claim_token[sizeof(g_runtime_config.pending_claim_token) - 1] = '\0';
+    CONFIG_UNLOCK();
+
+    LOG_INFO("Pending claim token stored");
+    return config_manager_save();
+}
+
+int config_manager_set_pending_claim_server_url(const char *url) {
+    if (!url) {
+        return -1;
+    }
+
+    if (strlen(url) > 0) {
+        cfg_validation_t validation = {0};
+        if (!validate_url(url, &validation)) {
+            LOG_ERROR("Invalid pending claim server URL: %s", url);
+            return -1;
+        }
+    }
+
+    CONFIG_LOCK();
+    if (strlen(url) == 0) {
+        memset(g_runtime_config.pending_claim_server_url, 0,
+               sizeof(g_runtime_config.pending_claim_server_url));
+    } else {
+        strncpy(g_runtime_config.pending_claim_server_url, url,
+                sizeof(g_runtime_config.pending_claim_server_url) - 1);
+        g_runtime_config.pending_claim_server_url[
+            sizeof(g_runtime_config.pending_claim_server_url) - 1] = '\0';
+    }
+    CONFIG_UNLOCK();
+
+    LOG_INFO("Pending claim server URL %s",
+             strlen(url) == 0 ? "cleared" : "stored");
+    return config_manager_save();
+}
+
+int config_manager_get_pending_claim_token(char *out, size_t out_size) {
+    if (!out || out_size == 0) {
+        return -1;
+    }
+
+    CONFIG_LOCK();
+    bool has_token = strlen(g_runtime_config.pending_claim_token) > 0;
+    if (has_token) {
+        strncpy(out, g_runtime_config.pending_claim_token, out_size - 1);
+        out[out_size - 1] = '\0';
+    }
+    CONFIG_UNLOCK();
+
+    if (!has_token) {
+        out[0] = '\0';
+        return -1;
+    }
+
+    return 0;
+}
+
+int config_manager_get_pending_claim_server_url(char *out, size_t out_size) {
+    if (!out || out_size == 0) {
+        return -1;
+    }
+
+    CONFIG_LOCK();
+    bool has_url = strlen(g_runtime_config.pending_claim_server_url) > 0;
+    if (has_url) {
+        strncpy(out, g_runtime_config.pending_claim_server_url, out_size - 1);
+        out[out_size - 1] = '\0';
+    }
+    CONFIG_UNLOCK();
+
+    if (!has_url) {
+        out[0] = '\0';
+        return -1;
+    }
+
+    return 0;
+}
+
+bool config_manager_has_pending_claim_token(void) {
+    bool has_token = false;
+
+    CONFIG_LOCK();
+    has_token = strlen(g_runtime_config.pending_claim_token) > 0;
+    CONFIG_UNLOCK();
+
+    return has_token;
+}
+
+bool config_manager_has_pending_claim_server_url(void) {
+    bool has_url = false;
+
+    CONFIG_LOCK();
+    has_url = strlen(g_runtime_config.pending_claim_server_url) > 0;
+    CONFIG_UNLOCK();
+
+    return has_url;
+}
+
+int config_manager_clear_pending_claim_token(void) {
+    CONFIG_LOCK();
+    clear_pending_claim_state_locked(false);
+    CONFIG_UNLOCK();
+
+    LOG_INFO("Pending claim token cleared");
+    return config_manager_save();
+}
+
+int config_manager_clear_pending_claim_server_url(void) {
+    CONFIG_LOCK();
+    memset(g_runtime_config.pending_claim_server_url, 0,
+           sizeof(g_runtime_config.pending_claim_server_url));
+    CONFIG_UNLOCK();
+
+    LOG_INFO("Pending claim server URL cleared");
+    return config_manager_save();
+}
+
+bool config_manager_begin_claim_exchange(void) {
+    bool acquired = false;
+
+    CONFIG_LOCK();
+    if (!g_claim_exchange_in_progress) {
+        g_claim_exchange_in_progress = true;
+        acquired = true;
+    }
+    CONFIG_UNLOCK();
+
+    return acquired;
+}
+
+void config_manager_end_claim_exchange(void) {
+    CONFIG_LOCK();
+    g_claim_exchange_in_progress = false;
+    CONFIG_UNLOCK();
+}
+
 void config_manager_cleanup(void) {
+    CONFIG_LOCK();
+    clear_runtime_server_url_locked();
     g_initialized = false;
+    CONFIG_UNLOCK();
     LOG_INFO("Config manager cleanup complete");
 }
 
@@ -988,6 +1512,7 @@ int config_manager_clear_api_key(void) {
 
     g_runtime_config.server.key_issued_at = 0;
     g_runtime_config.server.key_expires_at = 0;
+    clear_pending_claim_state_locked(true);
 
     CONFIG_UNLOCK();
 
@@ -999,6 +1524,9 @@ int config_manager_clear_api_key(void) {
 int config_manager_set_needs_setup(bool needs_setup) {
     CONFIG_LOCK();
     g_runtime_config.needs_setup = needs_setup;
+    if (needs_setup) {
+        clear_pending_claim_state_locked(true);
+    }
     CONFIG_UNLOCK();
 
     if (needs_setup) {

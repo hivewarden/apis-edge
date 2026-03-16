@@ -50,6 +50,8 @@ static laser_state_callback_t g_state_callback = NULL;
 static void *g_state_callback_data = NULL;
 static laser_timeout_callback_t g_timeout_callback = NULL;
 static void *g_timeout_callback_data = NULL;
+static laser_activation_callback_t g_activation_callback = NULL;
+static void *g_activation_callback_data = NULL;
 
 // Thread synchronization
 #include "platform_mutex.h"
@@ -230,14 +232,33 @@ static void gpio_cleanup_laser(void) {
 // Internal Functions
 // ============================================================================
 
-static void turn_off_internal(void) {
+static void turn_off_internal(bool safety_timeout,
+                              laser_event_t *activation_event_out,
+                              laser_activation_callback_t *activation_cb_out,
+                              void **activation_cb_data_out) {
     if (g_laser_on) {
         uint64_t now = get_time_ms();
         uint32_t on_duration = (uint32_t)(now - g_activation_time);
+        laser_event_t activation_event;
 
         gpio_set_laser(false);
         g_deactivation_time = now;
         g_total_on_time_ms += on_duration;
+
+        memset(&activation_event, 0, sizeof(activation_event));
+        activation_event.timestamp = g_activation_time;
+        activation_event.duration_ms = on_duration;
+        activation_event.safety_timeout = safety_timeout;
+
+        if (activation_event_out != NULL) {
+            *activation_event_out = activation_event;
+        }
+        if (activation_cb_out != NULL) {
+            *activation_cb_out = g_activation_callback;
+        }
+        if (activation_cb_data_out != NULL) {
+            *activation_cb_data_out = g_activation_callback_data;
+        }
 
         LOG_DEBUG("Laser off after %u ms", on_duration);
     }
@@ -345,9 +366,10 @@ laser_status_t laser_controller_on(void) {
 
     if (is_in_cooldown()) {
         g_cooldown_block_count++;
+        uint32_t cooldown_remaining = get_cooldown_remaining_internal();
         LASER_UNLOCK();
         LOG_WARN("Laser blocked: in cooldown (%u ms remaining)",
-                 get_cooldown_remaining_internal());
+                 cooldown_remaining);
         return LASER_ERROR_COOLDOWN;
     }
 
@@ -388,11 +410,14 @@ void laser_controller_off(void) {
 
     LASER_LOCK();
 
+    laser_event_t activation_event;
+    laser_activation_callback_t activation_cb = NULL;
+    void *activation_cb_data = NULL;
     bool state_changed = false;
     laser_state_t new_state = g_state;
 
     if (g_laser_on) {
-        turn_off_internal();
+        turn_off_internal(false, &activation_event, &activation_cb, &activation_cb_data);
 
         if (g_armed && !g_kill_switch) {
             state_changed = set_state(LASER_STATE_COOLDOWN);
@@ -418,6 +443,9 @@ void laser_controller_off(void) {
 
     if (cb) {
         cb(new_state, cb_data);
+    }
+    if (activation_cb) {
+        activation_cb(&activation_event, activation_cb_data);
     }
 }
 
@@ -459,6 +487,10 @@ void laser_controller_disarm(void) {
 
     LASER_LOCK();
 
+    laser_event_t activation_event;
+    laser_activation_callback_t activation_cb = NULL;
+    void *activation_cb_data = NULL;
+
     // SAFETY-001-3 fix: Set g_armed = false FIRST, then turn off laser
     // This prevents a race condition where another thread could see g_armed=true
     // but laser_on=false, and attempt to re-enable the laser before disarm completes.
@@ -469,7 +501,7 @@ void laser_controller_disarm(void) {
     // Now safely turn off the laser - any concurrent activation attempts
     // will be rejected because g_armed is already false
     if (g_laser_on) {
-        turn_off_internal();
+        turn_off_internal(false, &activation_event, &activation_cb, &activation_cb_data);
     }
 
     bool state_changed = set_state(LASER_STATE_OFF);
@@ -486,6 +518,9 @@ void laser_controller_disarm(void) {
 
     if (cb) {
         cb(LASER_STATE_OFF, cb_data);
+    }
+    if (activation_cb) {
+        activation_cb(&activation_event, activation_cb_data);
     }
 
     LOG_INFO("Laser disarmed");
@@ -526,9 +561,13 @@ void laser_controller_kill_switch(void) {
 
     LASER_LOCK();
 
+    laser_event_t activation_event;
+    laser_activation_callback_t activation_cb = NULL;
+    void *activation_cb_data = NULL;
+
     // Immediately turn off laser
     if (g_laser_on) {
-        turn_off_internal();
+        turn_off_internal(false, &activation_event, &activation_cb, &activation_cb_data);
     }
 
     g_kill_switch = true;
@@ -549,6 +588,9 @@ void laser_controller_kill_switch(void) {
 
     if (cb) {
         cb(LASER_STATE_EMERGENCY_STOP, cb_data);
+    }
+    if (activation_cb) {
+        activation_cb(&activation_event, activation_cb_data);
     }
 
     LOG_WARN("KILL SWITCH ENGAGED - laser emergency stop");
@@ -657,6 +699,10 @@ void laser_controller_update(void) {
 
     LASER_LOCK();
 
+    laser_event_t activation_event;
+    laser_activation_callback_t activation_cb = NULL;
+    void *activation_cb_data = NULL;
+
     // Local copies of callback for safe invocation outside lock
     // SAFETY-001-7 fix: Copy callback pointer and user_data under lock before invoking
     // This prevents use-after-free if another thread clears the callback while we're calling it
@@ -683,7 +729,7 @@ void laser_controller_update(void) {
                      (unsigned long)elapsed);
 
             timeout_duration = (uint32_t)elapsed;
-            turn_off_internal();
+            turn_off_internal(true, &activation_event, &activation_cb, &activation_cb_data);
             g_safety_timeout_count++;
 
             if (set_state(LASER_STATE_COOLDOWN)) {
@@ -740,6 +786,9 @@ void laser_controller_update(void) {
     if (should_invoke_timeout && timeout_cb != NULL) {
         timeout_cb(timeout_duration, timeout_cb_data);
     }
+    if (activation_cb != NULL) {
+        activation_cb(&activation_event, activation_cb_data);
+    }
 }
 
 void laser_controller_set_state_callback(laser_state_callback_t callback, void *user_data) {
@@ -753,6 +802,13 @@ void laser_controller_set_timeout_callback(laser_timeout_callback_t callback, vo
     LASER_LOCK();
     g_timeout_callback = callback;
     g_timeout_callback_data = user_data;
+    LASER_UNLOCK();
+}
+
+void laser_controller_set_activation_callback(laser_activation_callback_t callback, void *user_data) {
+    LASER_LOCK();
+    g_activation_callback = callback;
+    g_activation_callback_data = user_data;
     LASER_UNLOCK();
 }
 
@@ -789,9 +845,13 @@ void laser_controller_cleanup(void) {
 
     LASER_LOCK();
 
+    laser_event_t activation_event;
+    laser_activation_callback_t activation_cb = NULL;
+    void *activation_cb_data = NULL;
+
     // Turn off laser
     if (g_laser_on) {
-        turn_off_internal();
+        turn_off_internal(false, &activation_event, &activation_cb, &activation_cb_data);
     }
 
     gpio_cleanup_laser();
@@ -799,10 +859,15 @@ void laser_controller_cleanup(void) {
     g_armed = false;
     g_kill_switch = false;
 
+    g_initialized = false;
+
     LASER_UNLOCK();
+
+    if (activation_cb != NULL) {
+        activation_cb(&activation_event, activation_cb_data);
+    }
 
     /* Mutex cleanup handled by platform_mutex lifecycle */
 
-    g_initialized = false;
     LOG_INFO("Laser controller cleanup complete");
 }

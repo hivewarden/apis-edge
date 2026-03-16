@@ -38,6 +38,9 @@ static volatile bool g_initialized = false;
 static volatile target_state_t g_state = TARGET_STATE_IDLE;
 static target_info_t g_current_target;
 static uint64_t g_init_time = 0;
+static volatile bool g_actuation_enabled = true;
+static volatile bool g_would_move = false;
+static volatile bool g_would_fire = false;
 
 // Sweep configuration
 static volatile float g_sweep_amplitude = TARGET_SWEEP_AMPLITUDE_DEG;
@@ -336,17 +339,8 @@ target_status_t targeting_init(void) {
         return TARGET_OK;
     }
 
-    // Validate that required subsystems are initialized
-    if (!servo_controller_is_initialized()) {
-        LOG_ERROR("Targeting requires servo controller to be initialized first");
-        return TARGET_ERROR_HARDWARE;
-    }
     if (!coord_mapper_is_initialized()) {
         LOG_ERROR("Targeting requires coordinate mapper to be initialized first");
-        return TARGET_ERROR_HARDWARE;
-    }
-    if (!laser_controller_is_initialized()) {
-        LOG_ERROR("Targeting requires laser controller to be initialized first");
         return TARGET_ERROR_HARDWARE;
     }
 
@@ -377,8 +371,16 @@ target_status_t targeting_init(void) {
     g_multi_target_count = 0;
     g_sweep_cycles = 0;
     g_total_track_time = 0;
+    g_actuation_enabled = servo_controller_is_initialized() &&
+                          laser_controller_is_initialized() &&
+                          safety_is_initialized();
+    g_would_move = false;
+    g_would_fire = false;
 
     g_initialized = true;
+    if (!g_actuation_enabled) {
+        LOG_INFO("Targeting system initialized in observation-only mode");
+    }
     LOG_INFO("Targeting system initialized");
 
     return TARGET_OK;
@@ -411,12 +413,14 @@ target_status_t targeting_process_detections(const detection_box_t *detections, 
                 LOG_INFO("Target lost after %llu ms", (unsigned long long)track_duration);
 
                 // C7-CRIT-005 fix: Use safety wrapper instead of direct laser call
-                safety_laser_off();
-
-                // Return to home
-                servo_controller_home();
+                if (g_actuation_enabled) {
+                    safety_laser_off();
+                    servo_controller_home();
+                }
 
                 g_current_target.active = false;
+                g_would_move = false;
+                g_would_fire = false;
                 target_state_callback_t cb1 = NULL; void *cb1_data = NULL;
                 set_state(TARGET_STATE_LOST, &cb1, &cb1_data);
 
@@ -471,6 +475,7 @@ target_status_t targeting_process_detections(const detection_box_t *detections, 
 
     // Update target info
     g_current_target.centroid = centroid;
+    g_current_target.track_id = det->id;
     g_current_target.target_angle = target_angle;
     g_current_target.area = det->width * det->height;
     g_current_target.last_seen = now;
@@ -478,16 +483,27 @@ target_status_t targeting_process_detections(const detection_box_t *detections, 
 
     // Apply sweep pattern
     g_current_target.sweep_angle = apply_sweep(target_angle, now);
+    g_would_move = true;
 
-    // Move servos
-    servo_controller_move(g_current_target.sweep_angle);
+    if (g_actuation_enabled) {
+        servo_controller_move(g_current_target.sweep_angle);
+    }
+
+    g_would_fire = laser_controller_is_armed() &&
+                   !laser_controller_is_in_cooldown();
+
+    if (g_state != TARGET_STATE_TRACKING) {
+        set_state(TARGET_STATE_TRACKING, &deferred_cb2, &deferred_cb2_data);
+    }
 
     // Activate laser if armed - MUST go through safety layer (SAFETY-001-1 fix)
     // Direct calls to laser_controller_on() bypass critical safety checks including:
     // tilt validation, detection active check, kill switch, and watchdog
-    if (laser_controller_is_armed()) {
+    if (g_actuation_enabled && laser_controller_is_armed()) {
+        safety_status_t safety_result = SAFETY_OK;
+
         if (!laser_controller_is_active() && !laser_controller_is_in_cooldown()) {
-            safety_status_t safety_result = safety_laser_on();
+            safety_result = safety_laser_on();
             if (safety_result != SAFETY_OK) {
                 // Safety layer blocked laser activation - this is expected behavior
                 // when safety conditions are not met. Log for debugging only.
@@ -496,9 +512,7 @@ target_status_t targeting_process_detections(const detection_box_t *detections, 
             }
         }
 
-        if (g_state != TARGET_STATE_TRACKING) {
-            set_state(TARGET_STATE_TRACKING, &deferred_cb2, &deferred_cb2_data);
-        }
+        g_would_fire = g_would_fire && safety_result == SAFETY_OK;
     }
 
     // C7-H4 fix: Copy acquired callback under lock for deferred invocation
@@ -531,8 +545,9 @@ void targeting_update(void) {
 
     uint64_t now = get_time_ms();
 
-    // Update laser controller
-    laser_controller_update();
+    if (g_actuation_enabled) {
+        laser_controller_update();
+    }
 
     // C7-H4 fix: Collect callbacks for deferred invocation
     target_state_callback_t st_cb1 = NULL; void *st_cb1_data = NULL;
@@ -555,10 +570,14 @@ void targeting_update(void) {
             LOG_INFO("Target lost (timeout) after %llu ms", (unsigned long long)track_duration);
 
             // C7-CRIT-005 fix: Use safety wrapper instead of direct laser call
-            safety_laser_off();
-            servo_controller_home();
+            if (g_actuation_enabled) {
+                safety_laser_off();
+                servo_controller_home();
+            }
 
             g_current_target.active = false;
+            g_would_move = false;
+            g_would_fire = false;
             set_state(TARGET_STATE_LOST, &st_cb1, &st_cb1_data);
 
             // Copy lost callback under lock
@@ -573,26 +592,38 @@ void targeting_update(void) {
         } else {
             // Still tracking - update sweep
             g_current_target.sweep_angle = apply_sweep(g_current_target.target_angle, now);
-            servo_controller_move(g_current_target.sweep_angle);
+            g_would_move = true;
+            if (g_actuation_enabled) {
+                servo_controller_move(g_current_target.sweep_angle);
+            }
         }
     }
 
     // Update state based on cooldown
     if (g_state == TARGET_STATE_TRACKING && laser_controller_is_in_cooldown()) {
         set_state(TARGET_STATE_COOLDOWN, &st_cb3, &st_cb3_data);
+        g_would_fire = false;
     } else if (g_state == TARGET_STATE_COOLDOWN && !laser_controller_is_in_cooldown()) {
         if (g_current_target.active) {
             set_state(TARGET_STATE_TRACKING, &st_cb3, &st_cb3_data);
-            // Re-activate laser - MUST go through safety layer (SAFETY-001-1 fix)
-            safety_status_t safety_result = safety_laser_on();
-            if (safety_result != SAFETY_OK) {
-                LOG_DEBUG("Laser re-activation after cooldown blocked by safety: %s",
-                          safety_status_name(safety_result));
+            g_would_fire = laser_controller_is_armed();
+            if (g_actuation_enabled) {
+                // Re-activate laser - MUST go through safety layer (SAFETY-001-1 fix)
+                safety_status_t safety_result = safety_laser_on();
+                if (safety_result != SAFETY_OK) {
+                    LOG_DEBUG("Laser re-activation after cooldown blocked by safety: %s",
+                              safety_status_name(safety_result));
+                    g_would_fire = false;
+                }
             }
         } else {
             set_state(TARGET_STATE_IDLE, &st_cb3, &st_cb3_data);
+            g_would_fire = false;
         }
     }
+
+    // Capture state before unlock for callback invocation (R-044 fix)
+    target_state_t cb3_state = g_state;
 
     TARGET_UNLOCK();
 
@@ -600,7 +631,7 @@ void targeting_update(void) {
     if (st_cb1) st_cb1(TARGET_STATE_LOST, st_cb1_data);
     if (had_lost_event && lost_cb) lost_cb(lost_duration, lost_cb_data);
     if (st_cb2) st_cb2(TARGET_STATE_IDLE, st_cb2_data);
-    if (st_cb3) st_cb3(g_state, st_cb3_data);
+    if (st_cb3) st_cb3(cb3_state, st_cb3_data);
 }
 
 target_status_t targeting_get_current_target(target_info_t *target) {
@@ -652,10 +683,14 @@ void targeting_cancel(void) {
     }
 
     // C7-CRIT-005 fix: Use safety wrapper instead of direct laser call
-    safety_laser_off();
-    servo_controller_home();
+    if (g_actuation_enabled) {
+        safety_laser_off();
+        servo_controller_home();
+    }
 
     g_current_target.active = false;
+    g_would_move = false;
+    g_would_fire = false;
     target_state_callback_t cb = NULL; void *cb_data = NULL;
     set_state(TARGET_STATE_IDLE, &cb, &cb_data);
 
@@ -722,6 +757,68 @@ void targeting_set_lost_callback(target_lost_callback_t callback, void *user_dat
     TARGET_UNLOCK();
 }
 
+void targeting_set_actuation_enabled(bool enabled) {
+    TARGET_LOCK();
+    if (enabled &&
+        (!servo_controller_is_initialized() ||
+         !laser_controller_is_initialized() ||
+         !safety_is_initialized())) {
+        LOG_WARN("Actuation requested before servo/laser/safety stack is initialized");
+        g_actuation_enabled = false;
+        g_would_move = g_current_target.active;
+        g_would_fire = false;
+        TARGET_UNLOCK();
+        return;
+    }
+
+    g_actuation_enabled = enabled;
+    if (!enabled) {
+        g_would_move = g_current_target.active;
+        g_would_fire = g_current_target.active &&
+                       laser_controller_is_initialized() &&
+                       laser_controller_is_armed() &&
+                       !laser_controller_is_in_cooldown();
+        if (laser_controller_is_initialized() && safety_is_initialized()) {
+            safety_laser_off();
+        }
+        if (servo_controller_is_initialized()) {
+            servo_controller_home();
+        }
+    }
+    TARGET_UNLOCK();
+}
+
+bool targeting_is_actuation_enabled(void) {
+    bool enabled;
+
+    TARGET_LOCK();
+    enabled = g_actuation_enabled;
+    TARGET_UNLOCK();
+
+    return enabled;
+}
+
+target_status_t targeting_get_snapshot(targeting_snapshot_t *snapshot) {
+    if (!g_initialized) {
+        return TARGET_ERROR_NOT_INITIALIZED;
+    }
+    if (snapshot == NULL) {
+        return TARGET_ERROR_INVALID_PARAM;
+    }
+
+    TARGET_LOCK();
+    memset(snapshot, 0, sizeof(*snapshot));
+    snapshot->state = g_state;
+    snapshot->target_active = g_current_target.active;
+    snapshot->actuation_enabled = g_actuation_enabled;
+    snapshot->would_move = g_would_move;
+    snapshot->would_fire = g_would_fire;
+    snapshot->target = g_current_target;
+    TARGET_UNLOCK();
+
+    return TARGET_OK;
+}
+
 target_status_t targeting_get_stats(target_stats_t *stats) {
     if (!g_initialized) {
         return TARGET_ERROR_NOT_INITIALIZED;
@@ -757,8 +854,10 @@ void targeting_cleanup(void) {
     // Cancel any active tracking
     // C7-CRIT-005 fix: Use safety wrapper instead of direct laser call
     if (g_current_target.active) {
-        safety_laser_off();
-        servo_controller_home();
+        if (g_actuation_enabled) {
+            safety_laser_off();
+            servo_controller_home();
+        }
         g_current_target.active = false;
     }
 
@@ -772,5 +871,7 @@ void targeting_cleanup(void) {
 #endif
 
     g_initialized = false;
+    g_would_move = false;
+    g_would_fire = false;
     LOG_INFO("Targeting system cleanup complete");
 }

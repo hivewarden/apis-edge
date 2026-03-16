@@ -232,13 +232,19 @@ coord_status_t coord_mapper_load_calibration(const char *path) {
 
     g_calibration.valid = true;
 
+    // Capture calibration fields for logging before unlock (R-047 fix)
+    float log_offset_pan = g_calibration.offset_pan_deg;
+    float log_offset_tilt = g_calibration.offset_tilt_deg;
+    float log_scale_pan = g_calibration.scale_pan;
+    float log_scale_tilt = g_calibration.scale_tilt;
+
     COORD_UNLOCK();
 
     cJSON_Delete(json);
 
     LOG_INFO("Loaded calibration: offset=(%.2f, %.2f), scale=(%.2f, %.2f)",
-             g_calibration.offset_pan_deg, g_calibration.offset_tilt_deg,
-             g_calibration.scale_pan, g_calibration.scale_tilt);
+             log_offset_pan, log_offset_tilt,
+             log_scale_pan, log_scale_tilt);
 
     return COORD_OK;
 }
